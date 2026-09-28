@@ -606,7 +606,9 @@ impl IndexDatabase {
         let base = self
             .get_snapshot(base_name)?
             .ok_or_else(|| IndexError::SnapshotNotFound(base_name.to_string()))?;
-        let target = if target_name == "current" {
+        let target = if let Some(snap) = self.get_snapshot(target_name)? {
+            snap
+        } else if target_name == "current" {
             let scanner = vacua_scan::FilesystemScanner::new(vacua_scan::ScanOptions {
                 cross_mounts: false,
                 max_depth: None,
@@ -634,8 +636,7 @@ impl IndexDatabase {
                 subtrees,
             }
         } else {
-            self.get_snapshot(target_name)?
-                .ok_or_else(|| IndexError::SnapshotNotFound(target_name.to_string()))?
+            return Err(IndexError::SnapshotNotFound(target_name.to_string()));
         };
 
         let allocated_delta = target.allocated_bytes as i64 - base.allocated_bytes as i64;
