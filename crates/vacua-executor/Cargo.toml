@@ -1,0 +1,24 @@
+[package]
+name = "vacua-executor"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Safe, TOCTOU-verified execution engine and SQLite transaction audit journal for Vacua"
+
+[dependencies]
+vacua-core = { path = "../vacua-core" }
+vacua-plan = { path = "../vacua-plan" }
+vacua-rules = { path = "../vacua-rules" }
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+sysinfo.workspace = true
+libc.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
