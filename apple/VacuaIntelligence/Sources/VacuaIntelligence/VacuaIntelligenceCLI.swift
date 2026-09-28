@@ -8,22 +8,37 @@ struct VacuaIntelligenceCLI {
 
         if args.count > 1 {
             let command = args[1]
+            if command == "--version" || command == "-V" {
+                print("vacua-intelligence 0.1.0")
+                return
+            }
+
             switch command {
             case "status":
                 let availability = provider.checkAvailability()
+                let providerUsed = (availability == .available) ? "apple-on-device" : "deterministic-fallback"
                 let response = IPCResponse(
                     request_id: "cli-status",
                     status: "success",
+                    provider_requested: "apple-on-device",
+                    provider_used: providerUsed,
+                    apple_model_availability: availability.rawValue,
                     availability: availability
                 )
                 outputJSON(response)
 
             case "parse":
                 let prompt = args.dropFirst(2).joined(separator: " ")
+                let availability = provider.checkAvailability()
+                let providerUsed = (availability == .available) ? "apple-on-device" : "deterministic-fallback"
                 let intent = await provider.parseIntent(prompt: prompt)
                 let response = IPCResponse(
                     request_id: "cli-parse",
                     status: "success",
+                    provider_requested: "apple-on-device",
+                    provider_used: providerUsed,
+                    apple_model_availability: availability.rawValue,
+                    availability: availability,
                     intent: intent
                 )
                 outputJSON(response)
@@ -72,21 +87,31 @@ struct VacuaIntelligenceCLI {
         do {
             let request = try JSONDecoder().decode(IPCRequest.self, from: inputData)
             switch request.action {
-            case "check_availability":
+            case "check_availability", "status":
                 let availability = provider.checkAvailability()
+                let providerUsed = (availability == .available) ? "apple-on-device" : "deterministic-fallback"
                 let response = IPCResponse(
                     request_id: request.request_id,
                     status: "success",
+                    provider_requested: "apple-on-device",
+                    provider_used: providerUsed,
+                    apple_model_availability: availability.rawValue,
                     availability: availability
                 )
                 outputJSON(response)
 
-            case "parse_intent":
+            case "parse_intent", "parse":
                 let prompt = request.prompt ?? ""
+                let availability = provider.checkAvailability()
+                let providerUsed = (availability == .available) ? "apple-on-device" : "deterministic-fallback"
                 let intent = await provider.parseIntent(prompt: prompt)
                 let response = IPCResponse(
                     request_id: request.request_id,
                     status: "success",
+                    provider_requested: "apple-on-device",
+                    provider_used: providerUsed,
+                    apple_model_availability: availability.rawValue,
+                    availability: availability,
                     intent: intent
                 )
                 outputJSON(response)

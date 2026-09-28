@@ -18,7 +18,10 @@ vacua-rules = { path = "../vacua-rules" }
 vacua-risk = { path = "../vacua-risk" }
 vacua-plan = { path = "../vacua-plan" }
 vacua-index = { path = "../vacua-index" }
+vacua-executor = { path = "../vacua-executor" }
 clap = { workspace = true }
+clap_complete = { workspace = true }
+chrono = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

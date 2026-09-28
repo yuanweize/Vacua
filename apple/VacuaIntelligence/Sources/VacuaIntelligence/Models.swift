@@ -53,6 +53,9 @@ public struct IPCResponse: Codable {
     public let protocol_version: Int
     public let request_id: String
     public let status: String
+    public let provider_requested: String?
+    public let provider_used: String?
+    public let apple_model_availability: String?
     public let availability: ProviderAvailability?
     public let intent: StructuredIntent?
     public let error_message: String?
@@ -61,6 +64,9 @@ public struct IPCResponse: Codable {
         protocol_version: Int = 1,
         request_id: String,
         status: String,
+        provider_requested: String? = nil,
+        provider_used: String? = nil,
+        apple_model_availability: String? = nil,
         availability: ProviderAvailability? = nil,
         intent: StructuredIntent? = nil,
         error_message: String? = nil
@@ -68,6 +74,9 @@ public struct IPCResponse: Codable {
         self.protocol_version = protocol_version
         self.request_id = request_id
         self.status = status
+        self.provider_requested = provider_requested
+        self.provider_used = provider_used
+        self.apple_model_availability = apple_model_availability
         self.availability = availability
         self.intent = intent
         self.error_message = error_message

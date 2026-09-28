@@ -107,10 +107,16 @@ impl RulesEngine {
             rebuild_consequence: Some(
                 "Xcode will regenerate module caches and index on next build.".into(),
             ),
-            matches: vec![RuleMatch {
-                path: "~/Library/Developer/Xcode/DerivedData/*".into(),
-                file_type: Some("directory".into()),
-            }],
+            matches: vec![
+                RuleMatch {
+                    path: "~/Library/Developer/Xcode/DerivedData/*".into(),
+                    file_type: Some("directory".into()),
+                },
+                RuleMatch {
+                    path: "*/Library/Developer/Xcode/DerivedData/*".into(),
+                    file_type: Some("directory".into()),
+                },
+            ],
             guards: vec![
                 RuleGuard {
                     guard_type: GuardType::ProcessNotRunning,
@@ -169,10 +175,16 @@ impl RulesEngine {
             rebuild_consequence: Some(
                 "Homebrew can re-download packages on demand if ever needed.".into(),
             ),
-            matches: vec![RuleMatch {
-                path: "~/Library/Caches/Homebrew/downloads/*".into(),
-                file_type: None,
-            }],
+            matches: vec![
+                RuleMatch {
+                    path: "~/Library/Caches/Homebrew/downloads/*".into(),
+                    file_type: None,
+                },
+                RuleMatch {
+                    path: "*/Library/Caches/Homebrew/downloads/*".into(),
+                    file_type: None,
+                },
+            ],
             guards: vec![RuleGuard {
                 guard_type: GuardType::ProcessNotRunning,
                 value: "brew".into(),
