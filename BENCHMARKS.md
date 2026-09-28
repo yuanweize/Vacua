@@ -22,7 +22,7 @@
 
 ## 2. Full Traversal: Sequential vs. Bounded Concurrent
 
-Synthetic trees consisting of uniform files (512B – 4KB) across balanced directory fan-outs evaluated under APFS. Peak Resident Set Size (RSS) measured via Darwin `getrusage(RUSAGE_CHILDREN)`.
+Synthetic trees consisting of uniform files (512B – 4KB) across balanced directory fan-outs evaluated under APFS. Peak Resident Set Size (RSS) measured via Darwin `/usr/bin/time -l` (maximum resident set size).
 
 | Workload | Sequential (`-j 1`) | Bounded Concurrent (`-j 8`) | Throughput Delta | Peak RSS (Concurrent) |
 | :--- | :--- | :--- | :--- | :--- |
@@ -30,14 +30,14 @@ Synthetic trees consisting of uniform files (512B – 4KB) across balanced direc
 | **100,000 files** | 0.802s (124,732 files/s) | **0.331s** (**302,239 files/s**) | **2.42x** | 46.9 MB |
 
 ### Key Architectural Takeaways
-1. **Bounded Backpressure**: Memory consumption remains strictly bounded (< 32 MB RSS even on 100k nodes) through bounded `sync_channel(2048)` metadata worker queue.
+1. **Bounded Backpressure**: Memory consumption remains strictly bounded (46.9 MB peak RSS on 100k nodes, 11.4 MB on 10k nodes) through bounded `sync_channel(2048)` metadata worker queue.
 2. **Deterministic Output**: Concurrent parallel traversal collects entries into indexed partitions and deterministically sorts them by path prior to reporting or plan generation.
 
 ---
 
 ## 3. Incremental Index Refresh: Native macOS FSEvents
 
-Evaluates the performance advantage of surgical dirty-subtree rescan via native `FSEventStream` replay versus traversing the entire filesystem root.
+Evaluates the performance behavior of surgical dirty-subtree rescan via native `FSEventStream` replay versus traversing the entire filesystem root.
 
 | Workload | Full Rescan Time | Incremental (No Change) | Incremental (1% Dirty) | Incremental (10% Dirty) | Speedup (Clean vs Full) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -49,5 +49,5 @@ Evaluates the performance advantage of surgical dirty-subtree rescan via native 
 - **Fail-Safe Dropped Event Recovery**: If `kFSEventStreamEventFlagMustScanSubDirs` or buffer overflow occurs, the engine automatically flags the watched root for a full fallback rescan.
 
 > [!NOTE]
-> **Warm-Cache FSEvents Dispatch Latency**:
-> On synthetic trees with warm in-memory page caches where full concurrent traversal completes in sub-second time (0.04s - 0.33s), initializing the native Darwin `FSEventStreamCreate` dispatch queue, flushing the stream, and committing SQLite transactions introduces a baseline overhead of ~150–200ms. On real-world multi-gigabyte home directories with deep hierarchies (e.g., 500k+ files taking 5–15 seconds cold), skipping unmutated subtrees via FSEvents reduces scan time by >90%.
+> **Warm-Cache FSEvents Dispatch Latency & Trade-offs**:
+> On small synthetic trees with warm in-memory page caches where full concurrent traversal completes in sub-second time (0.04s - 0.33s), initializing the native Darwin `FSEventStreamCreate` dispatch queue, flushing the stream, and committing SQLite transactions introduces a baseline overhead of ~150–200ms. Consequently, full scan can be faster on small, hot caches. On large, cold real-world directory trees (where full scan takes seconds or minutes due to disk I/O), targeted dirty subtree reconciliation provides significant architectural advantages.
