@@ -72,15 +72,15 @@ $ vacua history verify
 
 Vacua is an evidence-first storage intelligence engine for macOS designed to reason about ownership, growth, physical block allocation, and rebuild costs before modification:
 
-- **APFS Clone-Aware Allocation Accounting**: Uses Darwin `getattrlist(FSOPT_ATTR_CMN_EXTENDED)` to query kernel clone attributes (`ATTR_CMNEXT_CLONEID | ATTR_CMNEXT_EXT_FLAGS | ATTR_CMNEXT_CLONE_REFCNT`). Distinguishes physical shared clone space from exclusive blocks, preventing copy-on-write files from inflating freeable estimates. Verified by [`clonefile(2)` integration tests](crates/vacua-scan/src/scanner.rs).
+- **APFS Clone-Aware Allocation Accounting**: Uses Darwin `getattrlist(FSOPT_ATTR_CMN_EXTENDED)` to query kernel clone attributes (`ATTR_CMNEXT_CLONEID | ATTR_CMNEXT_EXT_FLAGS | ATTR_CMNEXT_CLONE_REFCNT`). Distinguishes physical shared clone space from exclusive blocks with conservative reclaim bounds, preventing copy-on-write files from inflating freeable estimates. Verified by [`clonefile(2)` integration tests](crates/vacua-scan/src/scanner.rs).
 - **Streaming & Bounded Concurrent Scanner**: Multi-threaded parallel metadata worker pool utilizing bounded `sync_channel(2048)` backpressure and deterministic path-order collation. Achieves >300,000 files/sec with <47 MB peak RSS on 100k nodes. Verified via [calibrated benchmarks](BENCHMARKS.md).
-- **Persistent Incremental Indexing via Darwin FSEvents**: Native CoreServices `FSEventStreamCreate` stream with persistent SQLite event cursors (`watched_roots`), updating dirty subtrees surgically without traversing untouched directories. Verified by [FSEvents integration test](crates/vacua-index/src/fsevents.rs).
-- **Point-in-Time Snapshots & Differential Engine**: Capture historical allocation state and diff space deltas over time (`vacua snapshot create`, `vacua diff baseline current`).
-- **Application Evidence Graph & Orphan Detection**: Multi-signal orphan analysis tracing bundles, receipts, LaunchAgents, Containers, Caches, and Saved State (`vacua apps / leftovers`).
-- **Reclaim Cost Model & What-If Simulation**: Deterministically models rebuild friction and network redownload cost before cleanup (`vacua plan --simulate`).
-- **Storage Intelligence Query Engine (`vacua ask`)**: Natural language query engine grounded strictly in snapshot diffs, candidate evidence vectors, and Reclaim Cost.
-- **Verifiable Execution & Cryptographic Hash Chaining**: Moves items via native macOS Trash (`-[NSFileManager trashItemAtURL:resultingItemURL:error:]`), enforces fail-safe pre-action intent journaling (aborts immediately if audit write fails), and links all execution records into a tamper-evident SHA-256 canonical hash chain (`vacua history verify`).
-- **Bounded On-Device Apple Intelligence**: Direct query of Apple `SystemLanguageModel.default.availability` with real `LanguageModelSession` generation and strictly truthful provenance (`provider_used = "apple-system"` only on real neural inference; zero deletion authority).
+- **Persistent Incremental Indexing via Darwin FSEvents**: Native CoreServices `FSEventStreamCreate` stream with persistent SQLite event cursors (`watched_roots`), updating dirty subtrees surgically without traversing untouched directories. Verified by [FSEvents integration and equivalence tests](crates/vacua-index/src/fsevents.rs).
+- **Point-in-Time Snapshots & Recursive Subtree Diff**: Capture historical allocation state with recursive directory rollup and diff space deltas over time (`vacua snapshot create`, `vacua diff baseline current`).
+- **Application Evidence Graph & Orphan Detection**: Multi-signal orphan analysis tracing bundles, receipts, LaunchAgents/Daemons, Containers, Preferences, Caches, Saved State, and active processes (`vacua apps / leftovers`).
+- **Reclaim Cost Model & What-If Simulation**: Deterministically models rebuild friction, active git projects, and network redownload bounds before cleanup (`vacua plan --simulate`).
+- **Grounded Storage Reasoning Engine (`vacua ask`)**: Natural language query engine grounded strictly in snapshot diffs, candidate evidence vectors, and Reclaim Cost, validated against hallucinated references with zero execution authority.
+- **Verifiable Execution & Cryptographic Hash Chaining**: Moves items via native macOS Trash (`-[NSFileManager trashItemAtURL:resultingItemURL:error:]`), enforces fail-safe pre-action intent journaling (aborts immediately if audit write fails), and links all execution records into a hash-chained integrity verification log (`vacua history verify`).
+- **Bounded On-Device Apple Intelligence**: Direct query of Apple `SystemLanguageModel.default.availability` with real typed `@Generable` guided generation and strictly truthful provenance (`provider_used = "apple-system"` only on real neural inference; zero deletion authority).
 
 ---
 
@@ -95,7 +95,7 @@ Vacua is engineered around a core tenet: **Understand storage before modifying s
 - **Fail-Closed Safety Invariants**: `PROTECTED` locations (`/System`, `~/.ssh`, `~/.gnupg`, `~/Library/Keychains`, `.git/`) and `UNKNOWN` files are unconditionally blocked from automated cleaning.
 - **TOCTOU Protected Execution**: Re-validates live device ID, inode, and modification time immediately before touching any file. If a file changed since the plan was compiled, it is skipped.
 - **Native macOS Trash**: Approved actions invoke native macOS `-[NSFileManager trashItemAtURL:resultingItemURL:error:]` across volumes, preserving the ability to restore files via Finder.
-- **Tamper-Evident Audit Journal**: Every execution records a local SQLite audit transaction forming an unbroken SHA-256 hash chain verified via `vacua history verify`.
+- **Hash-Chained Audit Journal**: Every execution records a local SQLite audit transaction forming an unbroken SHA-256 hash chain verified via `vacua history verify`. *(Note: without a separately protected signing key, the chain detects unsynchronized modifications and broken links rather than preventing complete history rewrites by an attacker with direct database write access).*
 
 ---
 
