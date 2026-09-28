@@ -49,6 +49,29 @@ impl std::fmt::Display for CandidateCategory {
     }
 }
 
+impl CandidateCategory {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            CandidateCategory::Cache => "CACHE",
+            CandidateCategory::Log => "LOG",
+            CandidateCategory::Temporary => "TEMPORARY",
+            CandidateCategory::BuildArtifact => "BUILD_ARTIFACT",
+            CandidateCategory::PackageManagerCache => "PACKAGE_MANAGER_CACHE",
+            CandidateCategory::SimulatorData => "SIMULATOR_DATA",
+            CandidateCategory::ContainerData => "CONTAINER_DATA",
+            CandidateCategory::Download => "DOWNLOAD",
+            CandidateCategory::Installer => "INSTALLER",
+            CandidateCategory::ApplicationLeftover => "APPLICATION_LEFTOVER",
+            CandidateCategory::Duplicate => "DUPLICATE",
+            CandidateCategory::UserDocument => "USER_DOCUMENT",
+            CandidateCategory::Backup => "BACKUP",
+            CandidateCategory::VirtualMachine => "VIRTUAL_MACHINE",
+            CandidateCategory::CloudManaged => "CLOUD_MANAGED",
+            CandidateCategory::Unknown => "UNKNOWN",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Candidate {
     /// Deterministic candidate identifier (e.g. SHA-256 slice of canonical path).

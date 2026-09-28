@@ -35,6 +35,10 @@ impl RiskLevel {
     pub fn is_protected_or_unknown(&self) -> bool {
         matches!(self, RiskLevel::Protected | RiskLevel::Unknown)
     }
+
+    pub fn is_reversible(&self) -> bool {
+        !self.is_protected_or_unknown()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
