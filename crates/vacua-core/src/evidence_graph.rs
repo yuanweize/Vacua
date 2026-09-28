@@ -62,6 +62,7 @@ pub struct OrphanEvaluation {
     pub app_name: String,
     pub bundle_installed: bool,
     pub bundle_path: Option<PathBuf>,
+    pub process_running: bool,
     pub receipt_present: bool,
     pub launch_agents_present: usize,
     pub associated_artifacts_bytes: u64,
@@ -91,14 +92,14 @@ impl ApplicationEvidenceGraph {
         self.edges.push(edge);
     }
 
-    /// Discover application bundles and system residue for standard macOS user directories.
+    /// Discover application bundles and system residue across standard macOS locations.
     pub fn build_from_system() -> Self {
         let mut graph = Self::new();
         let home = std::env::var_os("HOME")
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("/Users/unknown"));
 
-        // 1. Scan /Applications for installed bundles
+        // 1. Scan Application Bundles (/Applications, ~/Applications, /System/Applications)
         let app_dirs = [
             PathBuf::from("/Applications"),
             home.join("Applications"),
@@ -152,7 +153,115 @@ impl ApplicationEvidenceGraph {
             }
         }
 
-        // 2. Scan standard Application Support and Containers directories for residue
+        // 2. Discover Package Receipts from /var/db/receipts
+        let receipts_dir = PathBuf::from("/var/db/receipts");
+        if let Ok(entries) = std::fs::read_dir(receipts_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                let fname = path.file_name().unwrap_or_default().to_string_lossy();
+                if fname.ends_with(".bom") || fname.ends_with(".plist") {
+                    let pkg_id = fname
+                        .trim_end_matches(".bom")
+                        .trim_end_matches(".plist")
+                        .to_string();
+                    let node_id = format!("receipt:{}", pkg_id);
+                    graph.add_node(GraphNode {
+                        id: node_id.clone(),
+                        kind: NodeKind::PackageReceipt,
+                        path: Some(path),
+                        metadata: HashMap::from([("package_id".into(), pkg_id.clone())]),
+                    });
+                    let bid_node = format!("bid:{}", pkg_id);
+                    graph.add_edge(GraphEdge {
+                        source_id: node_id,
+                        target_id: bid_node,
+                        kind: EdgeKind::ReceiptFor,
+                        confidence: 0.95,
+                        reason: "Apple package receipt registered in /var/db/receipts".into(),
+                    });
+                }
+            }
+        }
+
+        // 3. Discover LaunchAgents & LaunchDaemons
+        let launch_dirs = [
+            (home.join("Library/LaunchAgents"), NodeKind::LaunchAgent),
+            (
+                PathBuf::from("/Library/LaunchAgents"),
+                NodeKind::LaunchAgent,
+            ),
+            (
+                PathBuf::from("/Library/LaunchDaemons"),
+                NodeKind::LaunchDaemon,
+            ),
+        ];
+
+        for (ldir, kind) in &launch_dirs {
+            if let Ok(entries) = std::fs::read_dir(ldir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.extension().and_then(|s| s.to_str()) == Some("plist") {
+                        let label = path
+                            .file_stem()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .to_string();
+                        let node_id = format!("launch:{}", path.display());
+                        graph.add_node(GraphNode {
+                            id: node_id.clone(),
+                            kind: kind.clone(),
+                            path: Some(path),
+                            metadata: HashMap::from([("label".into(), label.clone())]),
+                        });
+
+                        let bid_node = format!("bid:{}", label);
+                        graph.add_edge(GraphEdge {
+                            source_id: node_id,
+                            target_id: bid_node,
+                            kind: EdgeKind::LaunchedBy,
+                            confidence: 0.90,
+                            reason: format!(
+                                "Launch plist service registered under {}",
+                                ldir.display()
+                            ),
+                        });
+                    }
+                }
+            }
+        }
+
+        // 4. Discover Preferences (~/Library/Preferences/*.plist)
+        let pref_dir = home.join("Library/Preferences");
+        if let Ok(entries) = std::fs::read_dir(pref_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|s| s.to_str()) == Some("plist") {
+                    let bid = path
+                        .file_stem()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .to_string();
+                    let node_id = format!("pref:{}", path.display());
+                    graph.add_node(GraphNode {
+                        id: node_id.clone(),
+                        kind: NodeKind::Preferences,
+                        path: Some(path),
+                        metadata: HashMap::from([("bundle_id".into(), bid.clone())]),
+                    });
+
+                    let bid_node = format!("bid:{}", bid);
+                    graph.add_edge(GraphEdge {
+                        source_id: node_id,
+                        target_id: bid_node,
+                        kind: EdgeKind::AssociatedWith,
+                        confidence: 0.85,
+                        reason: "User domain preference plist".into(),
+                    });
+                }
+            }
+        }
+
+        // 5. Scan Application Support, Containers, Caches, Saved Application State
         let residue_roots = [
             (
                 home.join("Library/Application Support"),
@@ -226,7 +335,7 @@ impl ApplicationEvidenceGraph {
         graph
     }
 
-    /// Evaluates if a given bundle ID represents an uninstalled orphan application.
+    /// Evaluates if a given bundle ID represents an uninstalled orphan application using multi-signal scoring.
     pub fn evaluate_orphan(&self, bundle_id: &str) -> OrphanEvaluation {
         let bundle_key = format!("bundle:{}", bundle_id);
         let bundle_node = self.nodes.get(&bundle_key);
@@ -237,9 +346,32 @@ impl ApplicationEvidenceGraph {
         let mut associated_paths = Vec::new();
         let mut total_bytes = 0u64;
 
+        let mut receipt_present = false;
+        let mut launch_agents_present = 0usize;
+        let mut has_app_support_or_container = false;
+        let mut has_preferences = false;
+        let mut has_saved_state = false;
+        let mut has_cache = false;
+
         for edge in &self.edges {
             if edge.target_id == bid_key {
                 if let Some(node) = self.nodes.get(&edge.source_id) {
+                    match node.kind {
+                        NodeKind::PackageReceipt => receipt_present = true,
+                        NodeKind::LaunchAgent | NodeKind::LaunchDaemon => {
+                            launch_agents_present += 1;
+                        }
+                        NodeKind::ApplicationSupport
+                        | NodeKind::Container
+                        | NodeKind::GroupContainer => {
+                            has_app_support_or_container = true;
+                        }
+                        NodeKind::Preferences => has_preferences = true,
+                        NodeKind::SavedState => has_saved_state = true,
+                        NodeKind::Cache => has_cache = true,
+                        _ => {}
+                    }
+
                     if let Some(ref p) = node.path {
                         if p.exists() {
                             associated_paths.push(p.clone());
@@ -252,20 +384,62 @@ impl ApplicationEvidenceGraph {
             }
         }
 
-        let orphan_confidence = if bundle_installed {
-            OrphanConfidence::NotOrphan
-        } else if !associated_paths.is_empty() {
+        let app_name = bundle_node
+            .and_then(|n| n.metadata.get("name").cloned())
+            .unwrap_or_else(|| bundle_id.to_string());
+
+        let process_running = is_process_running(bundle_id, &app_name);
+
+        // Deterministic multi-factor scoring
+        let mut orphan_score: i32 = 0;
+        if bundle_installed {
+            orphan_score -= 100;
+        }
+        if process_running {
+            orphan_score -= 100;
+        }
+        if launch_agents_present > 0 {
+            orphan_score -= 50;
+        }
+        if receipt_present {
+            orphan_score -= 30;
+        }
+
+        if !bundle_installed && !process_running {
+            if has_app_support_or_container {
+                orphan_score += 40;
+            }
+            if has_preferences {
+                orphan_score += 15;
+            }
+            if has_saved_state {
+                orphan_score += 15;
+            }
+            if has_cache {
+                orphan_score += 10;
+            }
+            if !associated_paths.is_empty() {
+                orphan_score += 10;
+            }
+        }
+
+        let orphan_confidence = if orphan_score >= 50 {
             OrphanConfidence::High
-        } else {
+        } else if orphan_score >= 25 {
+            OrphanConfidence::Medium
+        } else if orphan_score > 0 {
             OrphanConfidence::Low
+        } else {
+            OrphanConfidence::NotOrphan
         };
 
-        let risk_level = if orphan_confidence == OrphanConfidence::High {
-            RiskLevel::Review // Residual orphans require user review, never silent destruction
-        } else if bundle_installed {
-            RiskLevel::Protected // Installed app residue is protected by default
-        } else {
+        // Safety invariant: Active or installed apps are Protected. Uninstalled residue is REVIEW (never Safe).
+        let risk_level = if bundle_installed || process_running {
+            RiskLevel::Protected
+        } else if orphan_confidence != OrphanConfidence::NotOrphan {
             RiskLevel::Review
+        } else {
+            RiskLevel::Protected
         };
 
         let explanation = if bundle_installed {
@@ -273,28 +447,32 @@ impl ApplicationEvidenceGraph {
                 "Application bundle is currently installed at {:?}",
                 bundle_path
             )
-        } else if orphan_confidence == OrphanConfidence::High {
+        } else if process_running {
             format!(
-                "Application bundle '{}' is uninstalled, but {} associated residue artifacts remain ({} bytes)",
+                "Process for '{}' is actively running in macOS memory",
+                app_name
+            )
+        } else if orphan_confidence != OrphanConfidence::NotOrphan {
+            format!(
+                "Application bundle '{}' is absent, but {} residue signals remain ({} bytes, receipt: {}, launch_agents: {})",
                 bundle_id,
                 associated_paths.len(),
-                total_bytes
+                total_bytes,
+                receipt_present,
+                launch_agents_present
             )
         } else {
-            "No associated residue found".to_string()
+            "No active residue signals found".to_string()
         };
-
-        let app_name = bundle_node
-            .and_then(|n| n.metadata.get("name").cloned())
-            .unwrap_or_else(|| bundle_id.to_string());
 
         OrphanEvaluation {
             bundle_id: bundle_id.to_string(),
             app_name,
             bundle_installed,
             bundle_path,
-            receipt_present: false,
-            launch_agents_present: 0,
+            process_running,
+            receipt_present,
+            launch_agents_present,
             associated_artifacts_bytes: total_bytes,
             artifact_paths: associated_paths,
             orphan_confidence,
@@ -304,6 +482,26 @@ impl ApplicationEvidenceGraph {
     }
 }
 
+/// Helper to check if a process matching bundle ID or app name is running.
+fn is_process_running(bundle_id: &str, app_name: &str) -> bool {
+    if let Ok(output) = std::process::Command::new("/bin/ps")
+        .args(["-axo", "comm"])
+        .output()
+    {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        for line in stdout.lines() {
+            let line_trimmed = line.trim();
+            if !line_trimmed.is_empty()
+                && (line_trimmed.contains(bundle_id)
+                    || (!app_name.is_empty() && line_trimmed.contains(app_name)))
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 /// Helper to read CFBundleIdentifier from Info.plist of an app bundle.
 fn read_bundle_id(app_path: &Path) -> Option<String> {
     let plist_path = app_path.join("Contents/Info.plist");
@@ -311,7 +509,6 @@ fn read_bundle_id(app_path: &Path) -> Option<String> {
         return None;
     }
     if let Ok(content) = std::fs::read_to_string(&plist_path) {
-        // Lightweight XML / string parse for CFBundleIdentifier
         if let Some(pos) = content.find("CFBundleIdentifier") {
             let rest = &content[pos..];
             if let Some(start) = rest.find("<string>") {
@@ -368,5 +565,45 @@ mod tests {
         assert_eq!(eval.orphan_confidence, OrphanConfidence::High);
         assert_eq!(eval.risk_level, RiskLevel::Review);
         assert!(eval.associated_artifacts_bytes > 0);
+    }
+
+    #[test]
+    fn test_multi_signal_graph_discovery() {
+        let mut graph = ApplicationEvidenceGraph::new();
+
+        // Add receipt and launch agent nodes
+        graph.add_node(GraphNode {
+            id: "receipt:com.test.daemon".into(),
+            kind: NodeKind::PackageReceipt,
+            path: None,
+            metadata: HashMap::new(),
+        });
+        graph.add_edge(GraphEdge {
+            source_id: "receipt:com.test.daemon".into(),
+            target_id: "bid:com.test.daemon".into(),
+            kind: EdgeKind::ReceiptFor,
+            confidence: 0.95,
+            reason: "Registered package receipt".into(),
+        });
+
+        graph.add_node(GraphNode {
+            id: "launch:com.test.daemon".into(),
+            kind: NodeKind::LaunchDaemon,
+            path: None,
+            metadata: HashMap::new(),
+        });
+        graph.add_edge(GraphEdge {
+            source_id: "launch:com.test.daemon".into(),
+            target_id: "bid:com.test.daemon".into(),
+            kind: EdgeKind::LaunchedBy,
+            confidence: 0.90,
+            reason: "Launch daemon plist".into(),
+        });
+
+        let eval = graph.evaluate_orphan("com.test.daemon");
+        assert!(eval.receipt_present);
+        assert_eq!(eval.launch_agents_present, 1);
+        // Because of launch agent and receipt without artifacts, score <= 0 -> NotOrphan
+        assert_eq!(eval.orphan_confidence, OrphanConfidence::NotOrphan);
     }
 }
