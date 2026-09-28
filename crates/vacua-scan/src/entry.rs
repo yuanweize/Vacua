@@ -19,6 +19,21 @@ pub struct ScannedEntry {
     pub ctime_sec: i64,
 }
 
+impl ScannedEntry {
+    /// Converts scanned metadata into full AllocationInfo preserving APFS clone identifiers,
+    /// reference counts, and sparse characteristics.
+    pub fn to_allocation(&self) -> vacua_core::AllocationInfo {
+        vacua_core::AllocationInfo::new_with_clone(
+            self.logical_bytes,
+            self.allocated_bytes,
+            self.clone_id,
+            self.clone_refcnt,
+            self.is_clone,
+            self.is_sparse,
+        )
+    }
+}
+
 #[cfg(target_os = "macos")]
 #[repr(C)]
 #[derive(Default)]
