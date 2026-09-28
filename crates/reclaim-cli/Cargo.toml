@@ -1,0 +1,24 @@
+[package]
+name = "reclaim-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "reclaim"
+path = "src/main.rs"
+
+[dependencies]
+reclaim-core = { path = "../reclaim-core" }
+reclaim-scan = { path = "../reclaim-scan" }
+reclaim-rules = { path = "../reclaim-rules" }
+reclaim-risk = { path = "../reclaim-risk" }
+reclaim-plan = { path = "../reclaim-plan" }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

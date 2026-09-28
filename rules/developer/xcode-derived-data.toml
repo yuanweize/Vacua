@@ -1,0 +1,24 @@
+schema_version = 1
+id = "apple.xcode.derived-data"
+name = "Xcode DerivedData"
+description = "Intermediate build products, module caches, and symbol index data generated during Xcode compilations."
+category = "build_artifact"
+risk = "safe"
+reconstructable = true
+rebuild_consequence = "Xcode will regenerate build products and indices on next project compilation."
+
+[references]
+author = "Project Reclaim Maintainers"
+docs = "https://developer.apple.com/documentation/xcode"
+
+[[matches]]
+path = "~/Library/Developer/Xcode/DerivedData/*"
+file_type = "directory"
+
+[[guards]]
+type = "process_not_running"
+value = "xcodebuild"
+
+[[guards]]
+type = "process_not_running"
+value = "Xcode"

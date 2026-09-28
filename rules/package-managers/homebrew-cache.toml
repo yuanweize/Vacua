@@ -1,0 +1,19 @@
+schema_version = 1
+id = "homebrew.download-cache"
+name = "Homebrew Download Cache"
+description = "Cached bottle binaries and source tarballs downloaded during formula installation."
+category = "package_manager_cache"
+risk = "safe"
+reconstructable = true
+rebuild_consequence = "Homebrew will download bottles from GitHub Releases / CDN if reinstalled."
+
+[references]
+author = "Project Reclaim Maintainers"
+docs = "https://docs.brew.sh"
+
+[[matches]]
+path = "~/Library/Caches/Homebrew/downloads/*"
+
+[[guards]]
+type = "process_not_running"
+value = "brew"

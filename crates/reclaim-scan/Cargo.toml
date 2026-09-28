@@ -1,0 +1,16 @@
+[package]
+name = "reclaim-scan"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+reclaim-core = { path = "../reclaim-core" }
+serde = { workspace = true }
+walkdir = { workspace = true }
+libc = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

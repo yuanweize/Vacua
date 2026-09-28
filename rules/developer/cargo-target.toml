@@ -1,0 +1,24 @@
+schema_version = 1
+id = "rust.cargo.target"
+name = "Cargo Target Directory"
+description = "Compiled Rust binaries, intermediate crates, and incremental build cache."
+category = "build_artifact"
+risk = "review"
+reconstructable = true
+rebuild_consequence = "Cargo will recompile crates from source upon next cargo build or cargo test."
+
+[references]
+author = "Project Reclaim Maintainers"
+docs = "https://doc.rust-lang.org/cargo/guide/build-cache.html"
+
+[[matches]]
+path = "*/target"
+file_type = "directory"
+
+[[guards]]
+type = "process_not_running"
+value = "cargo"
+
+[[guards]]
+type = "process_not_running"
+value = "rustc"
