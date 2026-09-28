@@ -122,6 +122,18 @@ cargo build --release --bin vacua
 # Analyze storage allocation under current directory
 ./target/release/vacua scan .
 
+# Update persistent SQLite metadata index incrementally
+./target/release/vacua scan --incremental .
+
+# Inspect local index status
+./target/release/vacua index status
+
+# Query on-device Apple Intelligence status
+./target/release/vacua intelligence status
+
+# Parse natural language cleanup query into typed StructuredIntent
+./target/release/vacua intelligence parse "free 10 GB safely, don't touch Docker"
+
 # Diagnose system storage pressure, APFS metrics, and Full Disk Access
 ./target/release/vacua doctor
 
@@ -137,6 +149,19 @@ cargo build --release --bin vacua
 # Machine-readable output for scripts and agents
 ./target/release/vacua --json scan .
 ```
+
+---
+
+## Local Intelligence
+
+Vacua includes a provider-neutral intelligence layer with an on-device Apple Foundation Models prototype (`apple/VacuaIntelligence`). It translates conversational cleanup queries into strongly typed, policy-bounded `StructuredIntent` structures.
+
+The model never receives deletion authority:
+- **AI proposes intent.**
+- **The policy engine validates it.**
+- **The user approves execution.**
+
+*(Apple Foundation Models integration is experimental; on-device availability varies by macOS version and Apple Intelligence readiness. Fallback to deterministic parser is automatic).*
 
 ---
 

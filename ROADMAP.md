@@ -34,13 +34,13 @@ The development of Vacua is divided into 7 distinct, sequential phases. Per our 
 ---
 
 ## Phase 2: Incremental Indexing, FSEvents & Intelligence Layer
-- [ ] SQLite metadata index for cached filesystem fingerprints (`vacua-index`).
-- [ ] macOS `FSEvents` stream listener for surgical incremental dirty-tree detection.
-- [ ] StructuredIntent shared JSON schema (`schemas/structured-intent-v1.json`).
-- [ ] Apple Foundation Models on-device intelligence prototype (`apple/VacuaIntelligence`).
-- [ ] Provider-neutral intelligence abstraction architecture.
-- [ ] Safe execution engine via macOS Trash (`FileManager.trashItem`).
-- [ ] Structured SQLite transaction audit log.
+- [x] SQLite metadata index for cached filesystem fingerprints (`vacua-index`).
+- [x] macOS `FSEvents` stream listener foundation for surgical incremental dirty-tree detection (`vacua-index::fsevents`).
+- [x] StructuredIntent shared JSON schema (`schemas/structured-intent-v1.json`).
+- [x] Apple Foundation Models on-device intelligence prototype (`apple/VacuaIntelligence`).
+- [x] Provider-neutral intelligence abstraction architecture (`docs/INTELLIGENCE.md`).
+- [ ] Safe execution engine via macOS Trash (`FileManager.trashItem`) (Phase 2B).
+- [ ] Structured SQLite transaction audit log (Phase 2B).
 
 ---
 

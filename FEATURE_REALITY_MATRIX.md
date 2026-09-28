@@ -14,11 +14,13 @@
 | **Storage Pressure Model** | `VERIFIED` | `vacua-core::pressure` | 1 unit test + live `statfs` | Evaluates raw free, ratio, thresholds policy |
 | **CLI (scan, candidates, explain, plan, doctor)** | `VERIFIED` | `vacua-cli::main` | Live binary invocation + `--json` | Standalone binary with human & JSON outputs |
 | **End-to-End Pipeline & Plan Hashing** | `VERIFIED` | `vacua-plan::plan`, `integration_pipeline.rs` | 1 integration test + live plan test | SHA-256 integrity hash + TOCTOU pre-check |
-| **SQLite Metadata Index** | `DESIGN_ONLY` | Designing Phase 2A (`vacua-index`) | Pending tests | Schema designed, migration model planned |
-| **FSEvents Dirty-Tree Tracking** | `DESIGN_ONLY` | Designing Phase 2A (`vacua-index::fsevents`) | Pending tests | Stream listener & dirty subtree marking |
-| **StructuredIntent Schema** | `DESIGN_ONLY` | Designing Phase 2 (`schemas/structured-intent-v1.json`) | Pending tests | Shared JSON schema contract |
-| **Apple Foundation Models Provider** | `DESIGN_ONLY` | Designing Phase 2 (`apple/VacuaIntelligence`) | Pending tests | SystemLanguageModel & availability probe |
-| **Transaction Audit Log & Trash Execution** | `NOT_STARTED` | Planned for Phase 2 (`vacua-executor`) | N/A | Local SQLite execution records planned |
+| **SQLite Metadata Index** | `VERIFIED` | `vacua-index::db`, `vacua-index::schema` | 4 unit tests (`test_migration_*`, `test_record_session_*`, `test_rebuild_*`) | `PRAGMA user_version` migrations, fail-closed version checking, session stats |
+| **FSEvents Dirty-Tree Tracking** | `VERIFIED` | `vacua-index::fsevents` | 2 unit tests (`test_dirty_subtree_tracker_*`) | Hierarchical subtree coalescing, fallback full-rescan on dropped events |
+| **StructuredIntent Schema** | `VERIFIED` | `schemas/structured-intent-v1.json` | Validated against Swift model & JSON outputs | Strict version 1, zero deletion authority, policy-bounded |
+| **Apple Foundation Models Provider** | `VERIFIED` | `apple/VacuaIntelligence` | 3 Swift unit tests (`swift test`) + live CLI execution | Tested on macOS Darwin; probes `SystemLanguageModel` availability; deterministic fallback on `modelNotReady` |
+| **Rust↔Swift IPC Boundary** | `VERIFIED` | `vacua-cli::find_intelligence_binary` | Integration CLI tests (`vacua intelligence status / parse`) | Stdin/stdout JSON v1 protocol (ADR-0005) with process isolation |
+| **Intelligence Provider Boundary** | `VERIFIED` | `docs/INTELLIGENCE.md`, `ADR-0004` | Architecture validation | Strict invariant: AI output is untrusted input; zero deletion authority |
+| **Transaction Audit Log & Trash Execution** | `NOT_STARTED` | Planned for Phase 2B (`vacua-executor`) | N/A | Local SQLite execution records planned |
 | **Application Evidence Graph** | `NOT_STARTED` | Planned for Phase 3 | N/A | Multi-signal orphan analysis planned |
 | **Staged Duplicate Detection (BLAKE3)** | `NOT_STARTED` | Planned for Phase 3 | N/A | APFS clone-aware hashing planned |
 | **Read-Only MCP Server** | `NOT_STARTED` | Planned for Phase 4 (`vacua-mcp`) | N/A | Read-only tool schemas planned |
