@@ -1,5 +1,9 @@
 /target/
+.build/
 **/*.rs.bk
 *.swp
 .DS_Store
 *.photoslibrary
+*.db
+*.db-shm
+*.db-wal

@@ -6,6 +6,7 @@ members = [
     "crates/vacua-risk",
     "crates/vacua-plan",
     "crates/vacua-cli",
+    "crates/vacua-index",
 ]
 resolver = "2"
 

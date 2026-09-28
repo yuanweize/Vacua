@@ -1,5 +1,5 @@
 [package]
-name = "vacua-cli"
+name = "vacua-index"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -7,21 +7,15 @@ license.workspace = true
 repository.workspace = true
 homepage.workspace = true
 
-[[bin]]
-name = "vacua"
-path = "src/main.rs"
-
 [dependencies]
 vacua-core = { path = "../vacua-core" }
 vacua-scan = { path = "../vacua-scan" }
-vacua-rules = { path = "../vacua-rules" }
 vacua-risk = { path = "../vacua-risk" }
-vacua-plan = { path = "../vacua-plan" }
-vacua-index = { path = "../vacua-index" }
-clap = { workspace = true }
+rusqlite = { workspace = true }
 serde = { workspace = true }
-serde_json = { workspace = true }
+chrono = { workspace = true }
 thiserror = { workspace = true }
+libc = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
