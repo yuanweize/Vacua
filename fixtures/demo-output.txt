@@ -1,0 +1,86 @@
+$ vacua scan ~/demo-home
+
+Storage Scan Report
+==================================================
+Target Path:         ~/demo-home
+Files Scanned:       7
+Directories:         24
+Symlinks:            0
+Sparse Files:        0
+Logical Content:     7.50 MiB
+Physical Allocated:  7.51 MiB
+Allocation Delta:    9.36 KiB (due to sparsity/block overhead)
+==================================================
+
+
+$ vacua candidates ~/demo-home --risk safe
+
+Storage Cleanup Candidates (Max Risk: Safe)
+==================================================================================
+[b8c6db3d3d27] SAFE     BUILD_ARTIFACT        0 B  ~/demo-home/Library/Developer/Xcode/DerivedData/VacuaApp-bwefnxkzps
+[c64cf5b59cee] SAFE     BUILD_ARTIFACT        0 B  ~/demo-home/Library/Developer/Xcode/DerivedData/VacuaApp-bwefnxkzps/Index.noindex
+[6a3b6ede8f81] SAFE     BUILD_ARTIFACT        0 B  ~/demo-home/Library/Developer/Xcode/DerivedData/VacuaApp-bwefnxkzps/Build
+[b9a4fbf7dca5] SAFE     PACKAGE_MANAGER_CACHE   2.00 MiB  ~/demo-home/Library/Caches/Homebrew/downloads/node--22.2.0.arm64_sequoia.bottle.tar.gz
+==================================================================================
+
+
+$ vacua explain b9a4fbf7dca5 --path ~/demo-home
+
+Candidate Explanation: [b9a4fbf7dca5]
+--------------------------------------------------
+Path:             ~/demo-home/Library/Caches/Homebrew/downloads/node--22.2.0.arm64_sequoia.bottle.tar.gz
+Category:         PACKAGE_MANAGER_CACHE
+Risk:             SAFE
+Recommendation:   NEGLIGIBLE
+Confidence Score: 0.95
+Physical Space:   2.00 MiB
+Reconstructable:  Yes
+Rebuild Effect:   Homebrew can re-download packages on demand if ever needed.
+
+Evidence Vector:
+  * [RuleEngine] (weight 0.95): Homebrew Download Cache: Downloaded bottles and tarballs cached by Homebrew.
+  * [Reconstructability] (weight 0.90): Homebrew can re-download packages on demand if ever needed.
+--------------------------------------------------
+
+
+$ vacua plan ~/demo-home -o plan.json
+Immutable cleanup plan saved to: plan.json
+
+Immutable Cleanup Plan Generated
+==================================================
+Plan ID:                plan-441f05e36920
+Created At:             2026-09-28T21:36:30.451344+00:00
+Plan Integrity Hash:    441f05e36920a98ef3400e1acfc6603cf36576ac617ca95ac5d3cee01666cb74
+Items Included:         4
+Est. Physical Reclaim:  2.00 MiB
+Risk Breakdown:
+  - SAFE:   4 items (2.00 MiB)
+  - REVIEW: 0 items (0 B)
+==================================================
+
+
+$ vacua execute plan.json --dry-run
+
+Cleanup Plan Execution Preview
+==================================================
+Plan ID:             plan-441f05e36920
+Created:             2026-09-28 21:36:30.451344 UTC
+Plan Hash:           441f05e36920a98e
+Items to Process:    4
+Estimated Reclaim:   2.00 MiB
+Safe Items:          4
+Review Items:        0
+Caution Items:       0
+Action Mode:         DRY RUN (Simulate only, no mutations)
+==================================================
+
+Execution Summary (DRY RUN)
+──────────────────────────────────────────────────
+Transaction ID:      tx-1790631390456
+Total Planned:       4
+Successfully Moved:  4
+Skipped (Guards):    0
+Failed:              0
+Total Reclaimed:     2.00 MiB
+──────────────────────────────────────────────────
+
