@@ -8,7 +8,7 @@ reconstructable = true
 rebuild_consequence = "Xcode will regenerate build products and indices on next project compilation."
 
 [references]
-author = "Project Reclaim Maintainers"
+author = "Vacua Maintainers"
 docs = "https://developer.apple.com/documentation/xcode"
 
 [[matches]]

@@ -1,12 +1,12 @@
 use sha2::{Digest, Sha256};
 use std::path::Path;
 
-use reclaim_core::allocation::AllocationInfo;
-use reclaim_core::candidate::{Candidate, CandidateCategory};
-use reclaim_core::evidence::{Evidence, EvidenceSource};
-use reclaim_core::invariants::{enforce_safety_invariants, is_protected_path};
-use reclaim_core::risk::{RecommendationValue, RiskLevel};
-use reclaim_rules::engine::RulesEngine;
+use vacua_core::allocation::AllocationInfo;
+use vacua_core::candidate::{Candidate, CandidateCategory};
+use vacua_core::evidence::{Evidence, EvidenceSource};
+use vacua_core::invariants::{enforce_safety_invariants, is_protected_path};
+use vacua_core::risk::{RecommendationValue, RiskLevel};
+use vacua_rules::engine::RulesEngine;
 
 pub struct CandidateEvaluator<'a> {
     rules_engine: &'a mut RulesEngine,

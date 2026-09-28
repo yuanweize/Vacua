@@ -1,7 +1,7 @@
 use glob::Pattern;
-use reclaim_core::candidate::CandidateCategory;
-use reclaim_core::risk::RiskLevel;
 use std::path::Path;
+use vacua_core::candidate::CandidateCategory;
+use vacua_core::risk::RiskLevel;
 
 use crate::guard::{expand_tilde, GuardEvaluator};
 use crate::rule::{GuardType, Rule, RuleGuard, RuleMatch};

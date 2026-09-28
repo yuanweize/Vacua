@@ -8,7 +8,7 @@ Traditional disk cleaning utilities frequently suffer from two fatal failure mod
 1. **Opaque Aggressive Heuristics**: Deleting files based solely on superficial directory names (e.g., `~/Library/Caches/*` or `~/Library/Application Support/*`), resulting in broken application states, lost browser sessions, corrupted email indices, or missing user documents.
 2. **Conflating Size with Safety**: Treating huge directories (e.g., an 18 GB Docker image or a 20 GB local virtual machine disk) as "prime candidates for immediate automatic cleanup" simply because reclaiming them increases marketing numbers, even though doing so could destroy critical user workflows.
 
-We need a formal decision on how storage items are evaluated, classified, and approved for cleanup.
+We need a formal decision on how storage items are evaluated, classified, and approved for cleanup in Vacua.
 
 ## Decision
 
@@ -44,11 +44,3 @@ A 30 GB Docker volume might have `Value: HIGH` and `Risk: REVIEW`. Its high valu
 
 ### 5. Terminology Honesty
 Non-calibrated scoring metrics must be exposed in CLI and UI as `confidence score` (e.g. `Score: 0.95`), never as a falsified `95% probability`.
-
-## Consequences
-- **Positive**:
-  - Predictable, repeatable behavior across all user runs.
-  - Zero chance of catastrophic accidental deletion of critical credentials, code, or databases.
-  - Transparent explanations give users complete trust and understanding.
-- **Negative / Mitigations**:
-  - Conservative classification may leave unclassified files in `UNKNOWN`. *Mitigation*: Users can inspect items, define custom declarative rules, or manually choose to trash specific review items.

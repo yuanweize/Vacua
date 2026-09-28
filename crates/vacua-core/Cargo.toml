@@ -1,9 +1,11 @@
 [package]
-name = "reclaim-core"
+name = "vacua-core"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
 
 [dependencies]
 serde = { workspace = true }

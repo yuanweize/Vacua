@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 use crate::entry::ScannedEntry;
-use reclaim_core::allocation::AllocationInfo;
+use vacua_core::allocation::AllocationInfo;
 
 #[derive(Debug, Clone, Default)]
 pub struct ScanOptions {

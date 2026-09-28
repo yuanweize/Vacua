@@ -1,20 +1,22 @@
 [package]
-name = "reclaim-cli"
+name = "vacua-cli"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
 
 [[bin]]
-name = "reclaim"
+name = "vacua"
 path = "src/main.rs"
 
 [dependencies]
-reclaim-core = { path = "../reclaim-core" }
-reclaim-scan = { path = "../reclaim-scan" }
-reclaim-rules = { path = "../reclaim-rules" }
-reclaim-risk = { path = "../reclaim-risk" }
-reclaim-plan = { path = "../reclaim-plan" }
+vacua-core = { path = "../vacua-core" }
+vacua-scan = { path = "../vacua-scan" }
+vacua-rules = { path = "../vacua-rules" }
+vacua-risk = { path = "../vacua-risk" }
+vacua-plan = { path = "../vacua-plan" }
 clap = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -1,6 +1,6 @@
 # Declarative Rule Format (v1)
 
-Project Reclaim uses declarative TOML data files for defining storage classification rules. **Rules are strictly data, never executable scripts or shell commands.**
+Vacua uses declarative TOML data files for defining storage classification rules. **Rules are strictly data, never executable scripts or shell commands.**
 
 ---
 
@@ -19,7 +19,7 @@ reconstructable = true
 rebuild_consequence = "Next compilation in Xcode will rebuild necessary index and build products."
 
 [references]
-author = "Project Reclaim Maintainers"
+author = "Vacua Maintainers"
 docs = "https://developer.apple.com/documentation/xcode"
 
 [[matches]]
@@ -64,9 +64,6 @@ value = "0"
 
 Guards prevent rules from triggering when an environment is actively using the target:
 
-1. `process_not_running`:
-   - Checks the system process table (`sysinfo`). If any active process matches the name, the rule matching is rejected.
-2. `min_age_days`:
-   - Checks the target's `mtime` or `atime`. If the file was modified within the specified number of days, the rule does not apply.
-3. `path_exists`:
-   - Requires a secondary companion path to exist (e.g. verifying an uninstalled application is truly absent).
+1. `process_not_running`: Checks system process table (`sysinfo`).
+2. `min_age_days`: Checks target `mtime` staleness in days.
+3. `path_exists`: Requires companion path to exist.

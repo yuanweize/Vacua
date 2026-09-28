@@ -2,22 +2,22 @@ use clap::{Parser, Subcommand, ValueEnum};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
-use reclaim_core::allocation::AllocationInfo;
-use reclaim_core::candidate::Candidate;
-use reclaim_core::pressure::{query_volume_status, VolumeStorageStatus};
-use reclaim_core::risk::RiskLevel;
-use reclaim_plan::CleanupPlan;
-use reclaim_risk::CandidateEvaluator;
-use reclaim_rules::engine::RulesEngine;
-use reclaim_scan::{FilesystemScanner, ScanOptions};
+use vacua_core::allocation::AllocationInfo;
+use vacua_core::candidate::Candidate;
+use vacua_core::pressure::{query_volume_status, VolumeStorageStatus};
+use vacua_core::risk::RiskLevel;
+use vacua_plan::CleanupPlan;
+use vacua_risk::CandidateEvaluator;
+use vacua_rules::engine::RulesEngine;
+use vacua_scan::{FilesystemScanner, ScanOptions};
 
 #[derive(Parser)]
 #[command(
-    name = "reclaim",
-    author = "Project Reclaim Contributors",
+    name = "vacua",
+    author = "Weize Yuan <iyuanweize@gmail.com>, Vacua Contributors",
     version,
-    about = "An explainable, safety-first storage intelligence engine for macOS",
-    long_about = "Project Reclaim helps you understand macOS storage allocation with true APFS block metrics, deterministic evidence, and immutable cleanup plans."
+    about = "Storage intelligence for macOS",
+    long_about = "Vacua helps you understand macOS storage allocation with true APFS block metrics, deterministic evidence, and immutable cleanup plans."
 )]
 struct Cli {
     #[arg(long, global = true, help = "Output machine-readable JSON")]
@@ -399,7 +399,7 @@ fn handle_doctor(json_mode: bool) {
         free_bytes: 0,
         available_bytes: 0,
         free_ratio: 0.0,
-        pressure: reclaim_core::pressure::StoragePressure::Normal,
+        pressure: vacua_core::pressure::StoragePressure::Normal,
     });
 
     // Probe Full Disk Access canary (testing access to standard protected TCC directory)
@@ -423,7 +423,7 @@ fn handle_doctor(json_mode: bool) {
         };
         println!("{}", serde_json::to_string_pretty(&out).unwrap());
     } else {
-        println!("\nReclaim Doctor — System Storage Health");
+        println!("\nVacua Doctor — System Storage Health");
         println!("==================================================");
         println!("Mount Point:            {}", status.mount_point);
         println!("Filesystem Type:        {}", status.filesystem_type);

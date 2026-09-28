@@ -1,24 +1,30 @@
-# Project Reclaim
+# Vacua
 
-> **An explainable, safety-first storage intelligence engine for macOS.**
+> **Storage intelligence for macOS.**
 
-Understand what is taking space.  
+Understand what consumes space.  
 Know what is safe to reclaim.  
 Clean only with evidence.
+
+`Rust core` · `APFS-aware` · `Incremental` · `Local-first` · `Agent-ready`
+
+[![CI](https://github.com/yuanweize/vacua/actions/workflows/ci.yml/badge.svg)](https://github.com/yuanweize/vacua/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
+[![Platform](https://img.shields.io/badge/platform-macOS%20(Apple%20Silicon)-lightgrey.svg)](https://apple.com/macos)
 
 ---
 
 ```text
-$ reclaim scan
+$ vacua scan
 
 Storage Scan Report
 ──────────────────────────────────────────────────
-Target Path:         /Users/alice
+Target Path:         /Users/developer
 Files Scanned:       481,209
 Directories:         94,112
 Logical Content:     142.84 GiB
-Physical Allocated:  118.20 GiB
-Allocation Delta:    24.64 GiB (due to sparse files & block overhead)
+Physical Allocated:  118.20 GiB (allocated-block metrics)
+Allocation Delta:    24.64 GiB (sparse files & block overhead)
 
 Reclaimable Overview
 ──────────────────────────────────────────────────
@@ -35,41 +41,42 @@ Reconstructable:     Yes
 Rebuild Effect:      Xcode will regenerate indices on next compilation.
 Active Process:      Idle (xcodebuild not running)
 ```
+*(Example scan output on a developer workstation)*
 
 ---
 
-## Why Reclaim?
+## Why Vacua?
 
-Most macOS cleaning tools fall into one of two extremes:
-1. **Opaque Commercial Utilities**: Bloated with memory cleaners and background daemons, calculating purgeable cache space as "freeable space" to inflate marketing numbers.
-2. **Brittle Shell Scripts**: Wrapper scripts running destructive `rm -rf ~/Library/Caches/*` wildcards without understanding application ownership, APFS clone extents, or file locks.
+Most macOS cleaning solutions rely either on surface-level heuristics, opaque commercial background daemons that misrepresent purgeable caches as free space, or shell scripts executing destructive `rm -rf` wildcards without understanding application ownership or APFS block extents.
 
-**Project Reclaim** operates on a different principle:
+**Vacua** is built on a different engineering philosophy:
 
 > **Understand storage before deleting storage.**  
 > *When certainty decreases, automation must decrease.*
 
-- **True APFS Accounting**: Accurately measures physical block allocation (`st_blocks * 512`) vs logical size, and explicitly flags APFS clone extent uncertainties.
-- **Evidence-Driven Classification**: Storage candidates carry a vector of corroborating evidence (bundle IDs, file age, process guards, and rebuildability).
-- **Inviolable Invariants**: System directories, SIP locations, SSH/GPG keys, and unrecognized files (`UNKNOWN`) can **never** be automatically cleaned by any model or rule.
-- **Two-Phase Immutable Plans**: All destructive actions require an immutable plan with cryptographic integrity hashes and TOCTOU pre-verification.
-- **100% Local-First & Zero Telemetry**: Operates entirely offline with no telemetry, tracking, or unexpected background activity.
+- **Allocation-Aware Accounting**: Distinguishes true physical block allocation (`st_blocks * 512`) from logical file length, and explicitly tags APFS clone extent sharing uncertainties rather than fabricating exact savings.
+- **Evidence-Driven Semantics**: Candidates carry a corroborating evidence vector (bundle IDs, process states, file ages, and rebuild consequences).
+- **Inviolable Invariants**: System directories, SIP locations, SSH/GPG keys, and unrecognized files (`UNKNOWN`) are statically prevented from automated cleanup.
+- **Two-Phase Immutable Plans**: All cleanup proposals compile into an immutable, SHA-256 signed plan with TOCTOU (Time-of-Check to Time-of-Use) pre-execution verification.
+- **100% Local-First & Zero Telemetry**: Operates entirely offline with no telemetry, tracking, or background daemons.
 
 ---
 
-## Architecture at a Glance
+## Architecture
 
-Reclaim is engineered with a strict separation between its core intelligence engine and presentation layers:
+Vacua is architected with complete decoupling between its core intelligence engine and presentation layers:
 
 - **Core Engine (Rust)**:
-  - `reclaim-core`: Foundational models, storage pressure policy, and compile-time invariants.
-  - `reclaim-scan`: High-performance, streaming filesystem scanner with bounded memory and symlink safety.
-  - `reclaim-rules`: Declarative TOML rule evaluation with live process guards (`sysinfo`).
-  - `reclaim-risk`: Deterministic multi-signal risk and value evaluator.
-  - `reclaim-plan`: Two-phase immutable cleanup plan generator with TOCTOU defenses.
-  - `reclaim-cli`: Developer-first command-line interface with native human and versioned `--json` outputs.
-- **GUI (SwiftUI - In Progress)**: A native macOS desktop application interfacing via C-ABI / JSON IPC.
-- **Agent Native (MCP - Planned)**: Read-only Model Context Protocol server exposing discovery and planning to AI pair programmers.
+  - `vacua-core`: Domain models, multi-tier storage pressure policy, and compile-time invariants.
+  - `vacua-scan`: High-performance streaming filesystem scanner with bounded memory and symlink cycle safety.
+  - `vacua-index`: SQLite metadata index and macOS FSEvents dirty-tree tracking.
+  - `vacua-rules`: Declarative TOML rule evaluation with live process guards (`sysinfo`).
+  - `vacua-risk`: Deterministic multi-signal risk and recommendation value evaluator.
+  - `vacua-plan`: Two-phase immutable cleanup plan compiler with TOCTOU defenses.
+  - `vacua-cli`: Developer-first command-line interface with human and versioned `--json` outputs.
+- **On-Device Intelligence (`apple/VacuaIntelligence`)**: Optional Apple Foundation Models integration translating natural language prompts into typed `StructuredIntent`.
+- **SwiftUI App (Planned)**: Native macOS desktop user interface.
+- **Agent Server (Planned)**: Read-only Model Context Protocol (MCP) server for Claude, Cursor, and autonomous agents.
 
 Read our complete [Architecture Specification](ARCHITECTURE.md) and [Architecture Decision Records](docs/adr/).
 
@@ -77,11 +84,11 @@ Read our complete [Architecture Specification](ARCHITECTURE.md) and [Architectur
 
 ## Safety Guarantees
 
-Every storage candidate is evaluated into one of five discrete risk tiers:
+Every candidate is evaluated into one of five discrete risk tiers:
 
 | Tier | Definition | Automated Proposal Allowed? | Example |
 | :--- | :--- | :--- | :--- |
-| **`SAFE`** | Completely reproducible generated cache/artifact with zero user data. | **Yes** (via approved plan) | Idle Xcode DerivedData, Homebrew download cache |
+| **`SAFE`** | Completely reproducible generated cache/artifact with zero user data. | **Yes** (in user-approved plans) | Idle Xcode DerivedData, Homebrew download cache |
 | **`REVIEW`** | Reconstructable, but incurs rebuild latency or network bandwidth. | **No** (requires approval) | `node_modules`, Python `venv`, Cargo `target/` |
 | **`CAUTION`** | Leftover application data with potential configuration or ambiguity. | **No** (manual selection) | Uninstalled application support folders |
 | **`PROTECTED`** | Critical system path, user document, security key, or active database. | **NEVER** | `~/.ssh`, `~/Library/Keychains`, SIP paths |
@@ -95,47 +102,47 @@ Read our complete [Safety Specification](SAFETY.md) and [Threat Model](docs/THRE
 
 ### Build from Source
 
-Requirements: macOS (Apple Silicon or Intel), Rust 1.80+.
+Requirements: macOS (Apple Silicon verified; Intel build compatibility in progress), Rust 1.80+.
 
 ```bash
 # Clone the repository
-git clone https://github.com/project-reclaim/reclaim.git
-cd reclaim
+git clone https://github.com/yuanweize/vacua.git
+cd vacua
 
 # Run test suite
 cargo test --all
 
 # Build release CLI binary
-cargo build --release --bin reclaim
+cargo build --release --bin vacua
 ```
 
 ### CLI Usage
 
 ```bash
 # Analyze storage allocation under current directory
-./target/release/reclaim scan .
+./target/release/vacua scan .
 
 # Diagnose system storage pressure, APFS metrics, and Full Disk Access
-./target/release/reclaim doctor
+./target/release/vacua doctor
 
 # List safe cleanup candidates
-./target/release/reclaim candidates --risk safe
+./target/release/vacua candidates --risk safe
 
 # Inspect full evidence vector for an item
-./target/release/reclaim explain <candidate_id>
+./target/release/vacua explain <candidate_id>
 
 # Generate an immutable cleanup plan
-./target/release/reclaim plan . --risk safe
+./target/release/vacua plan . --risk safe
 
 # Machine-readable output for scripts and agents
-./target/release/reclaim --json scan .
+./target/release/vacua --json scan .
 ```
 
 ---
 
-## Development Status & Reality Matrix
+## Engineering Reality Matrix
 
-We maintain complete engineering honesty regarding what is implemented, verified, and what is currently in design. Please refer to our [Feature Reality Matrix](FEATURE_REALITY_MATRIX.md) and [Roadmap](ROADMAP.md).
+We maintain complete honesty regarding what is implemented, verified, and what is planned. Please refer to our [Feature Reality Matrix](FEATURE_REALITY_MATRIX.md) and [Roadmap](ROADMAP.md).
 
 ---
 

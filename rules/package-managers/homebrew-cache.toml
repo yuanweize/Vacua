@@ -8,7 +8,7 @@ reconstructable = true
 rebuild_consequence = "Homebrew will download bottles from GitHub Releases / CDN if reinstalled."
 
 [references]
-author = "Project Reclaim Maintainers"
+author = "Vacua Maintainers"
 docs = "https://docs.brew.sh"
 
 [[matches]]

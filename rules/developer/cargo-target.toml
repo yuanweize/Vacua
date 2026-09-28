@@ -8,7 +8,7 @@ reconstructable = true
 rebuild_consequence = "Cargo will recompile crates from source upon next cargo build or cargo test."
 
 [references]
-author = "Project Reclaim Maintainers"
+author = "Vacua Maintainers"
 docs = "https://doc.rust-lang.org/cargo/guide/build-cache.html"
 
 [[matches]]

@@ -1,6 +1,6 @@
 # Safety Invariants and Guarantees
 
-> **The Reclaim Safety Law**:  
+> **The Vacua Safety Law**:  
 > *When certainty decreases, automation must decrease.*  
 > *Under no circumstances may an automated process or AI model elevate an item's safety classification.*
 
@@ -25,7 +25,7 @@ The following invariants are implemented in code and enforced at compile-time an
 
 ## 2. Hard-Coded Protected Zones
 
-The following paths and categories are statically protected in `reclaim-core::invariants`:
+The following paths and categories are statically protected in `vacua-core::invariants`:
 
 - **System and OS Core**:
   - macOS System Volume (`/System`, `/usr`, `/bin`, `/sbin`).
@@ -66,7 +66,7 @@ Every storage candidate is evaluated into exactly one of five discrete risk tier
 ## 4. Reversibility and Deletion Methods
 
 1. **Trash by Default**:
-   Whenever possible, operations utilize the native macOS Trash (`FileManager.trashItem` / `NSWorkspace.shared.recycle`). Items in Trash can be inspected and restored by the user via Finder.
+   Whenever possible, operations utilize the native macOS Trash (`FileManager.trashItem` / Darwin API). Items in Trash can be inspected and restored by the user via Finder.
 2. **Permanent Cache Eviction**:
    Only verified, high-volume ephemeral caches (e.g., package manager HTTP caches, compiler intermediate artifacts) where Trash operations would cause massive inode thrashing may be permanently deleted.
    - Such items must be explicitly documented as `non-restorable generated cache deletion`.
@@ -80,5 +80,5 @@ Every storage candidate is evaluated into exactly one of five discrete risk tier
 - **Allocated Size (`st_blocks * 512`)**: The true physical blocks reserved on disk.
 - **Sparse Files**: Sized strictly by allocated blocks, never inflated logical length.
 - **Hard Links**: Inodes are tracked (`st_dev`, `st_ino`). Hard links sharing an inode are counted only once in allocated totals.
-- **APFS Clones**: When multiple files share extents via APFS clonefile, savings are flagged as `physical saving uncertain` rather than fabricating an exact deduction.
+- **APFS Clone Extent Uncertainty**: Because APFS `clonefile` extents can share underlying disk blocks without separate inode changes, physical savings from deleting cloned files cannot be guaranteed in user space without extent mapping. Vacua explicitly flags these as `physical_saving_uncertain = true` rather than fabricating an exact deduction.
 - **Purgeable Space**: System purgeable space is reported as `System Purgeable (managed by macOS)`, distinct from `User Reclaimable`.

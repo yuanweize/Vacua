@@ -1,12 +1,14 @@
 [package]
-name = "reclaim-rules"
+name = "vacua-rules"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
 
 [dependencies]
-reclaim-core = { path = "../reclaim-core" }
+vacua-core = { path = "../vacua-core" }
 serde = { workspace = true }
 toml = { workspace = true }
 glob = { workspace = true }

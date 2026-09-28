@@ -1,6 +1,6 @@
-use reclaim_core::candidate::CandidateCategory;
-use reclaim_core::risk::RiskLevel;
 use serde::{Deserialize, Serialize};
+use vacua_core::candidate::CandidateCategory;
+use vacua_core::risk::RiskLevel;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

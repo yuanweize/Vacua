@@ -9,11 +9,11 @@
 
 ## 1. Decoupled Role of Artificial Intelligence
 
-In Project Reclaim, AI is strictly an **optional advisory layer**. The core engine (`reclaim-core`, `reclaim-scan`, `reclaim-rules`, `reclaim-plan`) operates with complete autonomy and 100% deterministic correctness without any LLM or network connection.
+In Vacua, AI is strictly an **optional advisory layer**. The core engine (`vacua-core`, `vacua-scan`, `vacua-index`, `vacua-rules`, `vacua-plan`) operates with complete autonomy and 100% deterministic correctness without any LLM or network connection.
 
-When enabled, AI serves three narrow purposes:
+When enabled, intelligence providers serve three narrow purposes:
 1. **Candidate Explanation**: Translating complex developer artifacts and build systems into plain language for non-technical users.
-2. **Natural Language Intent Parsing**: Translating natural language queries into typed, bounded cleanup intents.
+2. **Natural Language Intent Parsing**: Translating natural language queries into typed, bounded cleanup intents (`StructuredIntent`).
 3. **Scan Summarization**: Providing concise executive summaries of disk allocations.
 
 ---
@@ -26,13 +26,13 @@ Under no circumstances does an LLM issue shell commands or direct filesystem mut
 [ User Prompt ]
        |
        v
-[ LLM / Foundation Model ]
+[ Intelligence Provider (Apple On-Device / Local / Cloud) ]
        |
        v
-[ Structured Intent (JSON) ]
-  - target_bytes: e.g. 20 GB
+[ Structured Intent (JSON Schema Validated) ]
+  - target_reclaim_bytes: e.g. 10 GB
   - max_risk: "SAFE"
-  - exclude_categories: ["VIRTUAL_MACHINE", "USER_DOCUMENT"]
+  - excluded_categories: ["CONTAINER_DATA", "USER_DOCUMENT"]
        |
        v
 [ Deterministic Planner ]
@@ -54,8 +54,9 @@ Under no circumstances does an LLM issue shell commands or direct filesystem mut
 
 ---
 
-## 3. Graceful Degradation & On-Device Execution
+## 3. Provider-Neutral Architecture
 
-- **Tier 1 (Default)**: Fully local, zero-AI mode. All explanations use pre-compiled rule metadata.
-- **Tier 2 (macOS Foundation Models)**: If supported by hardware and macOS 15+, on-device Apple Intelligence models are queried via native system frameworks without network egress.
-- **Tier 3 (Optional Cloud LLM)**: If configured explicitly by the user, only sanitized, high-level aggregated numbers are sent to third-party endpoints.
+Vacua supports multiple intelligence providers under an identical, typed contract:
+1. **Apple On-Device**: Built natively on macOS Foundation Models (`SystemLanguageModel`).
+2. **Local Open-Source (Planned)**: Ollama / llama.cpp on `127.0.0.1:11434`.
+3. **Optional Cloud Models (Planned)**: Opt-in cloud providers with local path redaction.

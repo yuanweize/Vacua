@@ -1,32 +1,38 @@
-# Privacy Policy
+# Privacy & Data Isolation Policy
 
-**Project Reclaim is 100% Local-First with Zero Telemetry.**
-
----
-
-## 1. What We Collect
-
-**Nothing.**  
-By default, Project Reclaim contains zero analytics, zero telemetry, zero error reporting beacons, and zero network calls during local scanning, evaluation, and cleanup planning.
-
-- We do **not** upload file paths, directory trees, or file contents.
-- We do **not** track application names or bundle identifiers.
-- We do **not** upload hardware serial numbers, MAC addresses, or IP addresses.
-- All SQLite metadata indices and transaction audit logs reside strictly on your local device.
+> **Core Commitment**:  
+> Vacua core operations are 100% offline-first and perform **zero telemetry**.  
+> Networked intelligence is strictly optional, explicitly opt-in, and disabled by default.
 
 ---
 
-## 2. Network Activity Boundaries
+## 1. Zero Telemetry in Core Engine
 
-Reclaim will only perform outbound network requests in the following explicit user-initiated scenarios:
-1. **Formula / Binary Updates**: When the user explicitly runs `brew upgrade reclaim` or checks GitHub Releases for new versions.
-2. **External Rule Downloads**: When the user explicitly configures a remote community rule repository.
+By default, the core engine (`vacua-core`, `vacua-scan`, `vacua-index`, `vacua-rules`, `vacua-plan`, `vacua-cli`):
+- Transmits **no data** over the network.
+- Collects **no telemetry**, analytics, user metrics, or error beacons.
+- Uploads **no file paths**, file contents, hashes, or directory trees.
+- Stores SQLite index databases and transaction logs **strictly locally** on your device.
 
 ---
 
-## 3. Future AI & LLM Disclosures (Phase 6)
+## 2. Intelligence Provider Tiers & Network Boundaries
 
-If optional cloud AI assistance is enabled by the user in future releases:
-- Only sanitized, high-level category metadata (e.g. `Xcode DerivedData: 5 GB, idle 45 days`) may be sent to the model.
-- Raw file paths containing personal names, usernames, or confidential project directories will be sanitized and redacted locally prior to any external request.
-- On-device models (macOS Foundation Models / Apple Intelligence) will be prioritized whenever hardware permits.
+Vacua clearly delineates network boundaries across all supported and planned intelligence providers:
+
+| Provider Tier | Locality | Network Egress | Description |
+| :--- | :--- | :--- | :--- |
+| **Core Engine** | Local | **NONE** | Standard rule evaluation, indexing, planning, and scanning. |
+| **Apple On-Device** | Local | **NONE** | System Foundation Models running locally on Apple Silicon NPU. |
+| **Local Third-Party (Ollama / MLX)** | Local (`127.0.0.1`) | **NONE** | Open-source local models running on localhost. |
+| **Apple Private Cloud Compute (PCC)** | Cloud (Apple Silicon) | End-to-End Encrypted | Optional future Apple cloud intelligence with cryptographic privacy attestations. |
+| **Third-Party Cloud APIs** | External Cloud | Explicit Outbound | Optional opt-in API integration (OpenAI, Anthropic, Gemini). Requires explicit API key stored in macOS Keychain. Metadata is redacted locally before dispatch. |
+
+---
+
+## 3. Data Sanitization & Minimization
+
+Even when an on-device or cloud intelligence provider is active:
+- Raw file paths containing sensitive username or project names are sanitized prior to model input.
+- File contents are **never** provided to models during scanning or planning.
+- The intelligence provider only receives sanitized metadata (category, approximate allocated size, age bucket, and rebuildability status).

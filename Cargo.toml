@@ -1,20 +1,21 @@
 [workspace]
 members = [
-    "crates/reclaim-core",
-    "crates/reclaim-scan",
-    "crates/reclaim-rules",
-    "crates/reclaim-risk",
-    "crates/reclaim-plan",
-    "crates/reclaim-cli",
+    "crates/vacua-core",
+    "crates/vacua-scan",
+    "crates/vacua-rules",
+    "crates/vacua-risk",
+    "crates/vacua-plan",
+    "crates/vacua-cli",
 ]
 resolver = "2"
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-authors = ["Project Reclaim Contributors"]
+authors = ["Weize Yuan <iyuanweize@gmail.com>", "Vacua Contributors"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/project-reclaim/reclaim"
+repository = "https://github.com/yuanweize/vacua"
+homepage = "https://github.com/yuanweize/vacua"
 
 [workspace.dependencies]
 serde = { version = "1.0", features = ["derive"] }
@@ -29,3 +30,4 @@ sha2 = "0.10"
 libc = "0.2"
 walkdir = "2.5"
 thiserror = "2.0"
+rusqlite = { version = "0.33", features = ["bundled"] }

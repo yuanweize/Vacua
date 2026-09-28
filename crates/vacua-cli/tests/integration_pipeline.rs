@@ -2,13 +2,13 @@ use std::fs::{self, File};
 use std::io::Write;
 use tempfile::tempdir;
 
-use reclaim_core::allocation::AllocationInfo;
-use reclaim_core::candidate::CandidateCategory;
-use reclaim_core::risk::RiskLevel;
-use reclaim_plan::CleanupPlan;
-use reclaim_risk::CandidateEvaluator;
-use reclaim_rules::engine::RulesEngine;
-use reclaim_scan::{FilesystemScanner, ScanOptions};
+use vacua_core::allocation::AllocationInfo;
+use vacua_core::candidate::CandidateCategory;
+use vacua_core::risk::RiskLevel;
+use vacua_plan::CleanupPlan;
+use vacua_risk::CandidateEvaluator;
+use vacua_rules::engine::RulesEngine;
+use vacua_scan::{FilesystemScanner, ScanOptions};
 
 #[test]
 fn test_end_to_end_pipeline_with_safety_guarantees() {

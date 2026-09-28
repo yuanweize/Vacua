@@ -1,15 +1,16 @@
 [package]
-name = "reclaim-plan"
+name = "vacua-risk"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
 
 [dependencies]
-reclaim-core = { path = "../reclaim-core" }
+vacua-core = { path = "../vacua-core" }
+vacua-rules = { path = "../vacua-rules" }
 serde = { workspace = true }
-serde_json = { workspace = true }
-chrono = { workspace = true }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
 

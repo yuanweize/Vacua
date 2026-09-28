@@ -1,6 +1,6 @@
-# Contributing to Project Reclaim
+# Contributing to Vacua
 
-We welcome contributions to Project Reclaim! Before contributing, please review our core engineering values and guidelines.
+We welcome contributions to Vacua! Before contributing, please review our core engineering values and guidelines.
 
 ---
 
@@ -15,11 +15,11 @@ We welcome contributions to Project Reclaim! Before contributing, please review 
 ## Development Workflow
 
 1. Fork and clone the repository.
-2. Ensure you have Rust 1.80+ installed.
+2. Ensure you have Rust 1.80+ installed on macOS.
 3. Format and lint checks:
    ```bash
    cargo fmt --check
-   cargo clippy --all -- -D warnings
+   cargo clippy --workspace --all-targets --all-features -- -D warnings
    ```
 4. Run tests:
    ```bash

@@ -4,9 +4,9 @@ use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use reclaim_core::candidate::{Candidate, CandidateCategory};
-use reclaim_core::error::{ReclaimError, Result};
-use reclaim_core::risk::RiskLevel;
+use vacua_core::candidate::{Candidate, CandidateCategory};
+use vacua_core::error::{ReclaimError, Result};
+use vacua_core::risk::RiskLevel;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanItem {
@@ -200,10 +200,10 @@ fn compute_plan_hash(items: &[PlanItem], created_at: &DateTime<Utc>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use reclaim_core::allocation::AllocationInfo;
-    use reclaim_core::risk::RecommendationValue;
     use std::fs::File;
     use tempfile::tempdir;
+    use vacua_core::allocation::AllocationInfo;
+    use vacua_core::risk::RecommendationValue;
 
     #[test]
     fn test_plan_building_and_integrity_check() {

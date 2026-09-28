@@ -4,7 +4,7 @@
 Accepted
 
 ## Context
-Project Reclaim aims to build a high-performance, explainable, safety-critical macOS storage intelligence system. The system must support:
+Vacua aims to build a high-performance, explainable, safety-critical macOS storage intelligence system. The system must support:
 1. Low-level, high-throughput POSIX and macOS filesystem operations (`getattrlist`, `stat`, `statfs`, APFS clone handling, FSEvents).
 2. Predictable, bounded memory consumption during large-scale directory traversal (avoiding runaway GC pauses or multi-gigabyte memory footprints across millions of inodes).
 3. Absolute memory safety and concurrency correctness to prevent data corruption or crashes in background monitoring.
@@ -22,15 +22,15 @@ Project Reclaim aims to build a high-performance, explainable, safety-critical m
    - *Pros*:
      - Zero-cost abstractions, deterministic memory management without garbage collection.
      - Fearless concurrency (`Send`/`Sync`) preventing race conditions during parallel traversal.
-     - Exceptional ecosystem for filesystem performance (`walkdir`, `rayon`, `crossbeam`, `rusqlite`, `sysinfo`).
+     - Exceptional ecosystem for filesystem performance (`walkdir`, `crossbeam`, `rusqlite`, `sysinfo`).
      - Easy compilation into a clean, standalone, static CLI binary with zero runtime dependencies.
-     - Robust C-ABI / FFI generation (e.g., via `uniffi-rs` or C FFI) or IPC via typed JSON schema for the SwiftUI app.
+     - Robust C-ABI / FFI generation or IPC via typed JSON schema for the SwiftUI app and Swift intelligence modules.
      - Native SwiftUI frontend maintains premier macOS user interface quality and Apple ecosystem polish.
 
 ## Decision
-We adopt **Rust** for the core engine (`reclaim-core`, `reclaim-scan`, `reclaim-index`, `reclaim-rules`, `reclaim-risk`, `reclaim-plan`, `reclaim-executor`, `reclaim-cli`, `reclaim-mcp`), and **Swift/SwiftUI** for the standalone macOS GUI application (`apps/macos`).
+We adopt **Rust** for the core engine (`vacua-core`, `vacua-scan`, `vacua-index`, `vacua-rules`, `vacua-risk`, `vacua-plan`, `vacua-cli`, `vacua-mcp`), and **Swift** for the standalone macOS GUI application and on-device Apple Intelligence adapter (`apple/VacuaIntelligence`).
 
-All business logic, filesystem traversal, risk computation, and execution planning reside strictly in Rust. The SwiftUI GUI acts strictly as a presentation layer consuming the engine via library FFI or JSON CLI IPC.
+All business logic, filesystem traversal, risk computation, and execution planning reside strictly in Rust. The presentation and platform intelligence layers consume the engine via structured IPC.
 
 ## Consequences
 - **Positive**:
@@ -38,4 +38,4 @@ All business logic, filesystem traversal, risk computation, and execution planni
   - Scanner achieves peak I/O throughput with bounded RSS memory.
   - The core can be exercised exhaustively via standard Rust unit, integration, and fuzz testing.
 - **Negative / Mitigations**:
-  - Building the SwiftUI GUI requires managing the Rust-to-Swift interface. *Mitigation*: We will use a versioned JSON IPC contract and UniFFI bindings.
+  - Requires maintaining a clean Rust-to-Swift IPC/FFI contract. *Mitigation*: Versioned JSON IPC contract documented in ADR 0005.
