@@ -11,10 +11,20 @@ permissions:
 jobs:
   release-darwin-arm64:
     name: Build & Release (macOS Apple Silicon)
-    runs-on: macos-14
+    runs-on: macos-latest
     steps:
       - name: Checkout Tag
         uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          if [ -d "/Applications/Xcode_16.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer
+          elif [ -d "/Applications/Xcode_16.0.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.0.app/Contents/Developer
+          fi
+          xcodebuild -version
+          swift --version
 
       - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
