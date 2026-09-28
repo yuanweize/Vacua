@@ -43,13 +43,15 @@ The development of Vacua is divided into 7 distinct, sequential phases. Per our 
 
 ---
 
-## Phase 3: Application Orphan Graph & Duplicate Engine
-- [ ] Application Evidence Graph (Bundle IDs, LaunchAgents, App Support, Caches, Containers).
-- [ ] Confidence-scored orphan detection (`ownership_confidence`, `orphan_confidence`).
+## Phase 3: Application Orphan Graph, Snapshots & Differential Reasoning
+- [x] Application Evidence Graph (Bundle IDs, LaunchAgents, App Support, Caches, Containers).
+- [x] Confidence-scored orphan detection (`orphan_confidence`).
+- [x] Storage Snapshots & Diff Engine (`vacua snapshot create`, `vacua diff baseline current`).
+- [x] Reclaim Cost Model & What-If Cleanup Simulator (`vacua plan --simulate`).
+- [x] Storage Intelligence Query Engine (`vacua ask`).
+- [x] Calibrated synthetic filesystem benchmarks (10k, 100k files in `BENCHMARKS.md`).
 - [ ] Staged duplicate detection (Size grouping -> Inode collapse -> Partial hash -> Full hash).
 - [ ] BLAKE3 hashing engine with APFS clone awareness.
-- [ ] Scan diffing (`vacua diff` between historical snapshots).
-- [ ] Synthetic filesystem benchmarks (10k, 100k, 1M file trees).
 
 ---
 
