@@ -7,21 +7,11 @@ use walkdir::WalkDir;
 use crate::entry::ScannedEntry;
 use vacua_core::allocation::AllocationInfo;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ScanOptions {
     pub cross_mounts: bool,
     pub max_depth: Option<usize>,
     pub jobs: Option<usize>,
-}
-
-impl Default for ScanOptions {
-    fn default() -> Self {
-        Self {
-            cross_mounts: false,
-            max_depth: None,
-            jobs: None,
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -134,12 +124,12 @@ impl FilesystemScanner {
                                             // Duplicate clone in same family: physical blocks already counted
                                         }
                                     } else {
-                                        total_exclusive = total_exclusive
-                                            .saturating_add(scanned.allocated_bytes);
+                                        total_exclusive =
+                                            total_exclusive.saturating_add(scanned.allocated_bytes);
                                     }
                                 } else {
-                                    total_exclusive = total_exclusive
-                                        .saturating_add(scanned.allocated_bytes);
+                                    total_exclusive =
+                                        total_exclusive.saturating_add(scanned.allocated_bytes);
                                 }
                             }
 
@@ -196,22 +186,20 @@ impl FilesystemScanner {
         for _ in 0..jobs {
             let worker_rx = std::sync::Arc::clone(&rx);
             let worker_tx = res_tx.clone();
-            let handle = thread::spawn(move || {
-                loop {
-                    let path_opt = {
-                        let Ok(guard) = worker_rx.lock() else { break };
-                        guard.recv().ok().flatten()
-                    };
+            let handle = thread::spawn(move || loop {
+                let path_opt = {
+                    let Ok(guard) = worker_rx.lock() else { break };
+                    guard.recv().ok().flatten()
+                };
 
-                    match path_opt {
-                        Some(path) => {
-                            let res = ScannedEntry::from_path(path);
-                            if worker_tx.send(res).is_err() {
-                                break;
-                            }
+                match path_opt {
+                    Some(path) => {
+                        let res = ScannedEntry::from_path(path);
+                        if worker_tx.send(res).is_err() {
+                            break;
                         }
-                        None => break,
                     }
+                    None => break,
                 }
             });
             handles.push(handle);

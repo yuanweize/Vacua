@@ -62,10 +62,12 @@ fn query_apfs_clone_attributes(path: &Path) -> (Option<u64>, u32, bool, bool) {
         None => return (None, 1, false, false),
     };
 
-    let mut al = AttrList::default();
-    al.bitmapcount = 5;
-    // ATTR_CMNEXT_CLONEID (0x100) | ATTR_CMNEXT_EXT_FLAGS (0x200) | ATTR_CMNEXT_CLONE_REFCNT (0x1000)
-    al.forkattr = 0x00000100 | 0x00000200 | 0x00001000;
+    let mut al = AttrList {
+        bitmapcount: 5,
+        // ATTR_CMNEXT_CLONEID (0x100) | ATTR_CMNEXT_EXT_FLAGS (0x200) | ATTR_CMNEXT_CLONE_REFCNT (0x1000)
+        forkattr: 0x00000100 | 0x00000200 | 0x00001000,
+        ..Default::default()
+    };
 
     let mut buf = AttrBufClone::default();
 

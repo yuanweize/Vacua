@@ -66,6 +66,7 @@ pub struct ExecutionJournal {
     conn: Connection,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn compute_entry_hash(
     prev_hash: &str,
     transaction_id: &str,
@@ -130,14 +131,24 @@ impl ExecutionJournal {
             CREATE INDEX IF NOT EXISTS idx_journal_time ON execution_journal(timestamp DESC);",
         )?;
 
+        // Schema migration for v0.1.0 -> v0.2.0: ensure hash chaining columns exist
+        let _ = conn.execute(
+            "ALTER TABLE execution_journal ADD COLUMN prev_hash TEXT NOT NULL DEFAULT ''",
+            [],
+        );
+        let _ = conn.execute(
+            "ALTER TABLE execution_journal ADD COLUMN entry_hash TEXT NOT NULL DEFAULT ''",
+            [],
+        );
+
         Ok(Self { conn })
     }
 
     /// Retrieve the entry_hash of the latest record in the hash chain.
     fn get_latest_hash(&self) -> Result<String, JournalError> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT entry_hash FROM execution_journal ORDER BY id DESC LIMIT 1")?;
+        let mut stmt = self.conn.prepare(
+            "SELECT entry_hash FROM execution_journal WHERE entry_hash != '' ORDER BY id DESC LIMIT 1",
+        )?;
         let mut rows = stmt.query([])?;
         if let Some(row) = rows.next()? {
             let h: String = row.get(0)?;
@@ -214,6 +225,7 @@ impl ExecutionJournal {
             "SELECT id, prev_hash, entry_hash, transaction_id, plan_hash, timestamp,
                     candidate_id, path, action, result, reclaimed_estimate
              FROM execution_journal
+             WHERE entry_hash != ''
              ORDER BY id ASC",
         )?;
 

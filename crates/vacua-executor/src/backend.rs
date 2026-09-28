@@ -74,7 +74,7 @@ fn native_macos_trash(target: &Path) -> Result<PathBuf, BackendError> {
     unsafe {
         let pool = objc_autoreleasePoolPush();
 
-        let cls_file_manager = objc_getClass(b"NSFileManager\0".as_ptr() as *const c_char);
+        let cls_file_manager = objc_getClass(c"NSFileManager".as_ptr());
         if cls_file_manager.is_null() {
             objc_autoreleasePoolPop(pool);
             return Err(BackendError::NativeTrashError(
@@ -88,7 +88,7 @@ fn native_macos_trash(target: &Path) -> Result<PathBuf, BackendError> {
         let msg_trash: MsgSendTrash = std::mem::transmute(objc_msgSend as *const ());
         let msg_cstr: MsgSendCStr = std::mem::transmute(objc_msgSend as *const ());
 
-        let sel_default_mgr = sel_registerName(b"defaultManager\0".as_ptr() as *const c_char);
+        let sel_default_mgr = sel_registerName(c"defaultManager".as_ptr());
         let mgr: *mut c_void = msg_no_arg(cls_file_manager, sel_default_mgr);
         if mgr.is_null() {
             objc_autoreleasePoolPop(pool);
@@ -97,9 +97,8 @@ fn native_macos_trash(target: &Path) -> Result<PathBuf, BackendError> {
             ));
         }
 
-        let cls_nsstring = objc_getClass(b"NSString\0".as_ptr() as *const c_char);
-        let sel_str_with_utf8 =
-            sel_registerName(b"stringWithUTF8String:\0".as_ptr() as *const c_char);
+        let cls_nsstring = objc_getClass(c"NSString".as_ptr());
+        let sel_str_with_utf8 = sel_registerName(c"stringWithUTF8String:".as_ptr());
         let ns_path: *mut c_void = msg_one_arg(cls_nsstring, sel_str_with_utf8, c_path.as_ptr());
         if ns_path.is_null() {
             objc_autoreleasePoolPop(pool);
@@ -108,9 +107,8 @@ fn native_macos_trash(target: &Path) -> Result<PathBuf, BackendError> {
             ));
         }
 
-        let cls_nsurl = objc_getClass(b"NSURL\0".as_ptr() as *const c_char);
-        let sel_file_url_with_path =
-            sel_registerName(b"fileURLWithPath:\0".as_ptr() as *const c_char);
+        let cls_nsurl = objc_getClass(c"NSURL".as_ptr());
+        let sel_file_url_with_path = sel_registerName(c"fileURLWithPath:".as_ptr());
         let file_url: *mut c_void = msg_id_arg(cls_nsurl, sel_file_url_with_path, ns_path);
         if file_url.is_null() {
             objc_autoreleasePoolPop(pool);
@@ -119,9 +117,7 @@ fn native_macos_trash(target: &Path) -> Result<PathBuf, BackendError> {
             ));
         }
 
-        let sel_trash = sel_registerName(
-            b"trashItemAtURL:resultingItemURL:error:\0".as_ptr() as *const c_char,
-        );
+        let sel_trash = sel_registerName(c"trashItemAtURL:resultingItemURL:error:".as_ptr());
         let mut resulting_url: *mut c_void = std::ptr::null_mut();
         let mut error: *mut c_void = std::ptr::null_mut();
 
@@ -130,10 +126,10 @@ fn native_macos_trash(target: &Path) -> Result<PathBuf, BackendError> {
         if success != 0 {
             let mut dest_path = None;
             if !resulting_url.is_null() {
-                let sel_path = sel_registerName(b"path\0".as_ptr() as *const c_char);
+                let sel_path = sel_registerName(c"path".as_ptr());
                 let res_ns_path: *mut c_void = msg_no_arg(resulting_url, sel_path);
                 if !res_ns_path.is_null() {
-                    let sel_utf8 = sel_registerName(b"UTF8String\0".as_ptr() as *const c_char);
+                    let sel_utf8 = sel_registerName(c"UTF8String".as_ptr());
                     let c_res = msg_cstr(res_ns_path, sel_utf8);
                     if !c_res.is_null() {
                         let res_str = CStr::from_ptr(c_res).to_string_lossy().into_owned();
@@ -146,11 +142,10 @@ fn native_macos_trash(target: &Path) -> Result<PathBuf, BackendError> {
         } else {
             let mut err_msg = "Unknown native macOS trash error".to_string();
             if !error.is_null() {
-                let sel_desc =
-                    sel_registerName(b"localizedDescription\0".as_ptr() as *const c_char);
+                let sel_desc = sel_registerName(c"localizedDescription".as_ptr());
                 let desc: *mut c_void = msg_no_arg(error, sel_desc);
                 if !desc.is_null() {
-                    let sel_utf8 = sel_registerName(b"UTF8String\0".as_ptr() as *const c_char);
+                    let sel_utf8 = sel_registerName(c"UTF8String".as_ptr());
                     let c_desc = msg_cstr(desc, sel_utf8);
                     if !c_desc.is_null() {
                         err_msg = CStr::from_ptr(c_desc).to_string_lossy().into_owned();

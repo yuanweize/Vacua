@@ -220,20 +220,53 @@ mod tests {
         // Write 3 legitimate entries
         journal
             .record(
-                "tx-1", "hash-1", "cand-1", "/tmp/file1", "trash", "SAFE", "rule1",
-                None, None, "success", 100, true, None,
+                "tx-1",
+                "hash-1",
+                "cand-1",
+                "/tmp/file1",
+                "trash",
+                "SAFE",
+                "rule1",
+                None,
+                None,
+                "success",
+                100,
+                true,
+                None,
             )
             .unwrap();
         journal
             .record(
-                "tx-1", "hash-1", "cand-2", "/tmp/file2", "trash", "SAFE", "rule1",
-                None, None, "success", 200, true, None,
+                "tx-1",
+                "hash-1",
+                "cand-2",
+                "/tmp/file2",
+                "trash",
+                "SAFE",
+                "rule1",
+                None,
+                None,
+                "success",
+                200,
+                true,
+                None,
             )
             .unwrap();
         journal
             .record(
-                "tx-2", "hash-2", "cand-3", "/tmp/file3", "trash", "SAFE", "rule2",
-                None, None, "success", 300, true, None,
+                "tx-2",
+                "hash-2",
+                "cand-3",
+                "/tmp/file3",
+                "trash",
+                "SAFE",
+                "rule2",
+                None,
+                None,
+                "success",
+                300,
+                true,
+                None,
             )
             .unwrap();
 
