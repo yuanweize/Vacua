@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 220" width="840" height="220" fill="none">
+  <style>
+    .bg { fill: #0D1117; }
+    .node { fill: #161B22; stroke: #30363D; stroke-width: 1.5; rx: 6px; }
+    .node-active { fill: #1C2128; stroke: #388BFD; stroke-width: 1.5; rx: 6px; }
+    .node-safe { fill: #1C2128; stroke: #3FB950; stroke-width: 1.5; rx: 6px; }
+    .title { fill: #F0F6FC; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 12px; font-weight: 600; text-anchor: middle; }
+    .desc { fill: #8B949E; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 10px; text-anchor: middle; }
+    .line { stroke: #388BFD; stroke-width: 1.5; }
+    .arrow { fill: #388BFD; }
+    @media (prefers-color-scheme: light) {
+      .bg { fill: #F6F8FA; }
+      .node { fill: #FFFFFF; stroke: #D0D7DE; }
+      .node-active { fill: #F0F6FF; stroke: #0969DA; }
+      .node-safe { fill: #DAFBE1; stroke: #1A7F37; }
+      .title { fill: #1F2328; }
+      .desc { fill: #656D76; }
+      .line { stroke: #0969DA; }
+      .arrow { fill: #0969DA; }
+    }
+  </style>
+
+  <rect width="100%" height="100%" class="bg" rx="10"/>
+
+  <!-- Step 1: Immutable Plan -->
+  <g transform="translate(20, 70)">
+    <rect width="140" height="70" class="node"/>
+    <text x="70" y="30" class="title">1. Verified Plan</text>
+    <text x="70" y="46" class="desc">SHA-256 Plan Hash</text>
+    <text x="70" y="58" class="desc">Deterministic Set</text>
+  </g>
+  <line x1="160" y1="105" x2="185" y2="105" class="line"/>
+  <polygon points="183,101 190,105 183,109" class="arrow"/>
+
+  <!-- Step 2: TOCTOU Verification -->
+  <g transform="translate(190, 70)">
+    <rect width="140" height="70" class="node-active"/>
+    <text x="70" y="30" class="title">2. TOCTOU Check</text>
+    <text x="70" y="46" class="desc">Live Dev / Inode match</text>
+    <text x="70" y="58" class="desc">Live mtime match</text>
+  </g>
+  <line x1="330" y1="105" x2="355" y2="105" class="line"/>
+  <polygon points="353,101 360,105 353,109" class="arrow"/>
+
+  <!-- Step 3: Process Guards -->
+  <g transform="translate(360, 70)">
+    <rect width="140" height="70" class="node"/>
+    <text x="70" y="30" class="title">3. Process Guard</text>
+    <text x="70" y="46" class="desc">xcodebuild / cargo / brew</text>
+    <text x="70" y="58" class="desc">Abort on active process</text>
+  </g>
+  <line x1="500" y1="105" x2="525" y2="105" class="line"/>
+  <polygon points="523,101 530,105 523,109" class="arrow"/>
+
+  <!-- Step 4: Reversible Trash -->
+  <g transform="translate(530, 70)">
+    <rect width="140" height="70" class="node-safe"/>
+    <text x="70" y="30" class="title">4. macOS Trash</text>
+    <text x="70" y="46" class="desc">Safe Reversible Move</text>
+    <text x="70" y="58" class="desc">No arbitrary rm -rf</text>
+  </g>
+  <line x1="670" y1="105" x2="695" y2="105" class="line"/>
+  <polygon points="693,101 700,105 693,109" class="arrow"/>
+
+  <!-- Step 5: Audit Journal -->
+  <g transform="translate(700, 70)">
+    <rect width="120" height="70" class="node"/>
+    <text x="60" y="30" class="title">5. SQLite Audit</text>
+    <text x="60" y="46" class="desc">Transaction ID</text>
+    <text x="60" y="58" class="desc">vacua history</text>
+  </g>
+</svg>

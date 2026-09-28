@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 96" width="380" height="96" fill="none">
+  <!-- Vacua Lockup (Dark Background) -->
+  <g transform="translate(16, 16)">
+    <circle cx="32" cy="32" r="28" stroke="#F5F5F7" stroke-width="4.5" stroke-opacity="0.95"/>
+    <path d="M19 21 L32 44 L45 21" stroke="#F5F5F7" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="32" cy="27" r="3" fill="#F5F5F7"/>
+  </g>
+  <text x="96" y="48" fill="#F5F5F7" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI', sans-serif" font-size="34" font-weight="600" letter-spacing="-0.02em">Vacua</text>
+  <text x="98" y="70" fill="#8E8E93" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Segoe UI', sans-serif" font-size="13" font-weight="400" letter-spacing="0.01em">Storage intelligence for macOS</text>
+</svg>

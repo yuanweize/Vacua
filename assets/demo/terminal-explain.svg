@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 380" width="760" height="380" fill="none">
+  <!-- Terminal Window Chrome -->
+  <rect width="100%" height="100%" rx="10" fill="#0D1117" stroke="#30363D" stroke-width="1.5"/>
+  <rect width="100%" height="36" rx="10" fill="#161B22"/>
+  <circle cx="20" cy="18" r="6" fill="#EC6A5E"/>
+  <circle cx="40" cy="18" r="6" fill="#F4BF4F"/>
+  <circle cx="60" cy="18" r="6" fill="#61C554"/>
+  <text x="380" y="22" fill="#8B949E" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif" font-size="12" text-anchor="middle">vacua explain — terminal</text>
+
+  <!-- Terminal Content -->
+  <g transform="translate(24, 60)" font-family="ui-monospace, 'SF Mono', Menlo, Monaco, 'Cascadia Mono', monospace" font-size="12.5" line-height="1.5">
+    <text x="0" y="0" fill="#7EE787">$</text>
+    <text x="16" y="0" fill="#F0F6FC">vacua explain b9a4fbf7</text>
+
+    <text x="0" y="24" fill="#8B949E">Candidate Explanation: <tspan fill="#F0F6FC">[b9a4fbf7]</tspan></text>
+    <text x="0" y="42" fill="#30363D">----------------------------------------------------------------------</text>
+    <text x="0" y="60" fill="#8B949E">Path:             <tspan fill="#F0F6FC">~/Library/Caches/Homebrew/downloads/node--22.2.0.tar.gz</tspan></text>
+    <text x="0" y="78" fill="#8B949E">Category:         <tspan fill="#D2A8FF">PACKAGE_MANAGER_CACHE</tspan></text>
+    <text x="0" y="96" fill="#8B949E">Risk:             <tspan fill="#7EE787">SAFE</tspan></text>
+    <text x="0" y="114" fill="#8B949E">Physical Space:   <tspan fill="#58A6FF">2.00 MiB</tspan></text>
+    <text x="0" y="132" fill="#8B949E">Reconstructable:  <tspan fill="#7EE787">Yes</tspan> (Homebrew downloads bottles from CDN on demand)</text>
+    <text x="0" y="150" fill="#8B949E">Confidence Score: <tspan fill="#F0F6FC">0.95</tspan></text>
+    <text x="0" y="168" fill="#30363D">----------------------------------------------------------------------</text>
+    <text x="0" y="190" fill="#8B949E">Evidence Vector:</text>
+    <text x="0" y="210" fill="#58A6FF">  * [RuleEngine] (weight 0.95):</text>
+    <text x="230" y="210" fill="#C9D1D9">Homebrew bottle download cache rule matched</text>
+    <text x="0" y="230" fill="#58A6FF">  * [Reconstructability] (weight 0.90):</text>
+    <text x="280" y="230" fill="#C9D1D9">Reproducible package archive</text>
+    <text x="0" y="250" fill="#58A6FF">  * [ProcessGuard] (weight 1.00):</text>
+    <text x="240" y="250" fill="#C9D1D9">Guard 'brew' not currently running</text>
+    <text x="0" y="272" fill="#30363D">----------------------------------------------------------------------</text>
+  </g>
+</svg>

@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 380" width="760" height="380" fill="none">
+  <!-- Terminal Window Chrome -->
+  <rect width="100%" height="100%" rx="10" fill="#0D1117" stroke="#30363D" stroke-width="1.5"/>
+  <rect width="100%" height="36" rx="10" fill="#161B22"/>
+  <circle cx="20" cy="18" r="6" fill="#EC6A5E"/>
+  <circle cx="40" cy="18" r="6" fill="#F4BF4F"/>
+  <circle cx="60" cy="18" r="6" fill="#61C554"/>
+  <text x="380" y="22" fill="#8B949E" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif" font-size="12" text-anchor="middle">vacua — terminal</text>
+
+  <!-- Terminal Content -->
+  <g transform="translate(24, 60)" font-family="ui-monospace, 'SF Mono', Menlo, Monaco, 'Cascadia Mono', monospace" font-size="12.5" line-height="1.5">
+    <!-- Command 1 -->
+    <text x="0" y="0" fill="#7EE787">$</text>
+    <text x="16" y="0" fill="#F0F6FC">vacua scan ~</text>
+
+    <text x="0" y="24" fill="#8B949E">Storage Scan Report</text>
+    <text x="0" y="42" fill="#30363D">==================================================</text>
+    <text x="0" y="60" fill="#8B949E">Target Path:        <tspan fill="#F0F6FC">~</tspan></text>
+    <text x="0" y="78" fill="#8B949E">Files Scanned:      <tspan fill="#F0F6FC">142,510</tspan></text>
+    <text x="0" y="96" fill="#8B949E">Directories:        <tspan fill="#F0F6FC">18,340</tspan></text>
+    <text x="0" y="114" fill="#8B949E">Logical Content:    <tspan fill="#F0F6FC">38.40 GiB</tspan></text>
+    <text x="0" y="132" fill="#8B949E">Physical Allocated: <tspan fill="#58A6FF">38.42 GiB</tspan> <tspan fill="#8B949E">(APFS extent-verified)</tspan></text>
+    <text x="0" y="150" fill="#30363D">==================================================</text>
+
+    <!-- Command 2 -->
+    <text x="0" y="184" fill="#7EE787">$</text>
+    <text x="16" y="184" fill="#F0F6FC">vacua candidates --risk safe</text>
+
+    <text x="0" y="208" fill="#8B949E">Storage Cleanup Candidates (Max Risk: Safe)</text>
+    <text x="0" y="224" fill="#30363D">======================================================================</text>
+    <text x="0" y="242" fill="#7EE787">[b8c6db3d] SAFE</text>
+    <text x="130" y="242" fill="#D2A8FF">BUILD_ARTIFACT</text>
+    <text x="270" y="242" fill="#58A6FF">4.12 GiB</text>
+    <text x="350" y="242" fill="#8B949E">~/Library/Developer/Xcode/DerivedData/*</text>
+
+    <text x="0" y="262" fill="#7EE787">[b9a4fbf7] SAFE</text>
+    <text x="130" y="262" fill="#D2A8FF">PACKAGE_CACHE</text>
+    <text x="270" y="262" fill="#58A6FF">1.84 GiB</text>
+    <text x="350" y="262" fill="#8B949E">~/Library/Caches/Homebrew/downloads/*</text>
+    <text x="0" y="280" fill="#30363D">======================================================================</text>
+  </g>
+</svg>

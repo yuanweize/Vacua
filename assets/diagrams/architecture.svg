@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 380" width="760" height="380" fill="none">
+  <style>
+    .bg { fill: #0D1117; }
+    .card { fill: #161B22; stroke: #30363D; stroke-width: 1.5; rx: 8px; }
+    .card-accent { fill: #1C2128; stroke: #388BFD; stroke-width: 1.5; rx: 8px; }
+    .card-warn { fill: #1C2128; stroke: #D29922; stroke-width: 1.5; rx: 8px; }
+    .card-green { fill: #1C2128; stroke: #3FB950; stroke-width: 1.5; rx: 8px; }
+    .title { fill: #F0F6FC; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 13px; font-weight: 600; text-anchor: middle; }
+    .desc { fill: #8B949E; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 11px; text-anchor: middle; }
+    .section-label { fill: #58A6FF; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+    .arrow { stroke: #58A6FF; stroke-width: 1.5; stroke-dasharray: 4,4; }
+    .solid-arrow { stroke: #8B949E; stroke-width: 1.5; }
+    @media (prefers-color-scheme: light) {
+      .bg { fill: #F6F8FA; }
+      .card { fill: #FFFFFF; stroke: #D0D7DE; }
+      .card-accent { fill: #F0F6FF; stroke: #0969DA; }
+      .card-warn { fill: #FFFBE6; stroke: #9A6700; }
+      .card-green { fill: #DAFBE1; stroke: #1A7F37; }
+      .title { fill: #1F2328; }
+      .desc { fill: #656D76; }
+      .section-label { fill: #0969DA; }
+      .arrow { stroke: #0969DA; }
+      .solid-arrow { stroke: #656D76; }
+    }
+  </style>
+
+  <rect width="100%" height="100%" class="bg" rx="12"/>
+
+  <!-- Left: Deterministic Core (Rust) -->
+  <text x="40" y="36" class="section-label">Deterministic Pipeline (Rust Core)</text>
+
+  <g transform="translate(40, 52)">
+    <!-- Filesystem -->
+    <rect x="0" y="0" width="180" height="42" class="card"/>
+    <text x="90" y="20" class="title">macOS Filesystem</text>
+    <text x="90" y="34" class="desc">APFS Extents / getattrlistbulk</text>
+
+    <!-- Arrow down -->
+    <line x1="90" y1="42" x2="90" y2="60" class="solid-arrow"/>
+    <polygon points="87,58 90,64 93,58" fill="#8B949E"/>
+
+    <!-- Scanner -->
+    <rect x="0" y="64" width="180" height="42" class="card"/>
+    <text x="90" y="84" class="title">Filesystem Scanner</text>
+    <text x="90" y="98" class="desc">Parallel traversal &amp; allocations</text>
+
+    <!-- Arrow down -->
+    <line x1="90" y1="106" x2="90" y2="124" class="solid-arrow"/>
+    <polygon points="87,122 90,128 93,122" fill="#8B949E"/>
+
+    <!-- Evidence Engine -->
+    <rect x="0" y="128" width="180" height="42" class="card"/>
+    <text x="90" y="148" class="title">Evidence Engine</text>
+    <text x="90" y="162" class="desc">Deterministic rules &amp; signals</text>
+
+    <!-- Arrow down -->
+    <line x1="90" y1="170" x2="90" y2="188" class="solid-arrow"/>
+    <polygon points="87,186 90,192 93,186" fill="#8B949E"/>
+
+    <!-- Risk & Invariants -->
+    <rect x="0" y="192" width="180" height="42" class="card-warn"/>
+    <text x="90" y="212" class="title">Risk &amp; Invariants</text>
+    <text x="90" y="226" class="desc">Fail-closed: PROTECTED/UNKNOWN</text>
+  </g>
+
+  <!-- Right: Optional Intelligence (Swift) -->
+  <text x="480" y="36" class="section-label">Optional AI (Swift Helper)</text>
+
+  <g transform="translate(480, 52)">
+    <!-- Natural Language -->
+    <rect x="0" y="0" width="230" height="42" class="card"/>
+    <text x="115" y="20" class="title">User Natural Language</text>
+    <text x="115" y="34" class="desc">"Free 10GB build caches safely"</text>
+
+    <!-- Arrow down -->
+    <line x1="115" y1="42" x2="115" y2="60" class="arrow"/>
+    <polygon points="112,58 115,64 118,58" fill="#58A6FF"/>
+
+    <!-- Apple Intelligence -->
+    <rect x="0" y="64" width="230" height="42" class="card"/>
+    <text x="115" y="84" class="title">Apple Foundation Models</text>
+    <text x="115" y="98" class="desc">On-device / Deterministic fallback</text>
+
+    <!-- Arrow down -->
+    <line x1="115" y1="106" x2="115" y2="124" class="arrow"/>
+    <polygon points="112,122 115,128 118,122" fill="#58A6FF"/>
+
+    <!-- Structured Intent -->
+    <rect x="0" y="128" width="230" height="42" class="card"/>
+    <text x="115" y="148" class="title">StructuredIntent (v1)</text>
+    <text x="115" y="162" class="desc">target_bytes, max_risk, filters</text>
+
+    <!-- Path constraint label -->
+    <text x="115" y="210" class="desc" fill="#F85149" font-style="italic">Strict: Zero Deletion Authority</text>
+  </g>
+
+  <!-- Center-Bottom: Convergence at Planner, Approval, Execution -->
+  <!-- Convergence arrows -->
+  <path d="M 130 286 L 130 306 L 270 306" class="solid-arrow"/>
+  <path d="M 595 222 L 595 306 L 470 306" class="arrow"/>
+  <polygon points="268,303 274,306 268,309" fill="#8B949E"/>
+
+  <g transform="translate(260, 285)">
+    <!-- Planner Box -->
+    <rect x="20" y="0" width="180" height="42" class="card-accent"/>
+    <text x="110" y="20" class="title">Cleanup Planner</text>
+    <text x="110" y="34" class="desc">SHA-256 Verified Immutable Plan</text>
+  </g>
+
+  <!-- Arrow from Planner to Approval & Executor -->
+  <line x1="470" y1="306" x2="510" y2="306" class="solid-arrow"/>
+  <polygon points="508,303 514,306 508,309" fill="#8B949E"/>
+
+  <g transform="translate(520, 285)">
+    <!-- User Approval & Executor -->
+    <rect x="0" y="0" width="200" height="42" class="card-green"/>
+    <text x="100" y="20" class="title">Approval &amp; Executor</text>
+    <text x="100" y="34" class="desc">Interactive TOCTOU + Trash + Journal</text>
+  </g>
+</svg>

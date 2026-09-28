@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" fill="none">
+  <!-- Vacua Mark — Light Mode Asset -->
+  <circle cx="64" cy="64" r="54" stroke="#1D1D1F" stroke-width="8" stroke-opacity="0.95"/>
+  <path d="M38 42 L64 88 L90 42" stroke="#1D1D1F" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="64" cy="54" r="6" fill="#1D1D1F"/>
+</svg>
