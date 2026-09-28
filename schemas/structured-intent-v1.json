@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vacua.app/schemas/structured-intent-v1.json",
+  "title": "StructuredIntent",
+  "description": "Typed intent payload produced by intelligence providers to propose storage cleanup operations without direct execution authority.",
+  "type": "object",
+  "properties": {
+    "intent_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version indicator (must be 1)"
+    },
+    "target_reclaim_bytes": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Optional desired storage target to reclaim in physical bytes"
+    },
+    "max_risk": {
+      "type": "string",
+      "enum": ["SAFE", "REVIEW", "CAUTION"],
+      "default": "SAFE",
+      "description": "Upper bound of risk permitted for proposed cleanup items"
+    },
+    "preferred_categories": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Preferred categories to target (e.g. BUILD_ARTIFACT, PACKAGE_MANAGER_CACHE)"
+    },
+    "excluded_categories": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Explicitly excluded categories (e.g. CONTAINER_DATA, USER_DOCUMENT)"
+    },
+    "excluded_candidate_ids": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Specific candidate IDs the user asked to retain"
+    },
+    "include_developer_artifacts": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether to evaluate developer caches and build artifacts"
+    },
+    "prefer_reversible_actions": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether trashable operations should be strictly preferred over permanent deletion"
+    },
+    "explanation_requested": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether the user requested a plain-language summary of findings"
+    }
+  },
+  "required": [
+    "intent_version",
+    "max_risk",
+    "preferred_categories",
+    "excluded_categories",
+    "excluded_candidate_ids",
+    "include_developer_artifacts",
+    "prefer_reversible_actions"
+  ],
+  "additionalProperties": false
+}

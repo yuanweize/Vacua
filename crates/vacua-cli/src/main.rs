@@ -1,11 +1,13 @@
 use clap::{Parser, Subcommand, ValueEnum};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use vacua_core::allocation::AllocationInfo;
 use vacua_core::candidate::Candidate;
 use vacua_core::pressure::{query_volume_status, VolumeStorageStatus};
 use vacua_core::risk::RiskLevel;
+use vacua_index::IndexDatabase;
 use vacua_plan::CleanupPlan;
 use vacua_risk::CandidateEvaluator;
 use vacua_rules::engine::RulesEngine;
@@ -36,6 +38,15 @@ enum Commands {
 
         #[arg(long, help = "Maximum directory traversal depth")]
         depth: Option<usize>,
+
+        #[arg(long, help = "Persist scan metadata to incremental SQLite index")]
+        incremental: bool,
+    },
+
+    #[command(about = "Inspect and manage the SQLite metadata index")]
+    Index {
+        #[command(subcommand)]
+        action: IndexAction,
     },
 
     #[command(about = "List classified cleanup candidates with risk evaluation")]
@@ -71,6 +82,31 @@ enum Commands {
 
     #[command(about = "Diagnose system volume status, APFS features, and FDA permissions")]
     Doctor,
+
+    #[command(about = "Interact with the provider-neutral intelligence translation layer")]
+    Intelligence {
+        #[command(subcommand)]
+        action: IntelligenceAction,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum IndexAction {
+    #[command(about = "Display statistics about the local SQLite metadata index")]
+    Status,
+    #[command(about = "Clear and rebuild the SQLite metadata index")]
+    Rebuild,
+}
+
+#[derive(Subcommand, Debug)]
+enum IntelligenceAction {
+    #[command(about = "Display the status and availability of local intelligence providers")]
+    Status,
+    #[command(about = "Translate natural language cleanup intent into typed StructuredIntent")]
+    Parse {
+        #[arg(help = "Natural language cleanup intent")]
+        prompt: String,
+    },
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Serialize)]
@@ -114,7 +150,19 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Scan { path, depth } => handle_scan(&path, depth, cli.json),
+        Commands::Scan {
+            path,
+            depth,
+            incremental,
+        } => handle_scan(&path, depth, incremental, cli.json),
+        Commands::Index { action } => match action {
+            IndexAction::Status => handle_index_status(cli.json),
+            IndexAction::Rebuild => handle_index_rebuild(cli.json),
+        },
+        Commands::Intelligence { action } => match action {
+            IntelligenceAction::Status => handle_intelligence_status(cli.json),
+            IntelligenceAction::Parse { prompt } => handle_intelligence_parse(&prompt, cli.json),
+        },
         Commands::Candidates { path, risk } => handle_candidates(&path, risk, cli.json),
         Commands::Explain { id, path } => handle_explain(&id, &path, cli.json),
         Commands::Plan { path, risk } => handle_plan(&path, risk, cli.json),
@@ -122,7 +170,14 @@ fn main() {
     }
 }
 
-fn handle_scan(path: &Path, depth: Option<usize>, json_mode: bool) {
+fn default_index_path() -> PathBuf {
+    let home = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."));
+    home.join(".vacua").join("index.db")
+}
+
+fn handle_scan(path: &Path, depth: Option<usize>, incremental: bool, json_mode: bool) {
     let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
     let scanner = FilesystemScanner::new(ScanOptions {
         cross_mounts: false,
@@ -174,9 +229,301 @@ fn handle_scan(path: &Path, depth: Option<usize>, json_mode: bool) {
                 }
                 println!("==================================================\n");
             }
+
+            if incremental {
+                let db_path = default_index_path();
+                match IndexDatabase::open(&db_path) {
+                    Ok(mut db) => {
+                        let _ = db.record_session(&canonical, &report);
+                        let _ = db.upsert_entries(&report.entries);
+                        if !json_mode {
+                            println!(
+                                "Incremental Index updated: {} entries indexed into {}",
+                                report.entries.len(),
+                                db_path.display()
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Warning: failed to update incremental index: {}", e);
+                    }
+                }
+            }
         }
         Err(e) => {
             eprintln!("Scan error: {}", e);
+            std::process::exit(1);
+        }
+    }
+}
+
+fn handle_index_status(json_mode: bool) {
+    let db_path = default_index_path();
+    if !db_path.exists() {
+        if json_mode {
+            println!("null");
+        } else {
+            println!(
+                "No index database found at {}. Run 'vacua scan --incremental' to create one.",
+                db_path.display()
+            );
+        }
+        return;
+    }
+
+    match IndexDatabase::open(&db_path) {
+        Ok(db) => match db.get_index_stats() {
+            Ok(stats) => {
+                if json_mode {
+                    println!("{}", serde_json::to_string_pretty(&stats).unwrap());
+                } else {
+                    println!("\nVacua Index Status");
+                    println!("==================================================");
+                    println!("Database Location:   {}", db_path.display());
+                    println!("Total Indexed Nodes: {}", stats.total_entries);
+                    println!(
+                        "Total Logical Space: {}",
+                        format_bytes(stats.total_logical_bytes)
+                    );
+                    println!(
+                        "Total Physical Space:{}",
+                        format_bytes(stats.total_allocated_bytes)
+                    );
+                    println!("Total Scan Sessions: {}", stats.total_sessions);
+                    if let Some(ts) = stats.last_scan_timestamp {
+                        println!("Last Scan Timestamp: {}", ts);
+                    }
+                    println!("==================================================\n");
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to read index stats: {}", e);
+                std::process::exit(1);
+            }
+        },
+        Err(e) => {
+            eprintln!("Failed to open index: {}", e);
+            std::process::exit(1);
+        }
+    }
+}
+
+fn handle_index_rebuild(json_mode: bool) {
+    let db_path = default_index_path();
+    match IndexDatabase::open(&db_path) {
+        Ok(mut db) => match db.rebuild() {
+            Ok(_) => {
+                if json_mode {
+                    println!(
+                        "{{\"status\": \"rebuilt\", \"path\": \"{}\"}}",
+                        db_path.display()
+                    );
+                } else {
+                    println!(
+                        "Successfully cleared and vacuumed index database at {}",
+                        db_path.display()
+                    );
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to rebuild index: {}", e);
+                std::process::exit(1);
+            }
+        },
+        Err(e) => {
+            eprintln!("Failed to open index for rebuild: {}", e);
+            std::process::exit(1);
+        }
+    }
+}
+
+fn find_intelligence_binary() -> Option<PathBuf> {
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(dir) = exe_path.parent() {
+            let candidate = dir.join("vacua-intelligence");
+            if candidate.exists() {
+                return Some(candidate);
+            }
+        }
+    }
+
+    let dev_candidates = [
+        PathBuf::from("apple/VacuaIntelligence/.build/release/vacua-intelligence"),
+        PathBuf::from("apple/VacuaIntelligence/.build/debug/vacua-intelligence"),
+        PathBuf::from("../apple/VacuaIntelligence/.build/release/vacua-intelligence"),
+        PathBuf::from("../apple/VacuaIntelligence/.build/debug/vacua-intelligence"),
+    ];
+    for cand in &dev_candidates {
+        if cand.exists() {
+            return Some(cand.clone());
+        }
+    }
+
+    if let Ok(path_var) = std::env::var("PATH") {
+        for p in std::env::split_paths(&path_var) {
+            let candidate = p.join("vacua-intelligence");
+            if candidate.exists() {
+                return Some(candidate);
+            }
+        }
+    }
+
+    None
+}
+
+fn handle_intelligence_status(json_mode: bool) {
+    let binary = match find_intelligence_binary() {
+        Some(b) => b,
+        None => {
+            if json_mode {
+                println!(
+                    "{{\"status\":\"unavailable\",\"provider\":\"Apple On-Device\",\"reason\":\"vacua-intelligence helper binary not found. Build it with: cd apple/VacuaIntelligence && swift build\"}}"
+                );
+            } else {
+                println!("\nApple Intelligence Status");
+                println!("──────────────────────────────────────────────────");
+                println!("Provider:     Apple On-Device (Foundation Models)");
+                println!("Availability: Binary not compiled");
+                println!("Network:      No (Strict on-device inference)");
+                println!("Role:         Intent translation (NL -> StructuredIntent)");
+                println!("Execution:    Forbidden (Zero deletion authority)");
+                println!(
+                    "Note:         Build Swift helper: cd apple/VacuaIntelligence && swift build"
+                );
+                println!("──────────────────────────────────────────────────\n");
+            }
+            return;
+        }
+    };
+
+    match Command::new(&binary).arg("status").output() {
+        Ok(output) => {
+            if !output.status.success() {
+                let err = String::from_utf8_lossy(&output.stderr);
+                eprintln!("Intelligence helper failed: {}", err);
+                std::process::exit(1);
+            }
+
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            if json_mode {
+                print!("{}", stdout);
+            } else {
+                let availability =
+                    if let Ok(val) = serde_json::from_str::<serde_json::Value>(&stdout) {
+                        val.get("availability")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("unknown")
+                            .to_string()
+                    } else {
+                        "unknown".to_string()
+                    };
+
+                println!("\nApple Intelligence Status");
+                println!("──────────────────────────────────────────────────");
+                println!("Provider:     Apple On-Device (Foundation Models)");
+                println!("Availability: {}", availability);
+                println!("Network:      No (Strict on-device inference)");
+                println!("Role:         Intent translation (NL -> StructuredIntent)");
+                println!("Execution:    Forbidden (Zero deletion authority)");
+                println!("Helper:       {}", binary.display());
+                println!("Protocol:     JSON v1 (stdin/stdout)");
+                println!("──────────────────────────────────────────────────\n");
+            }
+        }
+        Err(e) => {
+            eprintln!(
+                "Failed to spawn intelligence binary ({}): {}",
+                binary.display(),
+                e
+            );
+            std::process::exit(1);
+        }
+    }
+}
+
+fn handle_intelligence_parse(prompt: &str, json_mode: bool) {
+    let binary = match find_intelligence_binary() {
+        Some(b) => b,
+        None => {
+            if json_mode {
+                println!(
+                    "{{\"status\":\"error\",\"message\":\"vacua-intelligence binary not found. Build with: cd apple/VacuaIntelligence && swift build\"}}"
+                );
+            } else {
+                eprintln!(
+                    "vacua-intelligence binary not found. Compile it first: cd apple/VacuaIntelligence && swift build"
+                );
+            }
+            std::process::exit(1);
+        }
+    };
+
+    match Command::new(&binary).args(["parse", prompt]).output() {
+        Ok(output) => {
+            if !output.status.success() {
+                let err = String::from_utf8_lossy(&output.stderr);
+                eprintln!("Intelligence parsing failed: {}", err);
+                std::process::exit(1);
+            }
+
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            if json_mode {
+                print!("{}", stdout);
+            } else if let Ok(val) = serde_json::from_str::<serde_json::Value>(&stdout) {
+                if let Some(intent) = val.get("intent") {
+                    println!(
+                        "\nParsed Structured Intent (v{})",
+                        intent
+                            .get("intent_version")
+                            .and_then(|v| v.as_i64())
+                            .unwrap_or(1)
+                    );
+                    println!("──────────────────────────────────────────────────");
+                    if let Some(target) =
+                        intent.get("target_reclaim_bytes").and_then(|v| v.as_u64())
+                    {
+                        println!("Target Reclaim:      {}", format_bytes(target));
+                    }
+                    if let Some(risk) = intent.get("max_risk").and_then(|v| v.as_str()) {
+                        println!("Max Risk Level:      {}", risk);
+                    }
+                    if let Some(dev) = intent
+                        .get("include_developer_artifacts")
+                        .and_then(|v| v.as_bool())
+                    {
+                        println!("Include Dev Caches:  {}", dev);
+                    }
+                    if let Some(rev) = intent
+                        .get("prefer_reversible_actions")
+                        .and_then(|v| v.as_bool())
+                    {
+                        println!("Prefer Trash:        {}", rev);
+                    }
+                    if let Some(excluded) =
+                        intent.get("excluded_categories").and_then(|v| v.as_array())
+                    {
+                        let cats: Vec<String> = excluded
+                            .iter()
+                            .filter_map(|c| c.as_str().map(|s| s.to_string()))
+                            .collect();
+                        if !cats.is_empty() {
+                            println!("Excluded Categories: {}", cats.join(", "));
+                        }
+                    }
+                    println!("──────────────────────────────────────────────────\n");
+                } else {
+                    print!("{}", stdout);
+                }
+            } else {
+                print!("{}", stdout);
+            }
+        }
+        Err(e) => {
+            eprintln!(
+                "Failed to spawn intelligence binary ({}): {}",
+                binary.display(),
+                e
+            );
             std::process::exit(1);
         }
     }

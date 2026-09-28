@@ -22,10 +22,26 @@ jobs:
         run: cargo fmt --check
 
       - name: Clippy Lint
-        run: cargo clippy --all -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
-      - name: Run Test Suite
-        run: cargo test --all
+      - name: Run Workspace Tests
+        run: cargo test --workspace --all-features
 
       - name: Build Release Binary
-        run: cargo build --release --bin reclaim
+        run: cargo build --release --bin vacua
+
+  swift-check:
+    name: Swift Intelligence Module
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Swift Module
+        run: |
+          cd apple/VacuaIntelligence
+          swift build
+
+      - name: Run Swift Self-Tests
+        run: |
+          cd apple/VacuaIntelligence
+          .build/debug/vacua-intelligence test
