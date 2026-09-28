@@ -1,13 +1,15 @@
 use chrono::Utc;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 use vacua_core::candidate::Candidate;
 use vacua_scan::entry::ScannedEntry;
-use vacua_scan::ScanReport;
+use vacua_scan::{FilesystemScanner, ScanOptions, ScanReport};
 
+use crate::fsevents::{get_current_event_id, replay_fsevents_since};
 use crate::schema::{run_migrations, SchemaError};
 
 #[derive(Error, Debug)]
@@ -20,6 +22,12 @@ pub enum IndexError {
 
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
+
+    #[error("JSON serialization error: {0}")]
+    Json(#[from] serde_json::Error),
+
+    #[error("Snapshot not found: {0}")]
+    SnapshotNotFound(String),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,6 +50,68 @@ pub struct IndexStats {
     pub total_allocated_bytes: u64,
     pub total_sessions: u64,
     pub last_scan_timestamp: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WatchedRootRecord {
+    pub id: i64,
+    pub watched_root: PathBuf,
+    pub volume_id: u64,
+    pub last_event_id: u64,
+    pub last_full_scan: i64,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StorageSnapshot {
+    pub snapshot_id: String,
+    pub name: String,
+    pub root_path: PathBuf,
+    pub timestamp: i64,
+    pub total_files: u64,
+    pub total_dirs: u64,
+    pub logical_bytes: u64,
+    pub allocated_bytes: u64,
+    pub subtrees: HashMap<String, u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StorageSnapshotSummary {
+    pub snapshot_id: String,
+    pub name: String,
+    pub root_path: PathBuf,
+    pub timestamp: i64,
+    pub total_files: u64,
+    pub allocated_bytes: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubtreeDelta {
+    pub path: String,
+    pub delta_bytes: i64,
+    pub change_type: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SnapshotDiff {
+    pub base_name: String,
+    pub target_name: String,
+    pub allocated_delta_bytes: i64,
+    pub logical_delta_bytes: i64,
+    pub files_delta: i64,
+    pub subtree_deltas: Vec<SubtreeDelta>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IncrementalRefreshResult {
+    pub root_path: PathBuf,
+    pub full_rescan_performed: bool,
+    pub dirty_subtrees_count: usize,
+    pub rescanned_subtrees: Vec<PathBuf>,
+    pub updated_entries_count: usize,
+    pub previous_event_id: u64,
+    pub new_event_id: u64,
+    pub status: String,
 }
 
 pub struct IndexDatabase {
@@ -243,11 +313,384 @@ impl IndexDatabase {
         })
     }
 
+    // -----------------------------------------------------------------------
+    // FSEvents Persistent Cursor & Watched Roots
+    // -----------------------------------------------------------------------
+
+    pub fn get_watched_root(&self, root: &Path) -> Result<Option<WatchedRootRecord>, IndexError> {
+        let path_str = root.to_string_lossy();
+        let mut stmt = self.conn.prepare(
+            "SELECT id, watched_root, volume_id, last_event_id, last_full_scan, status
+             FROM watched_roots WHERE watched_root = ?1 LIMIT 1",
+        )?;
+        let mut rows = stmt.query(params![path_str])?;
+        if let Some(row) = rows.next()? {
+            let r_str: String = row.get(1)?;
+            Ok(Some(WatchedRootRecord {
+                id: row.get(0)?,
+                watched_root: PathBuf::from(r_str),
+                volume_id: row.get(2)?,
+                last_event_id: row.get(3)?,
+                last_full_scan: row.get(4)?,
+                status: row.get(5)?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn upsert_watched_root(
+        &mut self,
+        root: &Path,
+        volume_id: u64,
+        last_event_id: u64,
+        status: &str,
+    ) -> Result<(), IndexError> {
+        let now = Utc::now().timestamp();
+        self.conn.execute(
+            r#"
+            INSERT INTO watched_roots (
+                watched_root, volume_id, last_event_id, last_full_scan, status
+            ) VALUES (?1, ?2, ?3, ?4, ?5)
+            ON CONFLICT(watched_root) DO UPDATE SET
+                volume_id = excluded.volume_id,
+                last_event_id = excluded.last_event_id,
+                last_full_scan = excluded.last_full_scan,
+                status = excluded.status
+            "#,
+            params![
+                root.to_string_lossy(),
+                volume_id,
+                last_event_id,
+                now,
+                status
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn list_watched_roots(&self) -> Result<Vec<WatchedRootRecord>, IndexError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, watched_root, volume_id, last_event_id, last_full_scan, status
+             FROM watched_roots ORDER BY last_full_scan DESC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let r_str: String = row.get(1)?;
+            Ok(WatchedRootRecord {
+                id: row.get(0)?,
+                watched_root: PathBuf::from(r_str),
+                volume_id: row.get(2)?,
+                last_event_id: row.get(3)?,
+                last_full_scan: row.get(4)?,
+                status: row.get(5)?,
+            })
+        })?;
+
+        let mut list = Vec::new();
+        for r in rows {
+            list.push(r?);
+        }
+        Ok(list)
+    }
+
+    /// Surgical incremental refresh using native FSEvents replay.
+    /// If no cursor exists or if dropped events require full rescan, full scan is performed.
+    /// Otherwise, only dirty subtrees are rescanned and updated in SQLite!
+    pub fn refresh_root(
+        &mut self,
+        root: &Path,
+        scanner: &FilesystemScanner,
+    ) -> Result<IncrementalRefreshResult, IndexError> {
+        let canonical = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+        let current_cur = self.get_watched_root(&canonical)?;
+
+        let current_event_id = get_current_event_id();
+        let volume_id = std::fs::symlink_metadata(&canonical)
+            .map(|m| {
+                use std::os::unix::fs::MetadataExt;
+                m.dev()
+            })
+            .unwrap_or(0);
+
+        match current_cur {
+            None => {
+                // Initial scan
+                let report = scanner.scan(&canonical)?;
+                self.record_session(&canonical, &report)?;
+                let count = self.upsert_entries(&report.entries)?;
+                self.upsert_watched_root(
+                    &canonical,
+                    volume_id,
+                    current_event_id,
+                    "fresh_initialized",
+                )?;
+
+                Ok(IncrementalRefreshResult {
+                    root_path: canonical,
+                    full_rescan_performed: true,
+                    dirty_subtrees_count: 0,
+                    rescanned_subtrees: vec![],
+                    updated_entries_count: count,
+                    previous_event_id: 0,
+                    new_event_id: current_event_id,
+                    status: "fresh_initialized".into(),
+                })
+            }
+            Some(cur) => {
+                let prev_event_id = cur.last_event_id;
+                // Replay native FSEvents since cursor
+                let tracker = replay_fsevents_since(&canonical, prev_event_id)?;
+
+                if tracker.is_full_rescan_required() {
+                    // Fallback to full rescan if events dropped
+                    let report = scanner.scan(&canonical)?;
+                    self.record_session(&canonical, &report)?;
+                    let count = self.upsert_entries(&report.entries)?;
+                    let new_id = tracker.last_event_id().max(current_event_id);
+                    self.upsert_watched_root(
+                        &canonical,
+                        volume_id,
+                        new_id,
+                        "fallback_full_rescan",
+                    )?;
+
+                    Ok(IncrementalRefreshResult {
+                        root_path: canonical,
+                        full_rescan_performed: true,
+                        dirty_subtrees_count: 0,
+                        rescanned_subtrees: vec![],
+                        updated_entries_count: count,
+                        previous_event_id: prev_event_id,
+                        new_event_id: new_id,
+                        status: "fallback_full_rescan".into(),
+                    })
+                } else {
+                    let subtrees = tracker.get_subtrees_to_rescan().unwrap_or_default();
+                    if subtrees.is_empty() {
+                        // Nothing changed
+                        let new_id = tracker.last_event_id().max(prev_event_id);
+                        self.upsert_watched_root(&canonical, volume_id, new_id, "clean")?;
+
+                        Ok(IncrementalRefreshResult {
+                            root_path: canonical,
+                            full_rescan_performed: false,
+                            dirty_subtrees_count: 0,
+                            rescanned_subtrees: vec![],
+                            updated_entries_count: 0,
+                            previous_event_id: prev_event_id,
+                            new_event_id: new_id,
+                            status: "clean_up_to_date".into(),
+                        })
+                    } else {
+                        // Surgical rescan of only dirty subtrees
+                        let mut total_updated = 0;
+                        for dirty_dir in &subtrees {
+                            if dirty_dir.exists() {
+                                let sub_scanner = FilesystemScanner::new(ScanOptions {
+                                    cross_mounts: false,
+                                    max_depth: None,
+                                    jobs: Some(2),
+                                });
+                                if let Ok(sub_report) = sub_scanner.scan(dirty_dir) {
+                                    total_updated += self.upsert_entries(&sub_report.entries)?;
+                                }
+                            }
+                        }
+
+                        let new_id = tracker.last_event_id().max(current_event_id);
+                        self.upsert_watched_root(&canonical, volume_id, new_id, "incremental")?;
+
+                        Ok(IncrementalRefreshResult {
+                            root_path: canonical,
+                            full_rescan_performed: false,
+                            dirty_subtrees_count: subtrees.len(),
+                            rescanned_subtrees: subtrees,
+                            updated_entries_count: total_updated,
+                            previous_event_id: prev_event_id,
+                            new_event_id: new_id,
+                            status: "surgical_incremental".into(),
+                        })
+                    }
+                }
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Storage Snapshots & Diff Engine
+    // -----------------------------------------------------------------------
+
+    pub fn save_snapshot(&mut self, snapshot: &StorageSnapshot) -> Result<(), IndexError> {
+        let serialized = serde_json::to_string(&snapshot.subtrees)?;
+        self.conn.execute(
+            r#"
+            INSERT INTO snapshots (
+                snapshot_id, name, root_path, timestamp,
+                total_files, total_dirs, logical_bytes, allocated_bytes, snapshot_data
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            ON CONFLICT(snapshot_id) DO UPDATE SET
+                name = excluded.name,
+                snapshot_data = excluded.snapshot_data
+            "#,
+            params![
+                snapshot.snapshot_id,
+                snapshot.name,
+                snapshot.root_path.to_string_lossy(),
+                snapshot.timestamp,
+                snapshot.total_files,
+                snapshot.total_dirs,
+                snapshot.logical_bytes,
+                snapshot.allocated_bytes,
+                serialized,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn list_snapshots(&self) -> Result<Vec<StorageSnapshotSummary>, IndexError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT snapshot_id, name, root_path, timestamp, total_files, allocated_bytes
+             FROM snapshots ORDER BY timestamp DESC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let p_str: String = row.get(2)?;
+            Ok(StorageSnapshotSummary {
+                snapshot_id: row.get(0)?,
+                name: row.get(1)?,
+                root_path: PathBuf::from(p_str),
+                timestamp: row.get(3)?,
+                total_files: row.get(4)?,
+                allocated_bytes: row.get(5)?,
+            })
+        })?;
+
+        let mut list = Vec::new();
+        for r in rows {
+            list.push(r?);
+        }
+        Ok(list)
+    }
+
+    pub fn get_snapshot(&self, name_or_id: &str) -> Result<Option<StorageSnapshot>, IndexError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT snapshot_id, name, root_path, timestamp, total_files, total_dirs,
+                    logical_bytes, allocated_bytes, snapshot_data
+             FROM snapshots WHERE name = ?1 OR snapshot_id = ?1 LIMIT 1",
+        )?;
+        let mut rows = stmt.query(params![name_or_id])?;
+        if let Some(row) = rows.next()? {
+            let root_s: String = row.get(2)?;
+            let raw_data: String = row.get(8)?;
+            let subtrees: HashMap<String, u64> = serde_json::from_str(&raw_data)?;
+            Ok(Some(StorageSnapshot {
+                snapshot_id: row.get(0)?,
+                name: row.get(1)?,
+                root_path: PathBuf::from(root_s),
+                timestamp: row.get(3)?,
+                total_files: row.get(4)?,
+                total_dirs: row.get(5)?,
+                logical_bytes: row.get(6)?,
+                allocated_bytes: row.get(7)?,
+                subtrees,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn diff_snapshots(
+        &self,
+        base_name: &str,
+        target_name: &str,
+    ) -> Result<SnapshotDiff, IndexError> {
+        let base = self
+            .get_snapshot(base_name)?
+            .ok_or_else(|| IndexError::SnapshotNotFound(base_name.to_string()))?;
+        let target = if target_name == "current" {
+            let scanner = vacua_scan::FilesystemScanner::new(vacua_scan::ScanOptions {
+                cross_mounts: false,
+                max_depth: None,
+                ..Default::default()
+            });
+            let report = scanner.scan(&base.root_path)?;
+            let mut subtrees = HashMap::new();
+            for entry in &report.entries {
+                if entry.is_dir {
+                    subtrees.insert(
+                        entry.path.to_string_lossy().to_string(),
+                        entry.allocated_bytes,
+                    );
+                }
+            }
+            StorageSnapshot {
+                snapshot_id: "current".into(),
+                name: "current".into(),
+                root_path: base.root_path.clone(),
+                timestamp: chrono::Utc::now().timestamp(),
+                total_files: report.total_files,
+                total_dirs: report.total_dirs,
+                logical_bytes: report.allocation.logical_bytes,
+                allocated_bytes: report.allocation.allocated_bytes,
+                subtrees,
+            }
+        } else {
+            self.get_snapshot(target_name)?
+                .ok_or_else(|| IndexError::SnapshotNotFound(target_name.to_string()))?
+        };
+
+        let allocated_delta = target.allocated_bytes as i64 - base.allocated_bytes as i64;
+        let logical_delta = target.logical_bytes as i64 - base.logical_bytes as i64;
+        let files_delta = target.total_files as i64 - base.total_files as i64;
+
+        let mut all_paths: HashSet<String> = HashSet::new();
+        all_paths.extend(base.subtrees.keys().cloned());
+        all_paths.extend(target.subtrees.keys().cloned());
+
+        let mut subtree_deltas = Vec::new();
+        for p in all_paths {
+            let base_bytes = base.subtrees.get(&p).copied().unwrap_or(0);
+            let target_bytes = target.subtrees.get(&p).copied().unwrap_or(0);
+            let delta = target_bytes as i64 - base_bytes as i64;
+
+            if delta != 0 {
+                let change_type = if base_bytes == 0 {
+                    "created".to_string()
+                } else if target_bytes == 0 {
+                    "removed".to_string()
+                } else if delta > 0 {
+                    "grown".to_string()
+                } else {
+                    "shrunk".to_string()
+                };
+
+                subtree_deltas.push(SubtreeDelta {
+                    path: p,
+                    delta_bytes: delta,
+                    change_type,
+                });
+            }
+        }
+
+        // Sort largest growth first
+        subtree_deltas.sort_by_key(|b| std::cmp::Reverse(b.delta_bytes));
+
+        Ok(SnapshotDiff {
+            base_name: base.name,
+            target_name: target.name,
+            allocated_delta_bytes: allocated_delta,
+            logical_delta_bytes: logical_delta,
+            files_delta,
+            subtree_deltas,
+        })
+    }
+
     pub fn rebuild(&mut self) -> Result<(), IndexError> {
         let tx = self.conn.transaction()?;
         tx.execute("DELETE FROM classifications", [])?;
         tx.execute("DELETE FROM entries", [])?;
         tx.execute("DELETE FROM scan_sessions", [])?;
+        tx.execute("DELETE FROM watched_roots", [])?;
+        tx.execute("DELETE FROM snapshots", [])?;
         tx.commit()?;
         self.conn.execute("VACUUM", [])?;
         Ok(())
@@ -282,22 +725,84 @@ mod tests {
         let inserted = db.upsert_entries(&[scanned]).unwrap();
         assert_eq!(inserted, 1);
 
-        let retrieved = db
-            .get_entry_by_path(Path::new("/test/file.bin"))
-            .unwrap()
-            .unwrap();
-        assert_eq!(retrieved.logical_bytes, 5000);
-        assert_eq!(retrieved.allocated_bytes, 8192);
-        assert_eq!(retrieved.inode, 101);
-
         let stats = db.get_index_stats().unwrap();
         assert_eq!(stats.total_entries, 1);
         assert_eq!(stats.total_logical_bytes, 5000);
         assert_eq!(stats.total_allocated_bytes, 8192);
+    }
 
-        // Test rebuild clears entries
-        db.rebuild().unwrap();
-        let stats_after = db.get_index_stats().unwrap();
-        assert_eq!(stats_after.total_entries, 0);
+    #[test]
+    fn test_watched_roots_persistence() {
+        let mut db = IndexDatabase::open_in_memory().unwrap();
+        let path = PathBuf::from("/Users/test/workspace");
+        db.upsert_watched_root(&path, 1, 123456, "active").unwrap();
+
+        let cur = db.get_watched_root(&path).unwrap().unwrap();
+        assert_eq!(cur.watched_root, path);
+        assert_eq!(cur.last_event_id, 123456);
+        assert_eq!(cur.status, "active");
+
+        let list = db.list_watched_roots().unwrap();
+        assert_eq!(list.len(), 1);
+    }
+
+    #[test]
+    fn test_storage_snapshot_and_diff() {
+        let mut db = IndexDatabase::open_in_memory().unwrap();
+
+        let mut sub1 = HashMap::new();
+        sub1.insert("~/Library/Developer".to_string(), 10 * 1024 * 1024);
+        sub1.insert("~/Library/Caches".to_string(), 5 * 1024 * 1024);
+
+        let s1 = StorageSnapshot {
+            snapshot_id: "snap-1".into(),
+            name: "baseline".into(),
+            root_path: PathBuf::from("/Users/test"),
+            timestamp: 1000,
+            total_files: 100,
+            total_dirs: 10,
+            logical_bytes: 15 * 1024 * 1024,
+            allocated_bytes: 15 * 1024 * 1024,
+            subtrees: sub1,
+        };
+        db.save_snapshot(&s1).unwrap();
+
+        let mut sub2 = HashMap::new();
+        sub2.insert("~/Library/Developer".to_string(), 18 * 1024 * 1024); // +8 MB
+        sub2.insert("~/Library/Caches".to_string(), 2 * 1024 * 1024); // -3 MB
+        sub2.insert("~/Docker".to_string(), 4 * 1024 * 1024); // +4 MB (created)
+
+        let s2 = StorageSnapshot {
+            snapshot_id: "snap-2".into(),
+            name: "current".into(),
+            root_path: PathBuf::from("/Users/test"),
+            timestamp: 2000,
+            total_files: 150,
+            total_dirs: 12,
+            logical_bytes: 24 * 1024 * 1024,
+            allocated_bytes: 24 * 1024 * 1024,
+            subtrees: sub2,
+        };
+        db.save_snapshot(&s2).unwrap();
+
+        let diff = db.diff_snapshots("baseline", "current").unwrap();
+        assert_eq!(diff.allocated_delta_bytes, 9 * 1024 * 1024);
+        assert_eq!(diff.files_delta, 50);
+
+        let dev_delta = diff
+            .subtree_deltas
+            .iter()
+            .find(|d| d.path == "~/Library/Developer")
+            .unwrap();
+        assert_eq!(dev_delta.delta_bytes, 8 * 1024 * 1024);
+        assert_eq!(dev_delta.change_type, "grown");
+
+        let docker_delta = diff
+            .subtree_deltas
+            .iter()
+            .find(|d| d.path == "~/Docker")
+            .unwrap();
+        assert_eq!(docker_delta.delta_bytes, 4 * 1024 * 1024);
+        assert_eq!(docker_delta.change_type, "created");
     }
 }

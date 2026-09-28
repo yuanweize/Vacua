@@ -829,6 +829,7 @@ dependencies = [
  "libc",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror",
 ]
 
@@ -841,6 +842,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
+ "sha2",
  "sysinfo",
  "tempfile",
  "thiserror",
@@ -857,6 +859,7 @@ dependencies = [
  "libc",
  "rusqlite",
  "serde",
+ "serde_json",
  "tempfile",
  "thiserror",
  "vacua-core",

@@ -1,7 +1,7 @@
 use rusqlite::Connection;
 use thiserror::Error;
 
-pub const CURRENT_SCHEMA_VERSION: u32 = 1;
+pub const CURRENT_SCHEMA_VERSION: u32 = 2;
 
 #[derive(Error, Debug)]
 pub enum SchemaError {
@@ -31,8 +31,7 @@ pub fn run_migrations(conn: &mut Connection) -> std::result::Result<(), SchemaEr
         });
     }
 
-    if current_version == 0 {
-        // Initial schema migration
+    if current_version < 1 {
         let tx = conn.transaction()?;
 
         tx.execute_batch(
@@ -89,7 +88,44 @@ pub fn run_migrations(conn: &mut Connection) -> std::result::Result<(), SchemaEr
             "#,
         )?;
 
-        tx.pragma_update(None, "user_version", CURRENT_SCHEMA_VERSION)?;
+        tx.pragma_update(None, "user_version", 1)?;
+        tx.commit()?;
+    }
+
+    if current_version < 2 {
+        let tx = conn.transaction()?;
+
+        tx.execute_batch(
+            r#"
+            -- Persistent FSEvents watched roots & event cursors
+            CREATE TABLE IF NOT EXISTS watched_roots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                watched_root TEXT UNIQUE NOT NULL,
+                volume_id INTEGER NOT NULL,
+                last_event_id INTEGER NOT NULL,
+                last_full_scan INTEGER NOT NULL,
+                status TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_watched_root ON watched_roots(watched_root);
+
+            -- Storage state snapshots
+            CREATE TABLE IF NOT EXISTS snapshots (
+                snapshot_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                root_path TEXT NOT NULL,
+                timestamp INTEGER NOT NULL,
+                total_files INTEGER NOT NULL,
+                total_dirs INTEGER NOT NULL,
+                logical_bytes INTEGER NOT NULL,
+                allocated_bytes INTEGER NOT NULL,
+                snapshot_data TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_snapshots_name ON snapshots(name);
+            CREATE INDEX IF NOT EXISTS idx_snapshots_time ON snapshots(timestamp DESC);
+            "#,
+        )?;
+
+        tx.pragma_update(None, "user_version", 2)?;
         tx.commit()?;
     }
 
@@ -113,12 +149,12 @@ mod tests {
         // Verify table existence
         let tables_count: i64 = conn
             .query_row(
-                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('volumes', 'scan_sessions', 'entries', 'classifications')",
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('volumes', 'scan_sessions', 'entries', 'classifications', 'watched_roots', 'snapshots')",
                 [],
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(tables_count, 4);
+        assert_eq!(tables_count, 6);
     }
 
     #[test]
