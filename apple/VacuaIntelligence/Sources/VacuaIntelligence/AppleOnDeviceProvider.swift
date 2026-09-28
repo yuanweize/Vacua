@@ -5,89 +5,101 @@ import FoundationModels
 #endif
 
 public struct AppleOnDeviceProvider: Sendable {
+    private let deterministicParser = DeterministicIntentParser()
+
     public init() {}
 
-    /// Probe the availability of Apple Foundation Models on this Mac.
-    public func checkAvailability() -> ProviderAvailability {
+    /// Probe the availability of Apple Foundation Models on this Mac using real Apple OS APIs.
+    public func checkAvailability() -> (ProviderAvailability, String) {
         #if canImport(FoundationModels)
-        if #available(macOS 15.0, *) {
-            // Check SystemLanguageModel default availability if API is present
-            return .modelNotReady
+        if #available(macOS 26.0, *) {
+            let model = SystemLanguageModel.default
+            switch model.availability {
+            case .available:
+                return (.available, "available")
+            case .unavailable(let reason):
+                switch reason {
+                case .deviceNotEligible:
+                    return (.deviceNotEligible, "deviceNotEligible")
+                case .appleIntelligenceNotEnabled:
+                    return (.appleIntelligenceNotEnabled, "appleIntelligenceNotEnabled")
+                case .modelNotReady:
+                    return (.modelNotReady, "modelNotReady")
+                @unknown default:
+                    return (.modelNotReady, "unavailableReasonUnknown")
+                }
+            @unknown default:
+                return (.modelNotReady, "unknownAvailability")
+            }
         } else {
-            return .deviceNotEligible
+            return (.deviceNotEligible, "macOSVersionBelow26")
         }
         #else
-        // Platform or SDK does not bundle FoundationModels module
-        return .unsupported
+        return (.unsupported, "foundationModelsModuleNotBundled")
         #endif
     }
 
     /// Parse a natural language cleanup prompt into a typed StructuredIntent.
-    public func parseIntent(prompt: String) async -> StructuredIntent {
-        let lower = prompt.lowercased()
+    /// Real Apple Foundation Models inference is executed ONLY when the model is actually available.
+    public func parseIntent(prompt: String) async -> ParsedIntentResult {
+        let (availability, reasonString) = checkAvailability()
 
-        // 1. Target reclaim bytes extraction
-        var targetBytes: UInt64? = nil
-        let gib: UInt64 = 1024 * 1024 * 1024
-        let mib: UInt64 = 1024 * 1024
+        #if canImport(FoundationModels)
+        if #available(macOS 26.0, *) {
+            if availability == .available {
+                // Real Apple Foundation Models Inference Session
+                let model = SystemLanguageModel.default
+                let session = LanguageModelSession(model: model)
 
-        // Regex or string matching for common size patterns (e.g. "10 gb", "20g", "500 mb")
-        if let match = lower.range(of: #"\b(\d+)\s*(gb|g|gib)\b"#, options: .regularExpression) {
-            let matchedStr = String(lower[match])
-            let numStr = matchedStr.filter { $0.isNumber }
-            if let num = UInt64(numStr) {
-                targetBytes = num * gib
+                let systemInstruction = """
+                Translate the user storage cleanup request into a JSON object strictly matching this schema:
+                {
+                  "intent_version": 1,
+                  "target_reclaim_bytes": <integer or null>,
+                  "max_risk": "SAFE" | "REVIEW" | "CAUTION",
+                  "preferred_categories": [<string>],
+                  "excluded_categories": [<string>],
+                  "include_developer_artifacts": true,
+                  "prefer_reversible_actions": true,
+                  "explanation_requested": <boolean>
+                }
+                Allowed categories: BUILD_ARTIFACT, PACKAGE_MANAGER_CACHE, CONTAINER_DATA, USER_DOCUMENT, SOURCE_CODE, VIRTUAL_MACHINE.
+                Respond with ONLY the raw JSON object. Do not include markdown codeblocks or extra text.
+                """
+
+                do {
+                    let promptWithContext = "\(systemInstruction)\n\nUser request: \"\(prompt)\""
+                    let response = try await session.respond(to: promptWithContext)
+                    let responseText = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                    // Attempt decoding model output into StructuredIntent
+                    if let data = responseText.data(using: .utf8),
+                       let intent = try? JSONDecoder().decode(StructuredIntent.self, from: data) {
+                        return ParsedIntentResult(
+                            intent: intent,
+                            providerRequested: "apple-system",
+                            providerUsed: "apple-system",
+                            modelAvailability: reasonString,
+                            generationSucceeded: true,
+                            fallbackUsed: false
+                        )
+                    }
+                } catch {
+                    // Inference failed; fall through to verified deterministic fallback
+                }
             }
-        } else if let match = lower.range(of: #"\b(\d+)\s*(mb|m|mib)\b"#, options: .regularExpression) {
-            let matchedStr = String(lower[match])
-            let numStr = matchedStr.filter { $0.isNumber }
-            if let num = UInt64(numStr) {
-                targetBytes = num * mib
-            }
         }
+        #endif
 
-        // 2. Risk determination
-        var maxRisk = "SAFE"
-        if lower.contains("review") {
-            maxRisk = "REVIEW"
-        } else if lower.contains("caution") || lower.contains("aggressive") {
-            maxRisk = "CAUTION"
-        }
-
-        // 3. Excluded categories
-        var excluded: [String] = []
-        if lower.contains("docker") || lower.contains("container") {
-            excluded.append("CONTAINER_DATA")
-        }
-        if lower.contains("photo") || lower.contains("document") || lower.contains("desktop") {
-            excluded.append("USER_DOCUMENT")
-        }
-        if lower.contains("git") || lower.contains("source") {
-            excluded.append("SOURCE_CODE")
-        }
-        if lower.contains("vm") || lower.contains("virtual machine") {
-            excluded.append("VIRTUAL_MACHINE")
-        }
-
-        // 4. Preferred categories
-        var preferred: [String] = []
-        if lower.contains("xcode") || lower.contains("deriveddata") || lower.contains("build") {
-            preferred.append("BUILD_ARTIFACT")
-        }
-        if lower.contains("homebrew") || lower.contains("brew") || lower.contains("cache") || lower.contains("npm") {
-            preferred.append("PACKAGE_MANAGER_CACHE")
-        }
-
-        return StructuredIntent(
-            intent_version: 1,
-            target_reclaim_bytes: targetBytes,
-            max_risk: maxRisk,
-            preferred_categories: preferred,
-            excluded_categories: excluded,
-            excluded_candidate_ids: [],
-            include_developer_artifacts: true,
-            prefer_reversible_actions: true,
-            explanation_requested: lower.contains("explain") || lower.contains("why")
+        // Verified Deterministic Fallback
+        let fallbackIntent = deterministicParser.parse(prompt: prompt)
+        return ParsedIntentResult(
+            intent: fallbackIntent,
+            providerRequested: "apple-system",
+            providerUsed: "deterministic-fallback",
+            modelAvailability: reasonString,
+            generationSucceeded: false,
+            fallbackUsed: true
         )
     }
 }

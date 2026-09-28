@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-09-29
+
+Reality-First Storage Intelligence Engine release for macOS.
+
+### Added
+- **APFS Clone-Aware Allocation Accounting (`vacua-core`, `vacua-scan`)**:
+  - Direct Darwin kernel `getattrlist(FSOPT_ATTR_CMN_EXTENDED)` querying `ATTR_CMNEXT_CLONEID | ATTR_CMNEXT_EXT_FLAGS | ATTR_CMNEXT_CLONE_REFCNT`.
+  - Distinguishes physical shared clone space from exclusive blocks to prevent copy-on-write files from inflating reclaimable space estimates.
+  - Integration-verified against real `clonefile(2)` system calls.
+- **Bounded Concurrency Scanner (`vacua-scan`)**:
+  - Streaming parallel worker pool with bounded `sync_channel(2048)` backpressure and deterministic path sorting.
+  - Added `-j/--jobs` support with automatic physical core upper bounds.
+  - Calibrated benchmark: 302,239 files/sec at 46.9 MB peak RSS on 100,000 files.
+- **Native macOS FSEvents Incremental Refresh (`vacua-index`)**:
+  - Native CoreServices `FSEventStreamCreate` + `FSEventStreamFlushSync` integration.
+  - Persistent SQLite cursors (`watched_roots`) tracking volume identity and last event IDs.
+  - Surgical rescan of dirty subtrees via `vacua index refresh` with fail-safe dropped event fallback.
+- **Storage Snapshots & Diff Engine (`vacua-index`, `vacua-cli`)**:
+  - Point-in-time storage state snapshots (`vacua snapshot create`, `vacua snapshot list`).
+  - Differential comparison of allocation deltas across snapshots or against live filesystem (`vacua diff <base> [target]`).
+- **Application Evidence Graph & Orphan Analysis (`vacua-core`, `vacua-cli`)**:
+  - Multi-signal graph discovering application bundles and filesystem residue across Application Support, Containers, Group Containers, Caches, and Saved State.
+  - Deterministic orphan confidence ratings (`vacua apps`, `vacua leftovers`).
+- **Reclaim Cost Model & What-If Simulator (`vacua-core`, `vacua-cli`)**:
+  - Deterministically assesses rebuild friction and network redownload cost (`ReclaimCost`).
+  - What-if cleanup simulator (`vacua plan --simulate`) predicting freeable ranges without modifying disk.
+- **Storage Intelligence Query Engine (`vacua ask`)**:
+  - Natural language storage query engine grounded strictly in snapshot diffs, candidate evidence, and Reclaim Cost.
+- **Executor Hardening & Native macOS Trash (`vacua-executor`)**:
+  - Switched production trash execution to native `-[NSFileManager trashItemAtURL:resultingItemURL:error:]` via typed Objective-C runtime FFI.
+  - Multi-volume aware without `copy + rm` workarounds.
+  - Fail-safe pre-action intent recording: aborts immediately before disk modification if journal write fails.
+- **Cryptographic Tamper-Evident Hash Chaining (`vacua-executor`, `vacua-cli`)**:
+  - Every execution journal record linked to previous entries via SHA-256 canonical hash chaining.
+  - Added `vacua history verify` command to audit journal integrity.
+- **Real Apple Foundation Models Session Integration (`apple/VacuaIntelligence`)**:
+  - Dynamic `SystemLanguageModel.default.availability` probe.
+  - Real `LanguageModelSession.respond` session integration with macOS 26+ `@Generable` guard.
+  - Strictly honest provenance tracking (`provider_used = "deterministic-fallback"` when device is not eligible).
+
+---
+
 ## [0.1.0] - 2026-09-28
 
 Initial open-source release of **Vacua**, an explainable, safety-first storage intelligence CLI for macOS.

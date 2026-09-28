@@ -6,7 +6,9 @@ pub use backend::{MacOSTrashBackend, TempTrashBackend, TrashBackend};
 pub use executor::{
     ExecutedItem, ExecutionReport, ExecutorError, FailedItem, PlanExecutor, SkippedItem,
 };
-pub use journal::{ExecutionJournal, JournalError, JournalRecord, TransactionSummary};
+pub use journal::{
+    ExecutionJournal, JournalError, JournalRecord, TransactionSummary, VerificationReport,
+};
 
 #[cfg(test)]
 mod tests {
@@ -106,9 +108,18 @@ mod tests {
         let records = journal
             .get_transaction_details(&report.transaction_id)
             .unwrap();
-        assert_eq!(records.len(), 1);
-        assert_eq!(records[0].result, "success");
-        assert!(records[0].reversible);
+        // 1 pre-action intent + 1 success record = 2 records
+        assert_eq!(records.len(), 2);
+        assert_eq!(records[0].action, "trash_intent");
+        assert_eq!(records[0].result, "pending");
+        assert_eq!(records[1].action, "trash");
+        assert_eq!(records[1].result, "success");
+        assert!(records[1].reversible);
+
+        // Verify cryptographic hash chain on journal
+        let verify_report = journal.verify_chain().unwrap();
+        assert!(verify_report.is_valid);
+        assert_eq!(verify_report.total_records, 2);
     }
 
     #[test]
@@ -198,5 +209,88 @@ mod tests {
             ExecutorError::PlanHashMismatch => (),
             other => panic!("Expected PlanHashMismatch, got: {:?}", other),
         }
+    }
+
+    #[test]
+    fn test_journal_tamper_detection() {
+        let dir = tempdir().unwrap();
+        let journal_path = dir.path().join("audit.db");
+        let mut journal = ExecutionJournal::open(&journal_path).unwrap();
+
+        // Write 3 legitimate entries
+        journal
+            .record(
+                "tx-1",
+                "hash-1",
+                "cand-1",
+                "/tmp/file1",
+                "trash",
+                "SAFE",
+                "rule1",
+                None,
+                None,
+                "success",
+                100,
+                true,
+                None,
+            )
+            .unwrap();
+        journal
+            .record(
+                "tx-1",
+                "hash-1",
+                "cand-2",
+                "/tmp/file2",
+                "trash",
+                "SAFE",
+                "rule1",
+                None,
+                None,
+                "success",
+                200,
+                true,
+                None,
+            )
+            .unwrap();
+        journal
+            .record(
+                "tx-2",
+                "hash-2",
+                "cand-3",
+                "/tmp/file3",
+                "trash",
+                "SAFE",
+                "rule2",
+                None,
+                None,
+                "success",
+                300,
+                true,
+                None,
+            )
+            .unwrap();
+
+        // 1. Initial verification should succeed
+        let report = journal.verify_chain().unwrap();
+        assert!(report.is_valid);
+        assert_eq!(report.total_records, 3);
+        assert!(report.broken_record_id.is_none());
+
+        // 2. Deliberately tamper with record 2 via raw SQL (simulate attacker editing DB)
+        let conn = rusqlite::Connection::open(&journal_path).unwrap();
+        conn.execute(
+            "UPDATE execution_journal SET path = '/tmp/tampered_path' WHERE id = 2",
+            [],
+        )
+        .unwrap();
+
+        // 3. Chain verification must catch the tampering at record 2
+        let tampered_report = journal.verify_chain().unwrap();
+        assert!(!tampered_report.is_valid);
+        assert_eq!(tampered_report.broken_record_id, Some(2));
+        assert!(tampered_report
+            .error_detail
+            .unwrap()
+            .contains("Hash mismatch at record ID 2"));
     }
 }

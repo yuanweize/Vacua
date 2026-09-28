@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="${1:-0.1.0}"
+VERSION="${1:-0.2.0}"
 TARBALL="${2:-dist/vacua-v${VERSION}-aarch64-apple-darwin.tar.gz}"
 
 if [ ! -f "${TARBALL}" ]; then

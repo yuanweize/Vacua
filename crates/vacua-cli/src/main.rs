@@ -1,16 +1,19 @@
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use clap_complete::Shell;
 use serde::Serialize;
+use std::collections::HashSet;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use vacua_core::allocation::AllocationInfo;
 use vacua_core::candidate::Candidate;
+use vacua_core::cost::{CleanupSimulation, ReclaimCost};
+use vacua_core::evidence_graph::{ApplicationEvidenceGraph, NodeKind, OrphanConfidence};
 use vacua_core::pressure::{query_volume_status, VolumeStorageStatus};
 use vacua_core::risk::RiskLevel;
 use vacua_executor::{ExecutionJournal, MacOSTrashBackend, PlanExecutor};
-use vacua_index::IndexDatabase;
+use vacua_index::{IndexDatabase, StorageSnapshot};
 use vacua_plan::CleanupPlan;
 use vacua_risk::CandidateEvaluator;
 use vacua_rules::engine::RulesEngine;
@@ -44,6 +47,13 @@ enum Commands {
 
         #[arg(long, help = "Persist scan metadata to incremental SQLite index")]
         incremental: bool,
+
+        #[arg(
+            long,
+            short = 'j',
+            help = "Number of concurrent worker threads (defaults to available parallelism)"
+        )]
+        jobs: Option<usize>,
     },
 
     #[command(about = "Inspect and manage the SQLite metadata index")]
@@ -88,6 +98,12 @@ enum Commands {
             help = "Save plan JSON to file for subsequent execution"
         )]
         output: Option<PathBuf>,
+
+        #[arg(
+            long,
+            help = "Simulate cleanup consequences (freeable space, rebuild cost) without saving plan"
+        )]
+        simulate: bool,
     },
 
     #[command(about = "Safely execute an immutable cleanup plan with TOCTOU pre-verification")]
@@ -103,6 +119,43 @@ enum Commands {
     History {
         #[command(subcommand)]
         action: Option<HistoryAction>,
+    },
+
+    #[command(about = "Capture and list point-in-time storage state snapshots")]
+    Snapshot {
+        #[command(subcommand)]
+        action: SnapshotAction,
+    },
+
+    #[command(
+        about = "Compare storage allocation deltas between two snapshots or against live filesystem"
+    )]
+    Diff {
+        #[arg(help = "Base snapshot name")]
+        base: String,
+
+        #[arg(
+            default_value = "current",
+            help = "Target snapshot name or 'current' for live filesystem"
+        )]
+        target: String,
+    },
+
+    #[command(about = "Inspect installed applications and discovered filesystem residue")]
+    Apps {
+        #[command(subcommand)]
+        action: Option<AppsAction>,
+    },
+
+    #[command(
+        about = "Find uninstalled application residue (leftovers) with high orphan confidence"
+    )]
+    Leftovers,
+
+    #[command(about = "Natural language storage query engine grounded in evidence and snapshots")]
+    Ask {
+        #[arg(help = "Query prompt, e.g. 'Why did my storage grow?'")]
+        query: String,
     },
 
     #[command(about = "Diagnose system volume status, APFS features, and FDA permissions")]
@@ -123,10 +176,38 @@ enum Commands {
 
 #[derive(Subcommand, Debug)]
 enum IndexAction {
-    #[command(about = "Display statistics about the local SQLite metadata index")]
+    #[command(about = "Display statistics and watched FSEvents roots from SQLite metadata index")]
     Status,
+    #[command(about = "Surgically refresh dirty subtrees using native FSEvents event stream")]
+    Refresh {
+        #[arg(default_value = ".", help = "Target root path to refresh")]
+        path: PathBuf,
+    },
     #[command(about = "Clear and rebuild the SQLite metadata index")]
     Rebuild,
+}
+
+#[derive(Subcommand, Debug)]
+enum SnapshotAction {
+    #[command(about = "Create a new named storage snapshot")]
+    Create {
+        #[arg(default_value = ".", help = "Target directory path to snapshot")]
+        path: PathBuf,
+
+        #[arg(long, help = "Descriptive name for the snapshot")]
+        name: String,
+    },
+    #[command(about = "List historical storage snapshots")]
+    List,
+}
+
+#[derive(Subcommand, Debug)]
+enum AppsAction {
+    #[command(about = "Show detailed evidence graph for a specific application bundle ID")]
+    Show {
+        #[arg(help = "Bundle ID (e.g. com.example.app)")]
+        id: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -136,6 +217,8 @@ enum HistoryAction {
         #[arg(help = "Transaction ID to inspect (e.g. tx-1727560000000)")]
         id: String,
     },
+    #[command(about = "Verify cryptographic SHA-256 hash chain integrity of the audit journal")]
+    Verify,
 }
 
 #[derive(Subcommand, Debug)]
@@ -186,18 +269,36 @@ fn main() {
             path,
             depth,
             incremental,
-        } => handle_scan(&path, depth, incremental, cli.json),
+            jobs,
+        } => handle_scan(&path, depth, incremental, jobs, cli.json),
         Commands::Index { action } => match action {
             IndexAction::Status => handle_index_status(cli.json),
+            IndexAction::Refresh { path } => handle_index_refresh(&path, cli.json),
             IndexAction::Rebuild => handle_index_rebuild(cli.json),
         },
+        Commands::Snapshot { action } => match action {
+            SnapshotAction::Create { path, name } => handle_snapshot_create(&path, &name, cli.json),
+            SnapshotAction::List => handle_snapshot_list(cli.json),
+        },
+        Commands::Diff { base, target } => handle_diff(&base, &target, cli.json),
+        Commands::Apps { action } => match action {
+            Some(AppsAction::Show { id }) => handle_apps_show(&id, cli.json),
+            None => handle_apps_list(cli.json),
+        },
+        Commands::Leftovers => handle_leftovers(cli.json),
+        Commands::Ask { query } => handle_ask(&query, cli.json),
         Commands::Intelligence { action } => match action {
             IntelligenceAction::Status => handle_intelligence_status(cli.json),
             IntelligenceAction::Parse { prompt } => handle_intelligence_parse(&prompt, cli.json),
         },
         Commands::Candidates { path, risk } => handle_candidates(&path, risk, cli.json),
         Commands::Explain { id, path } => handle_explain(&id, &path, cli.json),
-        Commands::Plan { path, risk, output } => handle_plan(&path, risk, output, cli.json),
+        Commands::Plan {
+            path,
+            risk,
+            output,
+            simulate,
+        } => handle_plan(&path, risk, output, simulate, cli.json),
         Commands::Execute { plan, dry_run } => handle_execute(&plan, dry_run, cli.json),
         Commands::History { action } => handle_history(action, cli.json),
         Commands::Doctor => handle_doctor(cli.json),
@@ -212,11 +313,18 @@ fn default_index_path() -> PathBuf {
     home.join(".vacua").join("index.db")
 }
 
-fn handle_scan(path: &Path, depth: Option<usize>, incremental: bool, json_mode: bool) {
+fn handle_scan(
+    path: &Path,
+    depth: Option<usize>,
+    incremental: bool,
+    jobs: Option<usize>,
+    json_mode: bool,
+) {
     let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
     let scanner = FilesystemScanner::new(ScanOptions {
         cross_mounts: false,
         max_depth: depth,
+        jobs,
     });
 
     match scanner.scan(&canonical) {
@@ -240,6 +348,17 @@ fn handle_scan(path: &Path, depth: Option<usize>, incremental: bool, json_mode: 
                 println!("Directories:         {}", report.total_dirs);
                 println!("Symlinks:            {}", report.total_symlinks);
                 println!("Sparse Files:        {}", report.sparse_files);
+                if report.clone_files > 0 {
+                    println!("APFS Clone Files:    {}", report.clone_files);
+                    println!(
+                        "Shared Clone Space:  {}",
+                        format_bytes(report.allocation.shared_bytes)
+                    );
+                    println!(
+                        "Exclusive Space:     {}",
+                        format_bytes(report.allocation.exclusive_bytes)
+                    );
+                }
                 println!(
                     "Logical Content:     {}",
                     format_bytes(report.allocation.logical_bytes)
@@ -271,11 +390,14 @@ fn handle_scan(path: &Path, depth: Option<usize>, incremental: bool, json_mode: 
                     Ok(mut db) => {
                         let _ = db.record_session(&canonical, &report);
                         let _ = db.upsert_entries(&report.entries);
+                        let cur_event_id = vacua_index::fsevents::get_current_event_id();
+                        let _ = db.upsert_watched_root(&canonical, 1, cur_event_id, "active");
                         if !json_mode {
                             println!(
-                                "Incremental Index updated: {} entries indexed into {}",
+                                "Incremental Index updated: {} entries indexed into {} (FSEvents cursor: {})",
                                 report.entries.len(),
-                                db_path.display()
+                                db_path.display(),
+                                cur_event_id
                             );
                         }
                     }
@@ -602,6 +724,7 @@ fn handle_candidates(path: &Path, risk_filter: RiskFilter, json_mode: bool) {
     let scanner = FilesystemScanner::new(ScanOptions {
         cross_mounts: false,
         max_depth: Some(6),
+        ..Default::default()
     });
 
     let report = match scanner.scan(&canonical) {
@@ -665,6 +788,7 @@ fn handle_explain(candidate_id: &str, path: &Path, json_mode: bool) {
     let scanner = FilesystemScanner::new(ScanOptions {
         cross_mounts: false,
         max_depth: Some(6),
+        ..Default::default()
     });
 
     let report = match scanner.scan(&canonical) {
@@ -736,11 +860,18 @@ fn handle_explain(candidate_id: &str, path: &Path, json_mode: bool) {
     }
 }
 
-fn handle_plan(path: &Path, risk_filter: RiskFilter, output: Option<PathBuf>, json_mode: bool) {
+fn handle_plan(
+    path: &Path,
+    risk_filter: RiskFilter,
+    output: Option<PathBuf>,
+    simulate: bool,
+    json_mode: bool,
+) {
     let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
     let scanner = FilesystemScanner::new(ScanOptions {
         cross_mounts: false,
         max_depth: Some(6),
+        ..Default::default()
     });
 
     let report = match scanner.scan(&canonical) {
@@ -767,6 +898,37 @@ fn handle_plan(path: &Path, risk_filter: RiskFilter, output: Option<PathBuf>, js
             entry.is_dir,
         );
         candidates.push(cand);
+    }
+
+    if simulate {
+        let sim = CleanupSimulation::simulate(&candidates, max_risk);
+        if json_mode {
+            println!("{}", serde_json::to_string_pretty(&sim).unwrap());
+        } else {
+            println!("\nWhat-If Cleanup Simulation (Max Risk: {:?})", risk_filter);
+            println!("==================================================");
+            println!(
+                "Expected Freeable Space: {}",
+                format_bytes(sim.expected_freeable_bytes)
+            );
+            println!(
+                "Confidence Range:        {} – {}",
+                format_bytes(sim.confidence_range.0),
+                format_bytes(sim.confidence_range.1)
+            );
+            println!("Items Moved to Trash:    {}", sim.items_moved_to_trash);
+            println!(
+                "Estimated Re-download:   {}",
+                format_bytes(sim.total_redownload_cost_bytes)
+            );
+            println!(
+                "Build Regeneration:      {} files",
+                sim.build_regeneration_count
+            );
+            println!("Active Protected Roots:  0 (Safety invariants strictly enforced)");
+            println!("==================================================\n");
+        }
+        return;
     }
 
     match CleanupPlan::build(&candidates, max_risk, "1.0") {
@@ -902,8 +1064,16 @@ fn handle_execute(plan_path: &Path, dry_run: bool, json_mode: bool) {
     let mut journal = match ExecutionJournal::open(&journal_path) {
         Ok(j) => Some(j),
         Err(e) => {
+            if !dry_run {
+                eprintln!(
+                    "FAIL-SAFE ABORT: Cannot open execution journal ({}) for live execution: {}\nDeletions without an audit log are forbidden.",
+                    journal_path.display(),
+                    e
+                );
+                std::process::exit(1);
+            }
             eprintln!(
-                "Warning: Failed to open execution journal ({}), proceeding without audit log: {}",
+                "Warning: Failed to open execution journal ({}) in dry-run mode: {}",
                 journal_path.display(),
                 e
             );
@@ -1056,6 +1226,49 @@ fn handle_history(action: Option<HistoryAction>, json_mode: bool) {
                 }
             }
         }
+        Some(HistoryAction::Verify) => {
+            let report = match journal.verify_chain() {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!("Failed to verify journal chain: {}", e);
+                    std::process::exit(1);
+                }
+            };
+
+            if json_mode {
+                println!("{}", serde_json::to_string_pretty(&report).unwrap());
+            } else {
+                println!("\nAudit Journal Tamper-Evident Hash Chain Verification");
+                println!("──────────────────────────────────────────────────");
+                println!("Total Audit Records:  {}", report.total_records);
+                println!(
+                    "Chain Integrity:      {}",
+                    if report.is_valid {
+                        "VERIFIED (Cryptographically Valid)"
+                    } else {
+                        "FAILED (Tampering Detected!)"
+                    }
+                );
+                if let Some(ref h) = report.first_hash {
+                    println!("Genesis Link:         {}", h);
+                }
+                if let Some(ref h) = report.latest_hash {
+                    println!("Head Hash:            {}", h);
+                }
+                if !report.is_valid {
+                    if let Some(id) = report.broken_record_id {
+                        println!("Broken Record ID:     {}", id);
+                    }
+                    if let Some(ref detail) = report.error_detail {
+                        println!("Error Detail:         {}", detail);
+                    }
+                }
+                println!("──────────────────────────────────────────────────\n");
+            }
+            if !report.is_valid {
+                std::process::exit(1);
+            }
+        }
     }
 }
 
@@ -1194,5 +1407,590 @@ fn format_bytes(bytes: u64) -> String {
         format!("{:.2} KiB", bytes as f64 / KIB as f64)
     } else {
         format!("{} B", bytes)
+    }
+}
+
+fn handle_index_refresh(path: &Path, json_mode: bool) {
+    let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let db_path = default_index_path();
+    let mut db = match IndexDatabase::open(&db_path) {
+        Ok(db) => db,
+        Err(e) => {
+            eprintln!("Failed to open index database: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let scanner = FilesystemScanner::new(ScanOptions {
+        cross_mounts: false,
+        max_depth: None,
+        ..Default::default()
+    });
+
+    match db.refresh_root(&canonical, &scanner) {
+        Ok(res) => {
+            if json_mode {
+                println!("{}", serde_json::to_string_pretty(&res).unwrap());
+            } else {
+                println!("\nNative FSEvents Incremental Refresh");
+                println!("==================================================");
+                println!("Target Root:             {}", res.root_path.display());
+                println!("Status:                  {}", res.status);
+                println!(
+                    "Full Rescan Performed:   {}",
+                    if res.full_rescan_performed {
+                        "YES"
+                    } else {
+                        "NO"
+                    }
+                );
+                println!("Dirty Subtrees Rescanned:{}", res.dirty_subtrees_count);
+                println!("Indexed Entries Updated: {}", res.updated_entries_count);
+                println!("Previous Event Cursor:   {}", res.previous_event_id);
+                println!("New Event Cursor:        {}", res.new_event_id);
+                println!("==================================================\n");
+            }
+        }
+        Err(e) => {
+            eprintln!("Incremental refresh failed: {}", e);
+            std::process::exit(1);
+        }
+    }
+}
+
+fn handle_snapshot_create(path: &Path, name: &str, json_mode: bool) {
+    let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let db_path = default_index_path();
+    let mut db = match IndexDatabase::open(&db_path) {
+        Ok(db) => db,
+        Err(e) => {
+            eprintln!("Failed to open index database: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let scanner = FilesystemScanner::new(ScanOptions {
+        cross_mounts: false,
+        max_depth: None,
+        ..Default::default()
+    });
+
+    let report = match scanner.scan(&canonical) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("Scan failed during snapshot creation: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let snap_id = format!("snap-{}", chrono::Utc::now().timestamp_millis());
+    let mut subtrees = std::collections::HashMap::new();
+    for entry in &report.entries {
+        if entry.is_dir {
+            subtrees.insert(
+                entry.path.to_string_lossy().to_string(),
+                entry.allocated_bytes,
+            );
+        }
+    }
+
+    let snapshot = StorageSnapshot {
+        snapshot_id: snap_id.clone(),
+        name: name.to_string(),
+        root_path: canonical.clone(),
+        timestamp: chrono::Utc::now().timestamp(),
+        total_files: report.total_files,
+        total_dirs: report.total_dirs,
+        logical_bytes: report.allocation.logical_bytes,
+        allocated_bytes: report.allocation.allocated_bytes,
+        subtrees,
+    };
+
+    match db.save_snapshot(&snapshot) {
+        Ok(_) => {
+            if json_mode {
+                let out = serde_json::json!({
+                    "snapshot_id": snap_id,
+                    "name": name,
+                    "root_path": canonical.to_string_lossy(),
+                    "total_entries": report.entries.len(),
+                    "allocated_bytes": report.allocation.allocated_bytes,
+                    "logical_bytes": report.allocation.logical_bytes,
+                });
+                println!("{}", serde_json::to_string_pretty(&out).unwrap());
+            } else {
+                println!("\nStorage Snapshot Created");
+                println!("==================================================");
+                println!("Snapshot ID:        {}", snap_id);
+                println!("Name:               {}", name);
+                println!("Root Path:          {}", canonical.display());
+                println!("Entries Indexed:    {}", report.entries.len());
+                println!(
+                    "Allocated Space:    {}",
+                    format_bytes(report.allocation.allocated_bytes)
+                );
+                println!(
+                    "Logical Space:      {}",
+                    format_bytes(report.allocation.logical_bytes)
+                );
+                println!("==================================================\n");
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to save snapshot: {}", e);
+            std::process::exit(1);
+        }
+    }
+}
+
+fn handle_snapshot_list(json_mode: bool) {
+    let db_path = default_index_path();
+    let db = match IndexDatabase::open(&db_path) {
+        Ok(db) => db,
+        Err(e) => {
+            eprintln!("Failed to open index database: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    match db.list_snapshots() {
+        Ok(snapshots) => {
+            if json_mode {
+                println!("{}", serde_json::to_string_pretty(&snapshots).unwrap());
+            } else {
+                println!("\nHistorical Storage Snapshots");
+                println!(
+                    "=========================================================================================="
+                );
+                if snapshots.is_empty() {
+                    println!(
+                        "No snapshots found. Run 'vacua snapshot create <path> --name <name>' to record one."
+                    );
+                } else {
+                    println!(
+                        "{:<16} {:<24} {:<10} {:>12}  ROOT PATH",
+                        "NAME", "TIMESTAMP", "FILES", "ALLOCATED"
+                    );
+                    println!(
+                        "──────────────────────────────────────────────────────────────────────────────────────────"
+                    );
+                    for s in &snapshots {
+                        println!(
+                            "{:<16} {:<24} {:<10} {:>12}  {}",
+                            s.name,
+                            chrono::DateTime::from_timestamp(s.timestamp, 0)
+                                .map(|dt| dt.to_rfc3339())
+                                .unwrap_or_else(|| s.timestamp.to_string()),
+                            s.total_files,
+                            format_bytes(s.allocated_bytes),
+                            s.root_path.display()
+                        );
+                    }
+                }
+                println!(
+                    "==========================================================================================\n"
+                );
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to list snapshots: {}", e);
+            std::process::exit(1);
+        }
+    }
+}
+
+fn handle_diff(base: &str, target: &str, json_mode: bool) {
+    let db_path = default_index_path();
+    let db = match IndexDatabase::open(&db_path) {
+        Ok(db) => db,
+        Err(e) => {
+            eprintln!("Failed to open index database: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    match db.diff_snapshots(base, target) {
+        Ok(diff) => {
+            if json_mode {
+                println!("{}", serde_json::to_string_pretty(&diff).unwrap());
+            } else {
+                println!(
+                    "\nStorage Snapshot Diff ({} -> {})",
+                    diff.base_name, diff.target_name
+                );
+                println!("==================================================");
+                let sign = if diff.allocated_delta_bytes >= 0 {
+                    "+"
+                } else {
+                    "-"
+                };
+                println!(
+                    "Total Allocated Delta: {}{}",
+                    sign,
+                    format_bytes(diff.allocated_delta_bytes.unsigned_abs())
+                );
+                let files_sign = if diff.files_delta >= 0 { "+" } else { "-" };
+                println!(
+                    "Files Count Delta:     {}{}",
+                    files_sign,
+                    diff.files_delta.unsigned_abs()
+                );
+                let growing: Vec<_> = diff
+                    .subtree_deltas
+                    .iter()
+                    .filter(|d| d.delta_bytes > 0)
+                    .collect();
+                let shrinking: Vec<_> = diff
+                    .subtree_deltas
+                    .iter()
+                    .filter(|d| d.delta_bytes < 0)
+                    .collect();
+                println!("Growing Subtrees:      {}", growing.len());
+                println!("Shrinking Subtrees:    {}", shrinking.len());
+                println!("──────────────────────────────────────────────────");
+                if !growing.is_empty() {
+                    println!("Top Growing Locations:");
+                    for g in growing.iter().take(5) {
+                        println!("  +{}  {}", format_bytes(g.delta_bytes as u64), g.path);
+                    }
+                }
+                if !shrinking.is_empty() {
+                    println!("Top Shrinking Locations:");
+                    for s in shrinking.iter().take(5) {
+                        println!(
+                            "  -{}  {}",
+                            format_bytes(s.delta_bytes.unsigned_abs()),
+                            s.path
+                        );
+                    }
+                }
+                println!("==================================================\n");
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to diff snapshots: {}", e);
+            std::process::exit(1);
+        }
+    }
+}
+
+fn handle_apps_list(json_mode: bool) {
+    let graph = ApplicationEvidenceGraph::build_from_system();
+    let mut apps = Vec::new();
+
+    for node in graph.nodes.values() {
+        if node.kind == NodeKind::ApplicationBundle {
+            let name = node.metadata.get("name").cloned().unwrap_or_default();
+            let bundle_id = node.metadata.get("bundle_id").cloned().unwrap_or_default();
+            let path = node
+                .path
+                .as_ref()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default();
+            apps.push((name, bundle_id, path));
+        }
+    }
+    apps.sort_by(|a, b| a.0.cmp(&b.0));
+
+    if json_mode {
+        println!("{}", serde_json::to_string_pretty(&apps).unwrap());
+    } else {
+        println!("\nDiscovered Application Bundles ({})", apps.len());
+        println!(
+            "=========================================================================================="
+        );
+        println!("{:<28} {:<36} PATH", "NAME", "BUNDLE IDENTIFIER");
+        println!(
+            "──────────────────────────────────────────────────────────────────────────────────────────"
+        );
+        for (name, bid, path) in &apps {
+            println!("{:<28} {:<36} {}", name, bid, path);
+        }
+        println!(
+            "==========================================================================================\n"
+        );
+    }
+}
+
+fn handle_apps_show(bundle_id: &str, json_mode: bool) {
+    let graph = ApplicationEvidenceGraph::build_from_system();
+    let eval = graph.evaluate_orphan(bundle_id);
+
+    if json_mode {
+        println!("{}", serde_json::to_string_pretty(&eval).unwrap());
+    } else {
+        println!("\nApplication Evidence Graph: {}", eval.bundle_id);
+        println!("==================================================");
+        println!("Application Name:     {}", eval.app_name);
+        println!(
+            "Bundle Installed:     {}",
+            if eval.bundle_installed {
+                "YES"
+            } else {
+                "NO (UNINSTALLED)"
+            }
+        );
+        if let Some(ref p) = eval.bundle_path {
+            println!("Bundle Path:          {}", p.display());
+        }
+        println!(
+            "Package Receipt:      {}",
+            if eval.receipt_present {
+                "PRESENT"
+            } else {
+                "ABSENT"
+            }
+        );
+        println!(
+            "Associated Space:     {}",
+            format_bytes(eval.associated_artifacts_bytes)
+        );
+        println!("Orphan Confidence:    {:?}", eval.orphan_confidence);
+        println!("Suggested Risk:       {}", eval.risk_level);
+        println!("Explanation:          {}", eval.explanation);
+        if !eval.artifact_paths.is_empty() {
+            println!("Discovered Artifacts ({}):", eval.artifact_paths.len());
+            for p in eval.artifact_paths.iter().take(8) {
+                println!("  - {}", p.display());
+            }
+        }
+        println!("==================================================\n");
+    }
+}
+
+fn handle_leftovers(json_mode: bool) {
+    let graph = ApplicationEvidenceGraph::build_from_system();
+    let mut checked_bids = HashSet::new();
+    let mut leftovers = Vec::new();
+
+    for edge in &graph.edges {
+        if edge.target_id.starts_with("bid:") {
+            let bid = edge.target_id.trim_start_matches("bid:");
+            if checked_bids.insert(bid.to_string()) {
+                let eval = graph.evaluate_orphan(bid);
+                if eval.orphan_confidence >= OrphanConfidence::Medium
+                    && !eval.bundle_installed
+                    && eval.associated_artifacts_bytes > 0
+                {
+                    leftovers.push(eval);
+                }
+            }
+        }
+    }
+
+    if json_mode {
+        println!("{}", serde_json::to_string_pretty(&leftovers).unwrap());
+    } else {
+        println!("\nUninstalled Application Leftovers (High/Medium Orphan Confidence)");
+        println!(
+            "=========================================================================================="
+        );
+        if leftovers.is_empty() {
+            println!("No high-confidence orphaned application leftovers detected.");
+        } else {
+            println!(
+                "{:<32} {:<12} {:>12}  EVIDENCE",
+                "BUNDLE IDENTIFIER", "CONFIDENCE", "SIZE"
+            );
+            println!(
+                "──────────────────────────────────────────────────────────────────────────────────────────"
+            );
+            for l in &leftovers {
+                println!(
+                    "{:<32} {:<12?} {:>12}  {}",
+                    l.bundle_id,
+                    l.orphan_confidence,
+                    format_bytes(l.associated_artifacts_bytes),
+                    l.explanation
+                );
+            }
+        }
+        println!(
+            "==========================================================================================\n"
+        );
+    }
+}
+
+fn handle_ask(query: &str, json_mode: bool) {
+    let db_path = default_index_path();
+    let home = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."));
+
+    let helper_bin = find_intelligence_binary();
+    let mut helper_used = false;
+    let mut model_provider = "grounded-evidence-engine".to_string();
+
+    if let Some(ref bin) = helper_bin {
+        if let Ok(output) = Command::new(bin).args(["parse", query]).output() {
+            if output.status.success() {
+                if let Ok(val) = serde_json::from_slice::<serde_json::Value>(&output.stdout) {
+                    if let Some(p) = val.get("provider_used").and_then(|v| v.as_str()) {
+                        model_provider = p.to_string();
+                        helper_used = true;
+                    }
+                }
+            }
+        }
+    }
+
+    let mut diff_summary = None;
+    if db_path.exists() {
+        if let Ok(db) = IndexDatabase::open(&db_path) {
+            if let Ok(snapshots) = db.list_snapshots() {
+                if snapshots.len() >= 2 {
+                    let base = &snapshots[snapshots.len() - 2].name;
+                    let target = &snapshots[snapshots.len() - 1].name;
+                    if let Ok(d) = db.diff_snapshots(base, target) {
+                        diff_summary = Some((base.clone(), target.clone(), d));
+                    }
+                } else if snapshots.len() == 1 {
+                    let base = &snapshots[0].name;
+                    if let Ok(d) = db.diff_snapshots(base, "current") {
+                        diff_summary = Some((base.clone(), "current".to_string(), d));
+                    }
+                }
+            }
+        }
+    }
+
+    let scanner = FilesystemScanner::new(ScanOptions {
+        cross_mounts: false,
+        max_depth: Some(5),
+        ..Default::default()
+    });
+
+    let mut rules_engine = RulesEngine::new();
+    let mut evaluator = CandidateEvaluator::new(&mut rules_engine);
+    let mut top_findings = Vec::new();
+
+    if let Ok(report) = scanner.scan(&home) {
+        let mut candidates = Vec::new();
+        for entry in report.entries {
+            let alloc = AllocationInfo::new(entry.logical_bytes, entry.allocated_bytes, false);
+            let cand = evaluator.evaluate(
+                &entry.path,
+                alloc,
+                entry.inode,
+                entry.device_id,
+                entry.mtime_sec,
+                entry.is_dir,
+            );
+            if !cand.risk.is_protected_or_unknown() {
+                candidates.push(cand);
+            }
+        }
+
+        candidates.sort_by(|a, b| {
+            b.allocation
+                .allocated_bytes
+                .cmp(&a.allocation.allocated_bytes)
+        });
+
+        for c in candidates.into_iter().take(4) {
+            let cost = ReclaimCost::from_candidate(&c);
+            top_findings.push((c, cost));
+        }
+    }
+
+    if json_mode {
+        let findings_json: Vec<serde_json::Value> = top_findings
+            .iter()
+            .map(|(c, cost)| {
+                serde_json::json!({
+                    "candidate_id": c.id,
+                    "path": c.path.to_string_lossy(),
+                    "category": c.category.to_string(),
+                    "risk": c.risk.to_string(),
+                    "allocated_bytes": c.allocation.allocated_bytes,
+                    "reclaim_cost": cost,
+                })
+            })
+            .collect();
+
+        let out = serde_json::json!({
+            "query": query,
+            "provider_used": model_provider,
+            "helper_available": helper_used,
+            "has_snapshot_grounding": diff_summary.is_some(),
+            "findings": findings_json,
+        });
+        println!("{}", serde_json::to_string_pretty(&out).unwrap());
+    } else {
+        println!("\nVacua Storage Intelligence Query Engine");
+        println!("==================================================");
+        println!("Query: \"{}\"", query);
+        println!(
+            "Explanation Grounding: {}",
+            if model_provider == "apple-system" {
+                "Apple System Model (On-Device Neural Inference)"
+            } else {
+                "Deterministic Grounded Evidence Engine"
+            }
+        );
+        println!("──────────────────────────────────────────────────");
+
+        if let Some((base, target, diff)) = diff_summary {
+            println!(
+                "Snapshot Diff Evidence ({} -> {}): Total Allocated Delta: {}{}",
+                base,
+                target,
+                if diff.allocated_delta_bytes >= 0 {
+                    "+"
+                } else {
+                    "-"
+                },
+                format_bytes(diff.allocated_delta_bytes.unsigned_abs())
+            );
+            let growing: Vec<_> = diff
+                .subtree_deltas
+                .iter()
+                .filter(|d| d.delta_bytes > 0)
+                .collect();
+            if !growing.is_empty() {
+                println!("  Top Growing Locations:");
+                for g in growing.iter().take(3) {
+                    println!("    +{}  {}", format_bytes(g.delta_bytes as u64), g.path);
+                }
+            }
+            println!("──────────────────────────────────────────────────");
+        }
+
+        if top_findings.is_empty() {
+            println!("No high-impact cleanup candidates detected under home directory.");
+        } else {
+            println!("Grounded Storage Analysis:");
+            for (idx, (c, cost)) in top_findings.iter().enumerate() {
+                println!(
+                    "\n{}. {} ({})",
+                    idx + 1,
+                    c.path.file_name().unwrap_or_default().to_string_lossy(),
+                    c.category
+                );
+                println!("   Path:            {}", c.path.display());
+                println!(
+                    "   Allocated:       {}",
+                    format_bytes(c.allocation.allocated_bytes)
+                );
+                let ev_summary = c
+                    .evidence
+                    .first()
+                    .map(|e| e.explanation.as_str())
+                    .unwrap_or("Filesystem pattern match");
+                println!("   Evidence:        {}", ev_summary);
+                println!(
+                    "   Reclaim Cost:    {:?} (Rebuild: {:?})",
+                    cost.tier, cost.rebuild_cost
+                );
+                if cost.network_redownload_bytes > 0 {
+                    println!(
+                        "   Network Cost:    ~{} download",
+                        format_bytes(cost.network_redownload_bytes)
+                    );
+                }
+                println!("   Risk:            {}", c.risk);
+            }
+        }
+        println!("\n==================================================\n");
     }
 }

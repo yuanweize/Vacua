@@ -9,37 +9,38 @@ struct VacuaIntelligenceCLI {
         if args.count > 1 {
             let command = args[1]
             if command == "--version" || command == "-V" {
-                print("vacua-intelligence 0.1.0")
+                print("vacua-intelligence 0.2.0")
                 return
             }
 
             switch command {
             case "status":
-                let availability = provider.checkAvailability()
-                let providerUsed = (availability == .available) ? "apple-on-device" : "deterministic-fallback"
+                let (availability, reason) = provider.checkAvailability()
+                let providerUsed = (availability == .available) ? "apple-system" : "deterministic-fallback"
                 let response = IPCResponse(
                     request_id: "cli-status",
                     status: "success",
-                    provider_requested: "apple-on-device",
+                    provider_requested: "apple-system",
                     provider_used: providerUsed,
-                    apple_model_availability: availability.rawValue,
-                    availability: availability
+                    apple_model_availability: reason,
+                    availability: availability,
+                    generation_succeeded: false,
+                    fallback_used: availability != .available
                 )
                 outputJSON(response)
 
             case "parse":
                 let prompt = args.dropFirst(2).joined(separator: " ")
-                let availability = provider.checkAvailability()
-                let providerUsed = (availability == .available) ? "apple-on-device" : "deterministic-fallback"
-                let intent = await provider.parseIntent(prompt: prompt)
+                let result = await provider.parseIntent(prompt: prompt)
                 let response = IPCResponse(
                     request_id: "cli-parse",
                     status: "success",
-                    provider_requested: "apple-on-device",
-                    provider_used: providerUsed,
-                    apple_model_availability: availability.rawValue,
-                    availability: availability,
-                    intent: intent
+                    provider_requested: result.providerRequested,
+                    provider_used: result.providerUsed,
+                    apple_model_availability: result.modelAvailability,
+                    generation_succeeded: result.generationSucceeded,
+                    fallback_used: result.fallbackUsed,
+                    intent: result.intent
                 )
                 outputJSON(response)
 
@@ -47,26 +48,27 @@ struct VacuaIntelligenceCLI {
                 print("Running VacuaIntelligence self-tests...")
                 // Test 1: size and exclusions
                 let prompt = "Please safely free 10 GB of space, but don't touch Docker containers, photos or git repositories."
-                let intent = await provider.parseIntent(prompt: prompt)
-                assert(intent.intent_version == 1, "intent_version should be 1")
-                assert(intent.target_reclaim_bytes == 10 * 1024 * 1024 * 1024, "target_reclaim_bytes should be 10GB")
-                assert(intent.max_risk == "SAFE", "max_risk should be SAFE")
-                assert(intent.excluded_categories.contains("CONTAINER_DATA"), "should exclude CONTAINER_DATA")
-                assert(intent.excluded_categories.contains("USER_DOCUMENT"), "should exclude USER_DOCUMENT")
-                assert(intent.excluded_categories.contains("SOURCE_CODE"), "should exclude SOURCE_CODE")
-                print("✓ testIntentParsingSizeAndExclusions passed")
+                let res1 = await provider.parseIntent(prompt: prompt)
+                assert(res1.intent.intent_version == 1, "intent_version should be 1")
+                assert(res1.intent.target_reclaim_bytes == 10 * 1024 * 1024 * 1024, "target_reclaim_bytes should be 10GB")
+                assert(res1.intent.max_risk == "SAFE", "max_risk should be SAFE")
+                assert(res1.intent.excluded_categories.contains("CONTAINER_DATA"), "should exclude CONTAINER_DATA")
+                assert(res1.intent.excluded_categories.contains("USER_DOCUMENT"), "should exclude USER_DOCUMENT")
+                assert(res1.intent.excluded_categories.contains("SOURCE_CODE"), "should exclude SOURCE_CODE")
+                assert(res1.providerRequested == "apple-system", "providerRequested should be apple-system")
+                print("✓ testIntentParsingSizeAndExclusions passed (providerUsed: \(res1.providerUsed))")
 
                 // Test 2: review risk level
                 let promptReview = "Clear old build caches and include review items up to 500 MB"
-                let intentReview = await provider.parseIntent(prompt: promptReview)
-                assert(intentReview.target_reclaim_bytes == 500 * 1024 * 1024, "target_reclaim_bytes should be 500MB")
-                assert(intentReview.max_risk == "REVIEW", "max_risk should be REVIEW")
-                assert(intentReview.preferred_categories.contains("BUILD_ARTIFACT"), "should prefer BUILD_ARTIFACT")
+                let res2 = await provider.parseIntent(prompt: promptReview)
+                assert(res2.intent.target_reclaim_bytes == 500 * 1024 * 1024, "target_reclaim_bytes should be 500MB")
+                assert(res2.intent.max_risk == "REVIEW", "max_risk should be REVIEW")
+                assert(res2.intent.preferred_categories.contains("BUILD_ARTIFACT"), "should prefer BUILD_ARTIFACT")
                 print("✓ testRiskLevelParsing passed")
 
-                // Test 3: check availability
-                let availability = provider.checkAvailability()
-                print("✓ testAvailabilityProbe passed (availability: \(availability.rawValue))")
+                // Test 3: check real availability probe
+                let (availability, reason) = provider.checkAvailability()
+                print("✓ testRealAvailabilityProbe passed (availability: \(availability.rawValue), reason: \(reason))")
                 print("All 3 VacuaIntelligence unit tests passed successfully!")
                 return
 
@@ -88,31 +90,32 @@ struct VacuaIntelligenceCLI {
             let request = try JSONDecoder().decode(IPCRequest.self, from: inputData)
             switch request.action {
             case "check_availability", "status":
-                let availability = provider.checkAvailability()
-                let providerUsed = (availability == .available) ? "apple-on-device" : "deterministic-fallback"
+                let (availability, reason) = provider.checkAvailability()
+                let providerUsed = (availability == .available) ? "apple-system" : "deterministic-fallback"
                 let response = IPCResponse(
                     request_id: request.request_id,
                     status: "success",
-                    provider_requested: "apple-on-device",
+                    provider_requested: "apple-system",
                     provider_used: providerUsed,
-                    apple_model_availability: availability.rawValue,
-                    availability: availability
+                    apple_model_availability: reason,
+                    availability: availability,
+                    generation_succeeded: false,
+                    fallback_used: availability != .available
                 )
                 outputJSON(response)
 
             case "parse_intent", "parse":
                 let prompt = request.prompt ?? ""
-                let availability = provider.checkAvailability()
-                let providerUsed = (availability == .available) ? "apple-on-device" : "deterministic-fallback"
-                let intent = await provider.parseIntent(prompt: prompt)
+                let result = await provider.parseIntent(prompt: prompt)
                 let response = IPCResponse(
                     request_id: request.request_id,
                     status: "success",
-                    provider_requested: "apple-on-device",
-                    provider_used: providerUsed,
-                    apple_model_availability: availability.rawValue,
-                    availability: availability,
-                    intent: intent
+                    provider_requested: result.providerRequested,
+                    provider_used: result.providerUsed,
+                    apple_model_availability: result.modelAvailability,
+                    generation_succeeded: result.generationSucceeded,
+                    fallback_used: result.fallbackUsed,
+                    intent: result.intent
                 )
                 outputJSON(response)
 

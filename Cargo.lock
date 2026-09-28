@@ -803,7 +803,7 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 
 [[package]]
 name = "vacua-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "clap",
@@ -823,24 +823,26 @@ dependencies = [
 
 [[package]]
 name = "vacua-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "libc",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror",
 ]
 
 [[package]]
 name = "vacua-executor"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "libc",
  "rusqlite",
  "serde",
  "serde_json",
+ "sha2",
  "sysinfo",
  "tempfile",
  "thiserror",
@@ -851,12 +853,13 @@ dependencies = [
 
 [[package]]
 name = "vacua-index"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "libc",
  "rusqlite",
  "serde",
+ "serde_json",
  "tempfile",
  "thiserror",
  "vacua-core",
@@ -866,7 +869,7 @@ dependencies = [
 
 [[package]]
 name = "vacua-plan"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "serde",
@@ -879,7 +882,7 @@ dependencies = [
 
 [[package]]
 name = "vacua-risk"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "sha2",
@@ -891,7 +894,7 @@ dependencies = [
 
 [[package]]
 name = "vacua-rules"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "glob",
  "serde",
@@ -905,7 +908,7 @@ dependencies = [
 
 [[package]]
 name = "vacua-scan"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "libc",
  "serde",

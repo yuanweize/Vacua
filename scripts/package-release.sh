@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-VERSION="0.1.0"
+VERSION="${1:-0.2.0}"
 TARGET="aarch64-apple-darwin"
 DIST_DIR="${REPO_ROOT}/dist"
 PKG_NAME="vacua-v${VERSION}-${TARGET}"
