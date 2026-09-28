@@ -25,7 +25,6 @@ cat <<EOF > "${FORMULA_DIR}/vacua.rb"
 class Vacua < Formula
   desc "Explainable, safety-first storage intelligence for macOS"
   homepage "https://github.com/yuanweize/vacua"
-  version "${VERSION}"
   license all_of: ["MIT", "Apache-2.0"]
 
   on_macos do

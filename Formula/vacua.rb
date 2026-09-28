@@ -1,7 +1,6 @@
 class Vacua < Formula
   desc "Explainable, safety-first storage intelligence for macOS"
   homepage "https://github.com/yuanweize/vacua"
-  version "0.1.0"
   license all_of: ["MIT", "Apache-2.0"]
 
   on_macos do
