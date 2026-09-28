@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/vacua-lockup-dark.svg">
-    <img src="assets/brand/vacua-lockup-light.svg" alt="Vacua — Storage intelligence for macOS" width="340">
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/vacua-mark-dark.svg">
+    <img src="assets/brand/vacua-mark-light.svg" alt="Vacua Logo" width="80" height="80">
   </picture>
 </p>
 
