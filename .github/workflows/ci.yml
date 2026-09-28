@@ -39,9 +39,7 @@ jobs:
       - name: Build FoundationModels Compile Proof (Fails if SDK Lacks API)
         run: |
           cd apple/VacuaIntelligence
-          swift build --target FoundationModelsProof
-          BIN_PATH=$(swift build --target FoundationModelsProof --show-bin-path)
-          "${BIN_PATH}/foundation-models-proof"
+          swift run foundation-models-proof
 
       - name: Build Swift Module
         run: |
@@ -51,11 +49,9 @@ jobs:
       - name: Verify Capabilities
         run: |
           cd apple/VacuaIntelligence
-          BIN_PATH=$(swift build --show-bin-path)
-          "${BIN_PATH}/vacua-intelligence" capabilities
+          swift run vacua-intelligence capabilities
 
       - name: Run Swift Self-Tests
         run: |
           cd apple/VacuaIntelligence
-          BIN_PATH=$(swift build --show-bin-path)
-          "${BIN_PATH}/vacua-intelligence" test
+          swift run vacua-intelligence test

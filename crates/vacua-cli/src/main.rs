@@ -528,8 +528,12 @@ fn find_intelligence_binary() -> Option<PathBuf> {
         let dev_candidates = [
             PathBuf::from("apple/VacuaIntelligence/.build/debug/vacua-intelligence"),
             PathBuf::from("apple/VacuaIntelligence/.build/release/vacua-intelligence"),
-            PathBuf::from("apple/VacuaIntelligence/.build/arm64-apple-macosx/debug/vacua-intelligence"),
-            PathBuf::from("apple/VacuaIntelligence/.build/arm64-apple-macosx/release/vacua-intelligence"),
+            PathBuf::from(
+                "apple/VacuaIntelligence/.build/arm64-apple-macosx/debug/vacua-intelligence",
+            ),
+            PathBuf::from(
+                "apple/VacuaIntelligence/.build/arm64-apple-macosx/release/vacua-intelligence",
+            ),
             PathBuf::from("../apple/VacuaIntelligence/.build/debug/vacua-intelligence"),
             PathBuf::from("../apple/VacuaIntelligence/.build/release/vacua-intelligence"),
         ];
