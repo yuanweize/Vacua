@@ -1,180 +1,245 @@
-# Vacua
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/vacua-lockup-dark.svg">
+    <img src="assets/brand/vacua-lockup-light.svg" alt="Vacua — Storage intelligence for macOS" width="340">
+  </picture>
+</p>
 
-> **Storage intelligence for macOS.**
+<h1 align="center">Vacua</h1>
 
-Understand what consumes space.  
-Know what is safe to reclaim.  
-Clean only with evidence.
+<p align="center">
+  <strong>Storage intelligence for macOS.</strong><br>
+  Understand what consumes space. Know what is safe to reclaim. Clean only with evidence.
+</p>
 
-`Rust core` · `APFS-aware` · `Incremental` · `Local-first` · `Agent-ready`
-
-[![CI](https://github.com/yuanweize/vacua/actions/workflows/ci.yml/badge.svg)](https://github.com/yuanweize/vacua/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
-[![Platform](https://img.shields.io/badge/platform-macOS%20(Apple%20Silicon)-lightgrey.svg)](https://apple.com/macos)
+<p align="center">
+  <a href="https://github.com/yuanweize/vacua/actions/workflows/ci.yml"><img src="https://github.com/yuanweize/vacua/actions/workflows/ci.yml/badge.svg" alt="CI Status"></a>
+  <a href="https://github.com/yuanweize/vacua/releases"><img src="https://img.shields.io/github/v/release/yuanweize/vacua?color=blue&label=release" alt="Release"></a>
+  <a href="https://github.com/yuanweize/homebrew-tap"><img src="https://img.shields.io/badge/homebrew-yuanweize%2Ftap%2Fvacua-orange" alt="Homebrew"></a>
+  <a href="LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT%20%2F%20Apache--2.0-blue" alt="License"></a>
+  <img src="https://img.shields.io/badge/platform-macOS%20%C2%B7%20Apple%20Silicon-lightgrey" alt="Platform">
+</p>
 
 ---
 
-```text
-$ vacua scan
+## Quick Install
 
-Storage Scan Report
-──────────────────────────────────────────────────
-Target Path:         /Users/developer
-Files Scanned:       481,209
-Directories:         94,112
-Logical Content:     142.84 GiB
-Physical Allocated:  118.20 GiB (allocated-block metrics)
-Allocation Delta:    24.64 GiB (sparse files & block overhead)
+### Homebrew (Recommended)
 
-Reclaimable Overview
-──────────────────────────────────────────────────
-Safe                 8.40 GiB  (Reproducible generated caches)
-Review              21.70 GiB  (Reconstructable build artifacts)
-Protected           63.20 GiB  (Hard invariants: SIP, Documents, Keys)
-
-Top Recommendation
-──────────────────────────────────────────────────
-Target:              ~/Library/Developer/Xcode/DerivedData
-Physical Space:      5.10 GiB
-Risk Level:          SAFE (Confidence Score: 0.95)
-Reconstructable:     Yes
-Rebuild Effect:      Xcode will regenerate indices on next compilation.
-Active Process:      Idle (xcodebuild not running)
+```bash
+brew install yuanweize/tap/vacua
 ```
-*(Example scan output on a developer workstation)*
+
+Verify your installation:
+
+```bash
+vacua --version
+vacua doctor
+```
+
+*(For manual tarball downloads or building from source, see [Installation Options](#installation-options).)*
+
+---
+
+## 30-Second Demo
+
+```bash
+# 1. Scan storage with APFS physical extent accounting (Read-Only)
+$ vacua scan ~
+
+# 2. Inspect classified candidates bounded by maximum risk
+$ vacua candidates ~ --risk safe
+
+# 3. Understand why an item was classified and what happens if cleaned
+$ vacua explain b9a4fbf7
+
+# 4. Generate an immutable, SHA-256 hashed cleanup plan
+$ vacua plan ~ -o plan.json
+
+# 5. Review preview and execute with live TOCTOU verification
+$ vacua execute plan.json
+```
+
+<p align="center">
+  <img src="assets/demo/terminal-scan.svg" alt="Vacua Scan Terminal Demo" width="720">
+</p>
 
 ---
 
 ## Why Vacua?
 
-Most macOS cleaning solutions rely either on surface-level heuristics, opaque commercial background daemons that misrepresent purgeable caches as free space, or shell scripts executing destructive `rm -rf` wildcards without understanding application ownership or APFS block extents.
+Most cleanup utilities for macOS are either simplistic shell wrappers (`rm -rf ~/Library/Caches`) or closed-source commercial applications offering opaque "Scan & Clean" buttons.
 
-**Vacua** is built on a different engineering philosophy:
+Vacua is engineered around a core tenet: **Understand storage before modifying storage.**
 
-> **Understand storage before deleting storage.**  
-> *When certainty decreases, automation must decrease.*
-
-- **Allocation-Aware Accounting**: Distinguishes true physical block allocation (`st_blocks * 512`) from logical file length, and explicitly tags APFS clone extent sharing uncertainties rather than fabricating exact savings.
-- **Evidence-Driven Semantics**: Candidates carry a corroborating evidence vector (bundle IDs, process states, file ages, and rebuild consequences).
-- **Inviolable Invariants**: System directories, SIP locations, SSH/GPG keys, and unrecognized files (`UNKNOWN`) are statically prevented from automated cleanup.
-- **Two-Phase Immutable Plans**: All cleanup proposals compile into an immutable, SHA-256 signed plan with TOCTOU (Time-of-Check to Time-of-Use) pre-execution verification.
-- **100% Local-First & Zero Telemetry**: Operates entirely offline with no telemetry, tracking, or background daemons.
+- **APFS Extent-Aware Accounting**: Distinguishes logical file size from actual physical blocks (`st_blocks * 512`), properly accounting for sparse files and copy-on-write clone references.
+- **Evidence-First Classification**: Every candidate is linked to an evidence vector detailing matched rules, active process guards, reconstructability ratings, and rebuild consequences.
+- **Fail-Closed Safety Invariants**: `PROTECTED` locations (`/System`, `~/.ssh`, `~/.gnupg`, `~/Library/Keychains`, `.git/`) and `UNKNOWN` files are unconditionally blocked from automated cleaning.
+- **TOCTOU Protected Execution**: Re-validates live device ID, inode, and modification time immediately before touching any file. If a file changed since the plan was compiled, it is skipped.
+- **Reversible by Default**: Approved actions move items to the native macOS Trash (`~/.Trash`), preserving the ability to restore files via Finder.
+- **Tamper-Evident Audit Journal**: Every execution records a local SQLite audit transaction tracking planned, moved, and skipped items.
 
 ---
 
-## Architecture
+## How It Works
 
-Vacua is architected with complete decoupling between its core intelligence engine and presentation layers:
+```
+Filesystem (APFS) ──► Scanner ──► Evidence Engine ──► Risk Engine
+                                                            │
+User NL Query ─────► Apple Intelligence ──► StructuredIntent ┼──► Immutable Plan ──► User Approval ──► Safe Executor
+                                                            │
+                                             (Zero Deletion Authority)
+```
 
-- **Core Engine (Rust)**:
-  - `vacua-core`: Domain models, multi-tier storage pressure policy, and compile-time invariants.
-  - `vacua-scan`: High-performance streaming filesystem scanner with bounded memory and symlink cycle safety.
-  - `vacua-index`: SQLite metadata index and macOS FSEvents dirty-tree tracking.
-  - `vacua-rules`: Declarative TOML rule evaluation with live process guards (`sysinfo`).
-  - `vacua-risk`: Deterministic multi-signal risk and recommendation value evaluator.
-  - `vacua-plan`: Two-phase immutable cleanup plan compiler with TOCTOU defenses.
-  - `vacua-cli`: Developer-first command-line interface with human and versioned `--json` outputs.
-- **On-Device Intelligence (`apple/VacuaIntelligence`)**: Optional Apple Foundation Models integration translating natural language prompts into typed `StructuredIntent`.
-- **SwiftUI App (Planned)**: Native macOS desktop user interface.
-- **Agent Server (Planned)**: Read-only Model Context Protocol (MCP) server for Claude, Cursor, and autonomous agents.
+<p align="center">
+  <img src="assets/diagrams/architecture.svg" alt="Vacua Architecture Diagram" width="740">
+</p>
 
-Read our complete [Architecture Specification](ARCHITECTURE.md) and [Architecture Decision Records](docs/adr/).
+- **Deterministic Core (Rust)**: Handles bounded filesystem traversal, physical block analysis, rule evaluation, plan compilation, TOCTOU safety guards, and SQLite journaling.
+- **Optional Native Intelligence (Swift)**: An isolated helper (`vacua-intelligence`) bridging Apple Foundation Models for natural language queries.
 
 ---
 
-## Safety Guarantees
+## Safety Invariants
 
-Every candidate is evaluated into one of five discrete risk tiers:
+Vacua enforces hard compile-time and runtime safety rules:
 
-| Tier | Definition | Automated Proposal Allowed? | Example |
+1. **Read-only by default**: `scan`, `candidates`, `explain`, and `plan` never mutate the filesystem.
+2. **Unknown data is never auto-cleaned**: Unrecognized items are classified as `UNKNOWN` and can never be marked as `SAFE`.
+3. **AI cannot lower risk or execute deletions**: LLM outputs are treated as untrusted user suggestions and cannot bypass policy invariants.
+4. **Destructive actions require a verified plan and explicit user approval**: No arbitrary `rm` command exists in Vacua. Execution requires an immutable, hash-verified plan file.
+
+For the formal safety proof and threat model, see [SAFETY.md](SAFETY.md) and [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
+
+---
+
+## Apple Intelligence Status
+
+Vacua features an optional native Swift helper that bridges Apple Foundation Models on supported Apple Silicon Macs running macOS Sequoia or newer.
+
+```text
+Optional on-device intent translation using Apple Foundation Models.
+Vacua's safety decisions never depend on an LLM.
+When Apple's model is unavailable, Vacua automatically falls back to deterministic intent parsing.
+```
+
+Probing system model availability:
+```bash
+$ vacua intelligence status
+```
+
+Testing natural language query parsing:
+```bash
+$ vacua intelligence parse "free 10GB of build caches safely"
+```
+
+```
+Apple Intelligence Status
+──────────────────────────────────────────────────
+Provider Requested: Apple On-Device (Foundation Models)
+Provider Used:      deterministic-fallback (or apple-on-device)
+Model Availability: modelNotReady (or available)
+Network Egress:     No (Strict on-device inference)
+Role:               Intent translation (NL -> StructuredIntent)
+Execution:          Forbidden (Zero deletion authority)
+──────────────────────────────────────────────────
+```
+
+---
+
+## Feature Matrix
+
+| Capability | Engine | Mode | Status |
 | :--- | :--- | :--- | :--- |
-| **`SAFE`** | Completely reproducible generated cache/artifact with zero user data. | **Yes** (in user-approved plans) | Idle Xcode DerivedData, Homebrew download cache |
-| **`REVIEW`** | Reconstructable, but incurs rebuild latency or network bandwidth. | **No** (requires approval) | `node_modules`, Python `venv`, Cargo `target/` |
-| **`CAUTION`** | Leftover application data with potential configuration or ambiguity. | **No** (manual selection) | Uninstalled application support folders |
-| **`PROTECTED`** | Critical system path, user document, security key, or active database. | **NEVER** | `~/.ssh`, `~/Library/Keychains`, SIP paths |
-| **`UNKNOWN`** | Unrecognized or indeterminate files. | **NEVER** | Arbitrary unmapped directory |
-
-Read our complete [Safety Specification](SAFETY.md) and [Threat Model](docs/THREAT_MODEL.md).
+| **Filesystem Scanning** | Rust | Offline / Deterministic | Shipped (v0.1.0) |
+| **APFS Extent Accounting** | Rust | Offline / Deterministic | Shipped (v0.1.0) |
+| **Evidence & Risk Engine** | Rust | Offline / Deterministic | Shipped (v0.1.0) |
+| **Immutable Cleanup Planner** | Rust | Offline / Deterministic | Shipped (v0.1.0) |
+| **TOCTOU Safe Executor** | Rust | Offline / Reversible Trash | Shipped (v0.1.0) |
+| **SQLite Transaction Journal** | Rust | Offline / Local Audit | Shipped (v0.1.0) |
+| **Apple Intent Translation** | Swift | Optional On-Device / Fallback | Shipped (v0.1.0) |
+| **Cloud AI / Telemetry** | None | Disabled / Zero Network Egress | Never / Excluded |
+| **Read-Only MCP Server** | Specification | JSON v1 supported | Planned (Phase 4) |
+| **Native SwiftUI GUI** | Swift | Desktop Interface | Planned (Phase 5) |
 
 ---
 
-## Quick Start
+## CLI Reference
 
-### Build from Source
+| Command | Description |
+| :--- | :--- |
+| `vacua scan <path>` | Scan directory tree and report physical vs. logical storage |
+| `vacua candidates <path>` | List classified cleanup candidates (`--risk safe\|review\|caution`) |
+| `vacua explain <id>` | Inspect detailed evidence vector and rebuild effects for a candidate |
+| `vacua plan <path> [-o <file>]` | Compile a cryptographic cleanup plan |
+| `vacua execute <plan> [--dry-run]`| Safely execute an approved cleanup plan with live TOCTOU guards |
+| `vacua history [show <tx_id>]` | View past cleanup transactions and itemized audit records |
+| `vacua doctor` | Diagnose storage pressure, APFS health, and permissions |
+| `vacua completions <shell>` | Generate shell completions (`zsh`, `bash`, `fish`) |
+| `vacua intelligence status` | Check Apple Foundation Models availability and IPC state |
+| `vacua intelligence parse "<prompt>"` | Translate a natural language query into a structured intent |
 
-Requirements: macOS (Apple Silicon verified; Intel build compatibility in progress), Rust 1.80+.
+---
+
+## Installation Options
+
+### 1. Homebrew Tap (Recommended)
+```bash
+brew install yuanweize/tap/vacua
+```
+
+### 2. Standalone Release Tarball
+Download the pre-compiled binary package from [GitHub Releases](https://github.com/yuanweize/vacua/releases):
 
 ```bash
-# Clone the repository
+# Verify checksum
+shasum -a 256 vacua-v0.1.0-aarch64-apple-darwin.tar.gz
+
+# Extract and install
+tar -xzf vacua-v0.1.0-aarch64-apple-darwin.tar.gz
+cd vacua-v0.1.0-aarch64-apple-darwin
+sudo cp bin/vacua bin/vacua-intelligence /usr/local/bin/
+```
+
+### 3. Build from Source
+Requirements: macOS 14+, Rust 1.80+, Swift 6.0+, Xcode Command Line Tools.
+
+```bash
 git clone https://github.com/yuanweize/vacua.git
 cd vacua
 
-# Run test suite
-cargo test --all
-
-# Build release CLI binary
+# Build Rust CLI
 cargo build --release --bin vacua
-```
 
-### CLI Usage
+# Build Swift Intelligence Helper
+(cd apple/VacuaIntelligence && swift build -c release)
 
-```bash
-# Analyze storage allocation under current directory
-./target/release/vacua scan .
-
-# Update persistent SQLite metadata index incrementally
-./target/release/vacua scan --incremental .
-
-# Inspect local index status
-./target/release/vacua index status
-
-# Query on-device Apple Intelligence status
-./target/release/vacua intelligence status
-
-# Parse natural language cleanup query into typed StructuredIntent
-./target/release/vacua intelligence parse "free 10 GB safely, don't touch Docker"
-
-# Diagnose system storage pressure, APFS metrics, and Full Disk Access
-./target/release/vacua doctor
-
-# List safe cleanup candidates
-./target/release/vacua candidates --risk safe
-
-# Inspect full evidence vector for an item
-./target/release/vacua explain <candidate_id>
-
-# Generate an immutable cleanup plan
-./target/release/vacua plan . --risk safe
-
-# Machine-readable output for scripts and agents
-./target/release/vacua --json scan .
+# Sibling discovery: place binaries together
+cp apple/VacuaIntelligence/.build/release/vacua-intelligence target/release/
+./target/release/vacua --version
 ```
 
 ---
 
-## Local Intelligence
+## Documentation
 
-Vacua includes a provider-neutral intelligence layer with an on-device Apple Foundation Models prototype (`apple/VacuaIntelligence`). It translates conversational cleanup queries into strongly typed, policy-bounded `StructuredIntent` structures.
-
-The model never receives deletion authority:
-- **AI proposes intent.**
-- **The policy engine validates it.**
-- **The user approves execution.**
-
-*(Apple Foundation Models integration is experimental; on-device availability varies by macOS version and Apple Intelligence readiness. Fallback to deterministic parser is automatic).*
-
----
-
-## Engineering Reality Matrix
-
-We maintain complete honesty regarding what is implemented, verified, and what is planned. Please refer to our [Feature Reality Matrix](FEATURE_REALITY_MATRIX.md) and [Roadmap](ROADMAP.md).
+- [Architecture & Design Decisions](ARCHITECTURE.md)
+- [Safety Model & Invariant Enforcements](SAFETY.md)
+- [Frequently Asked Questions (FAQ)](docs/FAQ.md)
+- [Threat Model & Attack Vector Analysis](docs/THREAT_MODEL.md)
+- [Brand Identity & Design Guidelines](assets/brand/BRANDING.md)
+- [Uninstallation Guide](docs/UNINSTALL.md)
+- [Rule Format Specification](docs/RULE_FORMAT.md)
+- [Intelligence Bridge Architecture](docs/INTELLIGENCE.md)
+- [Feature Reality Matrix](FEATURE_REALITY_MATRIX.md)
+- [Contributing Guidelines](CONTRIBUTING.md)
 
 ---
 
 ## License
 
-Dual-licensed under either of:
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-- MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+Dual-licensed under either:
+- **MIT License** ([LICENSE-MIT](LICENSE-MIT))
+- **Apache License, Version 2.0** ([LICENSE-APACHE](LICENSE-APACHE))
 
 at your option.

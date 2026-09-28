@@ -1,6 +1,6 @@
-# Model Context Protocol (MCP) Server Specification
+> **Status**: Planned Roadmap Specification (Not shipped in v0.1.0). In v0.1.0, machine agents should use the `--json` CLI interface.
 
-Vacua provides an optional MCP server (`vacua-mcp`) allowing external AI coding assistants (Claude Desktop, Cursor, Codex, Open-Source Agents) to query macOS storage state and propose safe cleanup plans.
+Vacua specifies an optional MCP server interface (`vacua-mcp`) allowing external AI coding assistants (Claude Desktop, Cursor, Codex, Open-Source Agents) to query macOS storage state and propose safe cleanup plans.
 
 ---
 

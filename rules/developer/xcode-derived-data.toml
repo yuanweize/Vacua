@@ -15,6 +15,10 @@ docs = "https://developer.apple.com/documentation/xcode"
 path = "~/Library/Developer/Xcode/DerivedData/*"
 file_type = "directory"
 
+[[matches]]
+path = "*/Library/Developer/Xcode/DerivedData/*"
+file_type = "directory"
+
 [[guards]]
 type = "process_not_running"
 value = "xcodebuild"

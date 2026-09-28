@@ -20,9 +20,12 @@
 | **Apple Foundation Models Provider** | `VERIFIED` | `apple/VacuaIntelligence` | 3 Swift unit tests (`swift test`) + live CLI execution | Tested on macOS Darwin; probes `SystemLanguageModel` availability; deterministic fallback on `modelNotReady` |
 | **Rust↔Swift IPC Boundary** | `VERIFIED` | `vacua-cli::find_intelligence_binary` | Integration CLI tests (`vacua intelligence status / parse`) | Stdin/stdout JSON v1 protocol (ADR-0005) with process isolation |
 | **Intelligence Provider Boundary** | `VERIFIED` | `docs/INTELLIGENCE.md`, `ADR-0004` | Architecture validation | Strict invariant: AI output is untrusted input; zero deletion authority |
-| **Transaction Audit Log & Trash Execution** | `NOT_STARTED` | Planned for Phase 2B (`vacua-executor`) | N/A | Local SQLite execution records planned |
+| **Transaction Audit Log & Trash Execution** | `VERIFIED` | `crates/vacua-executor`, `vacua-cli::handle_execute`, `handle_history` | 5 unit tests (`test_executor_*`) + live dry-run/trash run | Invariant fail-closed, live TOCTOU dev/ino/mtime checks, process guards, SQLite journal |
+| **Bundled Distribution Packaging** | `VERIFIED` | `scripts/package-release.sh`, `vacua-cli::find_intelligence_binary` | Clean smoke test in `/tmp/vacua-release-test` | Bundles `vacua` + `vacua-intelligence` with sibling discovery & shell completions |
+| **Brand Identity & Social Assets** | `VERIFIED` | `assets/brand/`, `assets/social/`, `assets/diagrams/`, `assets/demo/` | Visual inspections, SVG validations, PIL generation | SVG mark (dark/light), lockups, architecture diagram, 1280x640 social preview |
+| **Deterministic Demo Workflow** | `VERIFIED` | `scripts/generate-demo-fixture.sh`, `scripts/update-demo.sh` | End-to-end execution on synthetic fixture | Zero hardcoded fabricated numbers; verifiable via `update-demo.sh` |
 | **Application Evidence Graph** | `NOT_STARTED` | Planned for Phase 3 | N/A | Multi-signal orphan analysis planned |
 | **Staged Duplicate Detection (BLAKE3)** | `NOT_STARTED` | Planned for Phase 3 | N/A | APFS clone-aware hashing planned |
-| **Read-Only MCP Server** | `NOT_STARTED` | Planned for Phase 4 (`vacua-mcp`) | N/A | Read-only tool schemas planned |
+| **Read-Only MCP Server** | `NOT_STARTED` | Planned for Phase 4 (`vacua-mcp`) | N/A | Specification in `docs/MCP.md`; `--json` supported in v0.1.0 |
 | **SwiftUI Native macOS App** | `NOT_STARTED` | Planned for Phase 5 (`apps/macos`) | N/A | Native macOS desktop UI planned |
 | **Local Bayesian Preference Learning** | `NOT_STARTED` | Planned for Phase 6 | N/A | Beta-Bernoulli category scoring planned |

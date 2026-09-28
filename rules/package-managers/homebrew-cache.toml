@@ -14,6 +14,9 @@ docs = "https://docs.brew.sh"
 [[matches]]
 path = "~/Library/Caches/Homebrew/downloads/*"
 
+[[matches]]
+path = "*/Library/Caches/Homebrew/downloads/*"
+
 [[guards]]
 type = "process_not_running"
 value = "brew"
