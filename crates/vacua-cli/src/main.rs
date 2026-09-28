@@ -44,6 +44,13 @@ enum Commands {
 
         #[arg(long, help = "Persist scan metadata to incremental SQLite index")]
         incremental: bool,
+
+        #[arg(
+            long,
+            short = 'j',
+            help = "Number of concurrent worker threads (defaults to available parallelism)"
+        )]
+        jobs: Option<usize>,
     },
 
     #[command(about = "Inspect and manage the SQLite metadata index")]
@@ -188,7 +195,8 @@ fn main() {
             path,
             depth,
             incremental,
-        } => handle_scan(&path, depth, incremental, cli.json),
+            jobs,
+        } => handle_scan(&path, depth, incremental, jobs, cli.json),
         Commands::Index { action } => match action {
             IndexAction::Status => handle_index_status(cli.json),
             IndexAction::Rebuild => handle_index_rebuild(cli.json),
@@ -214,11 +222,18 @@ fn default_index_path() -> PathBuf {
     home.join(".vacua").join("index.db")
 }
 
-fn handle_scan(path: &Path, depth: Option<usize>, incremental: bool, json_mode: bool) {
+fn handle_scan(
+    path: &Path,
+    depth: Option<usize>,
+    incremental: bool,
+    jobs: Option<usize>,
+    json_mode: bool,
+) {
     let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
     let scanner = FilesystemScanner::new(ScanOptions {
         cross_mounts: false,
         max_depth: depth,
+        jobs,
     });
 
     match scanner.scan(&canonical) {
@@ -242,6 +257,17 @@ fn handle_scan(path: &Path, depth: Option<usize>, incremental: bool, json_mode: 
                 println!("Directories:         {}", report.total_dirs);
                 println!("Symlinks:            {}", report.total_symlinks);
                 println!("Sparse Files:        {}", report.sparse_files);
+                if report.clone_files > 0 {
+                    println!("APFS Clone Files:    {}", report.clone_files);
+                    println!(
+                        "Shared Clone Space:  {}",
+                        format_bytes(report.allocation.shared_bytes)
+                    );
+                    println!(
+                        "Exclusive Space:     {}",
+                        format_bytes(report.allocation.exclusive_bytes)
+                    );
+                }
                 println!(
                     "Logical Content:     {}",
                     format_bytes(report.allocation.logical_bytes)
@@ -604,6 +630,7 @@ fn handle_candidates(path: &Path, risk_filter: RiskFilter, json_mode: bool) {
     let scanner = FilesystemScanner::new(ScanOptions {
         cross_mounts: false,
         max_depth: Some(6),
+        ..Default::default()
     });
 
     let report = match scanner.scan(&canonical) {
@@ -667,6 +694,7 @@ fn handle_explain(candidate_id: &str, path: &Path, json_mode: bool) {
     let scanner = FilesystemScanner::new(ScanOptions {
         cross_mounts: false,
         max_depth: Some(6),
+        ..Default::default()
     });
 
     let report = match scanner.scan(&canonical) {
@@ -743,6 +771,7 @@ fn handle_plan(path: &Path, risk_filter: RiskFilter, output: Option<PathBuf>, js
     let scanner = FilesystemScanner::new(ScanOptions {
         cross_mounts: false,
         max_depth: Some(6),
+        ..Default::default()
     });
 
     let report = match scanner.scan(&canonical) {

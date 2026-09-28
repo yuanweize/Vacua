@@ -34,6 +34,7 @@ fn test_end_to_end_pipeline_with_safety_guarantees() {
     let scanner = FilesystemScanner::new(ScanOptions {
         cross_mounts: false,
         max_depth: None,
+        ..Default::default()
     });
     let report = scanner.scan(root).unwrap();
     assert!(report.total_files >= 3);
