@@ -522,28 +522,30 @@ fn find_intelligence_binary() -> Option<PathBuf> {
         }
     }
 
+    // 3. Development paths in debug mode (prioritize local builds over ambient PATH)
+    #[cfg(debug_assertions)]
+    {
+        let dev_candidates = [
+            PathBuf::from("apple/VacuaIntelligence/.build/debug/vacua-intelligence"),
+            PathBuf::from("apple/VacuaIntelligence/.build/release/vacua-intelligence"),
+            PathBuf::from("apple/VacuaIntelligence/.build/arm64-apple-macosx/debug/vacua-intelligence"),
+            PathBuf::from("apple/VacuaIntelligence/.build/arm64-apple-macosx/release/vacua-intelligence"),
+            PathBuf::from("../apple/VacuaIntelligence/.build/debug/vacua-intelligence"),
+            PathBuf::from("../apple/VacuaIntelligence/.build/release/vacua-intelligence"),
+        ];
+        for cand in &dev_candidates {
+            if cand.exists() {
+                return Some(cand.clone());
+            }
+        }
+    }
+
     // 4. In PATH
     if let Ok(path_var) = std::env::var("PATH") {
         for p in std::env::split_paths(&path_var) {
             let candidate = p.join("vacua-intelligence");
             if candidate.exists() {
                 return Some(candidate);
-            }
-        }
-    }
-
-    // 5. Development paths (debug builds only)
-    #[cfg(debug_assertions)]
-    {
-        let dev_candidates = [
-            PathBuf::from("apple/VacuaIntelligence/.build/release/vacua-intelligence"),
-            PathBuf::from("apple/VacuaIntelligence/.build/debug/vacua-intelligence"),
-            PathBuf::from("../apple/VacuaIntelligence/.build/release/vacua-intelligence"),
-            PathBuf::from("../apple/VacuaIntelligence/.build/debug/vacua-intelligence"),
-        ];
-        for cand in &dev_candidates {
-            if cand.exists() {
-                return Some(cand.clone());
             }
         }
     }

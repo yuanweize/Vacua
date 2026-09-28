@@ -40,7 +40,8 @@ jobs:
         run: |
           cd apple/VacuaIntelligence
           swift build --target FoundationModelsProof
-          .build/debug/foundation-models-proof
+          BIN_PATH=$(swift build --target FoundationModelsProof --show-bin-path)
+          "${BIN_PATH}/foundation-models-proof"
 
       - name: Build Swift Module
         run: |
@@ -50,9 +51,11 @@ jobs:
       - name: Verify Capabilities
         run: |
           cd apple/VacuaIntelligence
-          .build/debug/vacua-intelligence capabilities
+          BIN_PATH=$(swift build --show-bin-path)
+          "${BIN_PATH}/vacua-intelligence" capabilities
 
       - name: Run Swift Self-Tests
         run: |
           cd apple/VacuaIntelligence
-          .build/debug/vacua-intelligence test
+          BIN_PATH=$(swift build --show-bin-path)
+          "${BIN_PATH}/vacua-intelligence" test
