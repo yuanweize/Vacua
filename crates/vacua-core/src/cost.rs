@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RebuildCost {
@@ -6,6 +7,7 @@ pub enum RebuildCost {
     Low,
     Medium,
     High,
+    Unknown,
 }
 
 impl std::fmt::Display for RebuildCost {
@@ -15,6 +17,7 @@ impl std::fmt::Display for RebuildCost {
             Self::Low => write!(f, "Low (<1 min)"),
             Self::Medium => write!(f, "Medium (1-5 min)"),
             Self::High => write!(f, "High (>10 min compile)"),
+            Self::Unknown => write!(f, "Unknown Friction"),
         }
     }
 }
@@ -36,6 +39,35 @@ impl std::fmt::Display for CostTier {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ActiveProjectStatus {
+    Active,
+    Dormant,
+    Unknown,
+}
+
+impl std::fmt::Display for ActiveProjectStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Active => write!(f, "Active (<7d)"),
+            Self::Dormant => write!(f, "Dormant (>7d)"),
+            Self::Unknown => write!(f, "Unlinked"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReclaimCostInputs {
+    pub category: String,
+    pub allocated_bytes: u64,
+    pub reclaim_confidence: f32,
+    pub active_project: ActiveProjectStatus,
+    pub running_process: bool,
+    pub is_reversible: bool,
+    pub clone_uncertainty: bool,
+    pub mtime_sec: i64,
+}
+
 /// Deterministic model assessing the trade-off between physical space reclaimed
 /// and the time/network resources required to regenerate deleted items.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -44,93 +76,129 @@ pub struct ReclaimCost {
     pub reclaim_confidence: f32,
     pub rebuild_cost: RebuildCost,
     pub network_redownload_bytes: u64,
-    pub active_project: bool,
+    pub network_estimate_confidence: f32,
+    pub active_project: ActiveProjectStatus,
     pub reversibility: bool,
     pub tier: CostTier,
     pub advice: String,
 }
 
 impl ReclaimCost {
-    pub fn evaluate(
-        category_name: &str,
-        allocated_bytes: u64,
-        reclaim_confidence: f32,
-        is_active: bool,
-        is_reversible: bool,
-    ) -> Self {
-        let (rebuild_cost, redownload_bytes, tier, advice) = match category_name {
+    pub fn evaluate(inputs: &ReclaimCostInputs) -> Self {
+        let (rebuild_cost, redownload_bytes, net_confidence, tier, advice) = match inputs.category.as_str() {
             "BUILD_ARTIFACT" | "BuildArtifact" => {
-                if is_active {
-                    (
+                match inputs.active_project {
+                    ActiveProjectStatus::Active => (
                         RebuildCost::High,
                         0,
+                        1.0,
                         CostTier::HighValueHighRebuildCost,
-                        "Active project artifact: Reclaiming space will trigger full rebuild on next compilation."
-                            .to_string(),
-                    )
-                } else {
-                    (
+                        "Active project artifact: Reclaiming space will trigger full compilation on next build.".to_string(),
+                    ),
+                    ActiveProjectStatus::Dormant => (
                         RebuildCost::Low,
                         0,
+                        1.0,
                         CostTier::HighValueLowCost,
-                        "Dormant build artifact: Safe to clean; easily regenerated if project is reopened."
-                            .to_string(),
-                    )
+                        "Dormant project artifact (>7d inactive): Safe to clean; easily regenerated if reopened.".to_string(),
+                    ),
+                    ActiveProjectStatus::Unknown => (
+                        RebuildCost::Medium,
+                        0,
+                        1.0,
+                        CostTier::HighValueLowCost,
+                        "Build artifact with unlinked project: Regenerable upon request.".to_string(),
+                    ),
                 }
             }
             "PACKAGE_MANAGER_CACHE" | "PackageManagerCache" => (
                 RebuildCost::Medium,
-                allocated_bytes,
+                inputs.allocated_bytes,
+                0.85,
                 CostTier::HighValueLowCost,
-                "Package manager cache: Reclaiming frees physical space; missing dependencies redownloaded on demand."
-                    .to_string(),
+                "Package manager cache: Reclaiming frees physical blocks; upper bound network redownload required on demand.".to_string(),
             ),
             "CONTAINER_DATA" | "ContainerData" => {
-                if is_active {
+                if inputs.running_process || inputs.active_project == ActiveProjectStatus::Active {
                     (
                         RebuildCost::High,
-                        allocated_bytes,
+                        inputs.allocated_bytes,
+                        0.75,
                         CostTier::LowValueHighCost,
-                        "Active container data: May disrupt running developer services.".to_string(),
+                        "Active container data: May disrupt running developer workloads.".to_string(),
                     )
                 } else {
                     (
                         RebuildCost::Medium,
-                        allocated_bytes,
+                        inputs.allocated_bytes,
+                        0.75,
                         CostTier::HighValueLowCost,
-                        "Stopped container layers: High reclaim potential with standard re-pull cost.".to_string(),
+                        "Stopped container layers: High reclaim potential with standard image re-pull cost.".to_string(),
                     )
                 }
             }
             _ => (
                 RebuildCost::Instant,
                 0,
+                1.0,
                 CostTier::HighValueLowCost,
-                "Standard ephemeral cache: Freeable immediately.".to_string(),
+                "Standard ephemeral cache: Freeable immediately with minimal rebuild friction.".to_string(),
             ),
         };
 
         Self {
-            expected_freeable_bytes: (allocated_bytes as f32 * reclaim_confidence) as u64,
-            reclaim_confidence,
+            expected_freeable_bytes: (inputs.allocated_bytes as f32 * inputs.reclaim_confidence)
+                as u64,
+            reclaim_confidence: inputs.reclaim_confidence,
             rebuild_cost,
             network_redownload_bytes: redownload_bytes,
-            active_project: is_active,
-            reversibility: is_reversible,
+            network_estimate_confidence: net_confidence,
+            active_project: inputs.active_project,
+            reversibility: inputs.is_reversible,
             tier,
             advice,
         }
     }
 
     pub fn from_candidate(c: &crate::candidate::Candidate) -> Self {
-        Self::evaluate(
-            c.category.as_str(),
-            c.allocation.allocated_bytes,
-            c.allocation.reclaim_confidence,
-            false,
-            c.risk.is_reversible(),
-        )
+        let active = detect_active_project(&c.path);
+        let inputs = ReclaimCostInputs {
+            category: c.category.as_str().to_string(),
+            allocated_bytes: c.allocation.allocated_bytes,
+            reclaim_confidence: c.allocation.reclaim_confidence,
+            active_project: active,
+            running_process: false,
+            is_reversible: c.risk.is_reversible(),
+            clone_uncertainty: c.allocation.extent_uncertainty,
+            mtime_sec: c.mtime_sec,
+        };
+        Self::evaluate(&inputs)
     }
+}
+
+/// Detects whether an artifact belongs to an active project by checking recent Git index activity.
+pub fn detect_active_project(path: &Path) -> ActiveProjectStatus {
+    let mut curr = Some(path);
+    while let Some(p) = curr {
+        let git_dir = p.join(".git");
+        if git_dir.exists() {
+            let index_path = git_dir.join("index");
+            if let Ok(meta) = index_path.metadata() {
+                if let Ok(mtime) = meta.modified() {
+                    if let Ok(elapsed) = mtime.elapsed() {
+                        if elapsed.as_secs() < 7 * 86400 {
+                            return ActiveProjectStatus::Active;
+                        } else {
+                            return ActiveProjectStatus::Dormant;
+                        }
+                    }
+                }
+            }
+            return ActiveProjectStatus::Dormant;
+        }
+        curr = p.parent();
+    }
+    ActiveProjectStatus::Unknown
 }
 
 /// Simulation summary for what-if plan cleanup evaluation.
@@ -166,9 +234,9 @@ impl CleanupSimulation {
                 let cost = ReclaimCost::from_candidate(c);
                 expected_freeable_bytes =
                     expected_freeable_bytes.saturating_add(cost.expected_freeable_bytes);
-                min_freeable =
-                    min_freeable.saturating_add((c.allocation.allocated_bytes as f32 * 0.8) as u64);
-                max_freeable = max_freeable.saturating_add(c.allocation.allocated_bytes);
+                min_freeable = min_freeable.saturating_add(c.allocation.confirmed_freeable_bytes());
+                max_freeable =
+                    max_freeable.saturating_add(c.allocation.upper_bound_freeable_bytes());
                 items_moved_to_trash += 1;
                 total_redownload_cost_bytes =
                     total_redownload_cost_bytes.saturating_add(cost.network_redownload_bytes);
