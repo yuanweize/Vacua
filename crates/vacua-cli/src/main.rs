@@ -136,6 +136,8 @@ enum HistoryAction {
         #[arg(help = "Transaction ID to inspect (e.g. tx-1727560000000)")]
         id: String,
     },
+    #[command(about = "Verify cryptographic SHA-256 hash chain integrity of the audit journal")]
+    Verify,
 }
 
 #[derive(Subcommand, Debug)]
@@ -902,8 +904,16 @@ fn handle_execute(plan_path: &Path, dry_run: bool, json_mode: bool) {
     let mut journal = match ExecutionJournal::open(&journal_path) {
         Ok(j) => Some(j),
         Err(e) => {
+            if !dry_run {
+                eprintln!(
+                    "FAIL-SAFE ABORT: Cannot open execution journal ({}) for live execution: {}\nDeletions without an audit log are forbidden.",
+                    journal_path.display(),
+                    e
+                );
+                std::process::exit(1);
+            }
             eprintln!(
-                "Warning: Failed to open execution journal ({}), proceeding without audit log: {}",
+                "Warning: Failed to open execution journal ({}) in dry-run mode: {}",
                 journal_path.display(),
                 e
             );
@@ -1054,6 +1064,49 @@ fn handle_history(action: Option<HistoryAction>, json_mode: bool) {
                     }
                     println!("──────────────────────────────────────────────────");
                 }
+            }
+        }
+        Some(HistoryAction::Verify) => {
+            let report = match journal.verify_chain() {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!("Failed to verify journal chain: {}", e);
+                    std::process::exit(1);
+                }
+            };
+
+            if json_mode {
+                println!("{}", serde_json::to_string_pretty(&report).unwrap());
+            } else {
+                println!("\nAudit Journal Tamper-Evident Hash Chain Verification");
+                println!("──────────────────────────────────────────────────");
+                println!("Total Audit Records:  {}", report.total_records);
+                println!(
+                    "Chain Integrity:      {}",
+                    if report.is_valid {
+                        "VERIFIED (Cryptographically Valid)"
+                    } else {
+                        "FAILED (Tampering Detected!)"
+                    }
+                );
+                if let Some(ref h) = report.first_hash {
+                    println!("Genesis Link:         {}", h);
+                }
+                if let Some(ref h) = report.latest_hash {
+                    println!("Head Hash:            {}", h);
+                }
+                if !report.is_valid {
+                    if let Some(id) = report.broken_record_id {
+                        println!("Broken Record ID:     {}", id);
+                    }
+                    if let Some(ref detail) = report.error_detail {
+                        println!("Error Detail:         {}", detail);
+                    }
+                }
+                println!("──────────────────────────────────────────────────\n");
+            }
+            if !report.is_valid {
+                std::process::exit(1);
             }
         }
     }

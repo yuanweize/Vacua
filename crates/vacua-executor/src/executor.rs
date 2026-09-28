@@ -79,7 +79,7 @@ impl<'a, B: TrashBackend> PlanExecutor<'a, B> {
     pub fn execute(
         &self,
         plan: &CleanupPlan,
-        journal: Option<&mut ExecutionJournal>,
+        mut journal: Option<&mut ExecutionJournal>,
     ) -> Result<ExecutionReport, ExecutorError> {
         // Step 1: Verify plan cryptographic integrity
         if plan.verify_integrity().is_err() {
@@ -100,8 +100,6 @@ impl<'a, B: TrashBackend> PlanExecutor<'a, B> {
             ProcessRefreshKind::nothing(),
         );
 
-        let mut journal_opt = journal;
-
         for item in &plan.items {
             // Invariant Gate 1: Never touch protected or unknown items
             if item.risk == RiskLevel::Protected
@@ -109,8 +107,8 @@ impl<'a, B: TrashBackend> PlanExecutor<'a, B> {
                 || is_protected_path(&item.path)
             {
                 let reason = "Safety invariant violation: item is protected or unknown".to_string();
-                if let Some(ref mut j) = journal_opt {
-                    let _ = j.record(
+                if let Some(ref mut j) = journal {
+                    j.record(
                         &transaction_id,
                         &plan.plan_hash,
                         &item.candidate_id,
@@ -124,7 +122,7 @@ impl<'a, B: TrashBackend> PlanExecutor<'a, B> {
                         0,
                         true,
                         Some(&reason),
-                    );
+                    )?;
                 }
                 skipped.push(SkippedItem {
                     candidate_id: item.candidate_id.clone(),
@@ -139,8 +137,8 @@ impl<'a, B: TrashBackend> PlanExecutor<'a, B> {
                 Ok(m) => m,
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                     let reason = "Target path no longer exists on live filesystem".to_string();
-                    if let Some(ref mut j) = journal_opt {
-                        let _ = j.record(
+                    if let Some(ref mut j) = journal {
+                        j.record(
                             &transaction_id,
                             &plan.plan_hash,
                             &item.candidate_id,
@@ -154,7 +152,7 @@ impl<'a, B: TrashBackend> PlanExecutor<'a, B> {
                             0,
                             true,
                             Some(&reason),
-                        );
+                        )?;
                     }
                     skipped.push(SkippedItem {
                         candidate_id: item.candidate_id.clone(),
@@ -181,14 +179,23 @@ impl<'a, B: TrashBackend> PlanExecutor<'a, B> {
                     item.expected_device_id,
                     live_meta.dev()
                 );
-                record_skip(
-                    &mut journal_opt,
-                    &transaction_id,
-                    &plan.plan_hash,
-                    item,
-                    Some(live_meta.ino()),
-                    &reason,
-                );
+                if let Some(ref mut j) = journal {
+                    j.record(
+                        &transaction_id,
+                        &plan.plan_hash,
+                        &item.candidate_id,
+                        &item.path.to_string_lossy(),
+                        "skip",
+                        &format!("{:?}", item.risk),
+                        "toctou_device",
+                        Some(item.expected_inode),
+                        Some(live_meta.ino()),
+                        "skipped",
+                        0,
+                        true,
+                        Some(&reason),
+                    )?;
+                }
                 skipped.push(SkippedItem {
                     candidate_id: item.candidate_id.clone(),
                     path: item.path.clone(),
@@ -204,14 +211,23 @@ impl<'a, B: TrashBackend> PlanExecutor<'a, B> {
                     item.expected_inode,
                     live_meta.ino()
                 );
-                record_skip(
-                    &mut journal_opt,
-                    &transaction_id,
-                    &plan.plan_hash,
-                    item,
-                    Some(live_meta.ino()),
-                    &reason,
-                );
+                if let Some(ref mut j) = journal {
+                    j.record(
+                        &transaction_id,
+                        &plan.plan_hash,
+                        &item.candidate_id,
+                        &item.path.to_string_lossy(),
+                        "skip",
+                        &format!("{:?}", item.risk),
+                        "toctou_inode",
+                        Some(item.expected_inode),
+                        Some(live_meta.ino()),
+                        "skipped",
+                        0,
+                        true,
+                        Some(&reason),
+                    )?;
+                }
                 skipped.push(SkippedItem {
                     candidate_id: item.candidate_id.clone(),
                     path: item.path.clone(),
@@ -227,14 +243,23 @@ impl<'a, B: TrashBackend> PlanExecutor<'a, B> {
                     item.expected_mtime_sec,
                     live_meta.mtime()
                 );
-                record_skip(
-                    &mut journal_opt,
-                    &transaction_id,
-                    &plan.plan_hash,
-                    item,
-                    Some(live_meta.ino()),
-                    &reason,
-                );
+                if let Some(ref mut j) = journal {
+                    j.record(
+                        &transaction_id,
+                        &plan.plan_hash,
+                        &item.candidate_id,
+                        &item.path.to_string_lossy(),
+                        "skip",
+                        &format!("{:?}", item.risk),
+                        "toctou_mtime",
+                        Some(item.expected_inode),
+                        Some(live_meta.ino()),
+                        "skipped",
+                        0,
+                        true,
+                        Some(&reason),
+                    )?;
+                }
                 skipped.push(SkippedItem {
                     candidate_id: item.candidate_id.clone(),
                     path: item.path.clone(),
@@ -256,14 +281,23 @@ impl<'a, B: TrashBackend> PlanExecutor<'a, B> {
                         "Active process guard triggered: '{}' is currently running",
                         guard_process
                     );
-                    record_skip(
-                        &mut journal_opt,
-                        &transaction_id,
-                        &plan.plan_hash,
-                        item,
-                        Some(live_meta.ino()),
-                        &reason,
-                    );
+                    if let Some(ref mut j) = journal {
+                        j.record(
+                            &transaction_id,
+                            &plan.plan_hash,
+                            &item.candidate_id,
+                            &item.path.to_string_lossy(),
+                            "skip",
+                            &format!("{:?}", item.risk),
+                            "process_guard",
+                            Some(item.expected_inode),
+                            Some(live_meta.ino()),
+                            "skipped",
+                            0,
+                            true,
+                            Some(&reason),
+                        )?;
+                    }
                     skipped.push(SkippedItem {
                         candidate_id: item.candidate_id.clone(),
                         path: item.path.clone(),
@@ -275,8 +309,8 @@ impl<'a, B: TrashBackend> PlanExecutor<'a, B> {
 
             // Dry-run mode: do not mutate filesystem
             if self.dry_run {
-                if let Some(ref mut j) = journal_opt {
-                    let _ = j.record(
+                if let Some(ref mut j) = journal {
+                    j.record(
                         &transaction_id,
                         &plan.plan_hash,
                         &item.candidate_id,
@@ -290,7 +324,7 @@ impl<'a, B: TrashBackend> PlanExecutor<'a, B> {
                         item.allocated_bytes,
                         true,
                         None,
-                    );
+                    )?;
                 }
                 total_reclaimed += item.allocated_bytes;
                 successful.push(ExecutedItem {
@@ -304,12 +338,32 @@ impl<'a, B: TrashBackend> PlanExecutor<'a, B> {
                 continue;
             }
 
-            // Action: move to Trash
+            // FAIL-SAFE RULE: Pre-action journal intent MUST be written before touching filesystem.
+            // If the journal write fails, abort action immediately to prevent untracked deletions.
+            if let Some(ref mut j) = journal {
+                j.record(
+                    &transaction_id,
+                    &plan.plan_hash,
+                    &item.candidate_id,
+                    &item.path.to_string_lossy(),
+                    "trash_intent",
+                    &format!("{:?}", item.risk),
+                    "pre_action_intent",
+                    Some(item.expected_inode),
+                    Some(live_meta.ino()),
+                    "pending",
+                    item.allocated_bytes,
+                    true,
+                    None,
+                )?;
+            }
+
+            // Action: move to Trash via backend
             match self.backend.trash(&item.path) {
                 Ok(dest) => {
                     total_reclaimed += item.allocated_bytes;
-                    if let Some(ref mut j) = journal_opt {
-                        let _ = j.record(
+                    if let Some(ref mut j) = journal {
+                        j.record(
                             &transaction_id,
                             &plan.plan_hash,
                             &item.candidate_id,
@@ -323,7 +377,7 @@ impl<'a, B: TrashBackend> PlanExecutor<'a, B> {
                             item.allocated_bytes,
                             true,
                             None,
-                        );
+                        )?;
                     }
                     successful.push(ExecutedItem {
                         candidate_id: item.candidate_id.clone(),
@@ -336,7 +390,7 @@ impl<'a, B: TrashBackend> PlanExecutor<'a, B> {
                 }
                 Err(e) => {
                     let err_msg = format!("Trash operation failed: {}", e);
-                    if let Some(ref mut j) = journal_opt {
+                    if let Some(ref mut j) = journal {
                         let _ = j.record(
                             &transaction_id,
                             &plan.plan_hash,
@@ -375,40 +429,17 @@ impl<'a, B: TrashBackend> PlanExecutor<'a, B> {
     }
 }
 
-fn record_skip(
-    journal: &mut Option<&mut ExecutionJournal>,
-    transaction_id: &str,
-    plan_hash: &str,
-    item: &vacua_plan::PlanItem,
-    live_ino: Option<u64>,
-    reason: &str,
-) {
-    if let Some(ref mut j) = journal {
-        let _ = j.record(
-            transaction_id,
-            plan_hash,
-            &item.candidate_id,
-            &item.path.to_string_lossy(),
-            "skip",
-            &format!("{:?}", item.risk),
-            "toctou_guard",
-            Some(item.expected_inode),
-            live_ino,
-            "skipped",
-            0,
-            true,
-            Some(reason),
-        );
-    }
-}
-
+/// Identifies if target path is related to an active process guard.
 fn get_target_process_guard(path: &Path) -> Option<&'static str> {
-    let p_str = path.to_string_lossy();
-    if p_str.contains("Xcode") || p_str.contains("DerivedData") {
+    let s = path.to_string_lossy();
+    if s.contains("Library/Developer/Xcode/DerivedData") {
         Some("Xcode")
-    } else if p_str.contains("AndroidStudio") {
-        Some("studio")
-    } else if p_str.contains("Google/Chrome") {
+    } else if s.contains("Library/Caches/com.docker.docker")
+        || s.contains(".docker")
+        || s.contains("OrbStack")
+    {
+        Some("Docker")
+    } else if s.contains("Library/Caches/Google/Chrome") {
         Some("Google Chrome")
     } else {
         None
