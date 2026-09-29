@@ -43,20 +43,30 @@ The development of Vacua is divided into 7 distinct, sequential phases. Per our 
 
 ---
 
-## Phase 3: Application Orphan Graph, Snapshots & Differential Reasoning
-- [x] Application Evidence Graph (Bundle IDs, LaunchAgents, App Support, Caches, Containers).
+## Phase 3: Application Orphan Graph, Snapshots, Differential Reasoning & On-Device Intelligence
+- [x] Application Evidence Graph (Bundle IDs, LaunchAgents, App Support, Caches, Containers, Preferences, active processes).
 - [x] Confidence-scored orphan detection (`orphan_confidence`).
 - [x] Storage Snapshots & Diff Engine (`vacua snapshot create`, `vacua diff baseline current`).
 - [x] Reclaim Cost Model & What-If Cleanup Simulator (`vacua plan --simulate`).
-- [x] Storage Intelligence Query Engine (`vacua ask`).
+- [x] Storage Intelligence Query Engine (`vacua ask`) with grounded reference validation.
+- [x] Typed Apple Foundation Models integration (`@Generable` guided generation, compile proof gate).
 - [x] Calibrated synthetic filesystem benchmarks (10k, 100k files in `BENCHMARKS.md`).
-- [ ] Staged duplicate detection (Size grouping -> Inode collapse -> Partial hash -> Full hash).
-- [ ] BLAKE3 hashing engine with APFS clone awareness.
 
 ---
 
-## Phase 4: Agent Native Interface & MCP Server
-- [ ] `vacua-mcp` read-only tool server (exposing discovery, inspection, and plan creation).
+## Phase 4A: Content Identity & Duplicate Intelligence
+- [x] Bounded staged duplicate pipeline (Size grouping -> Hardlink collapse -> APFS clone classification -> Sample fingerprint -> Full BLAKE3).
+- [x] Persistent SQLite fingerprint cache with nanosecond stat identity validation and automatic invalidation.
+- [x] Physical reclaim accounting separating logical duplicates, APFS clone families, and hardlink sets.
+- [x] Cloud placeholder safety preventing unintended background file hydration.
+- [x] TOCTOU-safe hashing with open file descriptor verification.
+- [x] Safe duplicate cleanup planning feeding immutable `CleanupPlan` (no automatic silent deletion).
+- [x] CLI commands: `vacua duplicates`, `vacua duplicates show`, `vacua duplicates plan`, `vacua duplicates cache`.
+
+---
+
+## Phase 4B: Agent Native Interface & MCP Server
+- [ ] `vacua-mcp` read-only tool server using official Model Context Protocol Rust SDK.
 - [ ] Vendor-neutral Agent Skill (`skills/vacua/SKILL.md`).
 - [ ] Structured CLI JSON schema specification (`schemas/vacua-v1.json`).
 
@@ -66,13 +76,8 @@ The development of Vacua is divided into 7 distinct, sequential phases. Per our 
 - [ ] Pure native SwiftUI application (no Electron, no WebView, no local web server).
 - [ ] Overview Dashboard: Storage pressure, safe reclaimable space, reviewable space.
 - [ ] Visual Storage Map / Treemap (logical vs allocated block views).
+- [ ] Duplicate Explorer & Storage Diff Timeline.
 - [ ] Application Management & Orphan Explorer.
 - [ ] Developer Artifact Center.
 - [ ] Full Disk Access (FDA) permission onboarding and status monitoring.
-
----
-
-## Phase 6: On-Device Intelligence & Intent Translator
 - [ ] Local-only Bayesian preference adaptation (Beta-Bernoulli category preferences).
-- [ ] Full system integration of on-device Apple Intelligence models for natural language queries.
-- [ ] Strict translation of NL prompts to deterministic `StructuredIntent` (never executing raw instructions).

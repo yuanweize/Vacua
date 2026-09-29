@@ -167,11 +167,92 @@ enum Commands {
         action: IntelligenceAction,
     },
 
+    #[command(about = "Discover exact duplicate files with APFS-aware physical reclaim analysis")]
+    Duplicates {
+        #[command(subcommand)]
+        action: Option<DuplicatesSubcommand>,
+
+        #[arg(default_value = ".", help = "Target path to scan for duplicates")]
+        path: PathBuf,
+
+        #[arg(
+            long,
+            default_value = "1M",
+            help = "Minimum file size threshold (e.g. 500K, 10M, 1G)"
+        )]
+        min_size: String,
+
+        #[arg(long, help = "Include zero-length files in duplicate discovery")]
+        include_empty: bool,
+
+        #[arg(
+            long,
+            short = 'j',
+            default_value = "4",
+            help = "Number of concurrent hashing worker threads"
+        )]
+        jobs: usize,
+
+        #[arg(long, help = "Do not use persistent fingerprint cache")]
+        no_cache: bool,
+    },
+
     #[command(about = "Generate shell completion scripts (bash, zsh, fish)")]
     Completions {
         #[arg(value_enum, help = "Target shell")]
         shell: Shell,
     },
+}
+
+#[derive(Subcommand, Debug)]
+enum DuplicatesSubcommand {
+    #[command(about = "Inspect full details of a specific duplicate group")]
+    Show {
+        #[arg(help = "Duplicate Group ID (e.g. dup-...)")]
+        group_id: String,
+
+        #[arg(long, default_value = ".", help = "Target root path to scan for group")]
+        path: PathBuf,
+
+        #[arg(long, default_value = "1M", help = "Minimum file size threshold")]
+        min_size: String,
+    },
+
+    #[command(
+        about = "Build an immutable cleanup plan for a duplicate group keeping a chosen target"
+    )]
+    Plan {
+        #[arg(help = "Duplicate Group ID (e.g. dup-...)")]
+        group_id: String,
+
+        #[arg(long, help = "Path to the duplicate member that must be preserved")]
+        keep: PathBuf,
+
+        #[arg(long, default_value = ".", help = "Target root path to scan for group")]
+        path: PathBuf,
+
+        #[arg(
+            long,
+            short = 'o',
+            help = "Save plan JSON to file for subsequent execution"
+        )]
+        output: Option<PathBuf>,
+    },
+
+    #[command(about = "Inspect or maintain persistent fingerprint cache")]
+    Cache {
+        #[command(subcommand)]
+        action: FingerprintCacheAction,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum FingerprintCacheAction {
+    #[command(about = "Show fingerprint cache statistics")]
+    Status,
+
+    #[command(about = "Prune missing files from fingerprint cache")]
+    Prune,
 }
 
 #[derive(Subcommand, Debug)]
@@ -304,6 +385,33 @@ fn main() {
         } => handle_plan(&path, risk, output, simulate, cli.json),
         Commands::Execute { plan, dry_run } => handle_execute(&plan, dry_run, cli.json),
         Commands::History { action } => handle_history(action, cli.json),
+        Commands::Duplicates {
+            action,
+            path,
+            min_size,
+            include_empty,
+            jobs,
+            no_cache,
+        } => match action {
+            Some(DuplicatesSubcommand::Show {
+                group_id,
+                path,
+                min_size,
+            }) => handle_duplicates_show(&group_id, &path, &min_size, cli.json),
+            Some(DuplicatesSubcommand::Plan {
+                group_id,
+                keep,
+                path,
+                output,
+            }) => handle_duplicates_plan(&group_id, &keep, &path, output, cli.json),
+            Some(DuplicatesSubcommand::Cache { action }) => match action {
+                FingerprintCacheAction::Status => handle_duplicates_cache_status(cli.json),
+                FingerprintCacheAction::Prune => handle_duplicates_cache_prune(cli.json),
+            },
+            None => {
+                handle_duplicates_scan(&path, &min_size, include_empty, jobs, no_cache, cli.json)
+            }
+        },
         Commands::Doctor => handle_doctor(cli.json),
         Commands::Completions { shell } => handle_completions(shell),
     }
@@ -2270,5 +2378,489 @@ fn handle_ask(query: &str, json_mode: bool) {
         }
 
         println!("\n==================================================\n");
+    }
+}
+
+fn parse_size(s: &str) -> Result<u64, String> {
+    let s = s.trim();
+    if s.is_empty() {
+        return Err("Size cannot be empty".to_string());
+    }
+
+    let (num_part, multiplier): (&str, u64) = if s.ends_with("TiB") || s.ends_with("tib") {
+        (&s[..s.len() - 3], 1024u64 * 1024 * 1024 * 1024)
+    } else if s.ends_with('T') || s.ends_with('t') || s.ends_with("TB") || s.ends_with("tb") {
+        let end = if s.ends_with("TB") || s.ends_with("tb") {
+            s.len() - 2
+        } else {
+            s.len() - 1
+        };
+        (&s[..end], 1024u64 * 1024 * 1024 * 1024)
+    } else if s.ends_with("GiB") || s.ends_with("gib") {
+        (&s[..s.len() - 3], 1024u64 * 1024 * 1024)
+    } else if s.ends_with('G') || s.ends_with('g') || s.ends_with("GB") || s.ends_with("gb") {
+        let end = if s.ends_with("GB") || s.ends_with("gb") {
+            s.len() - 2
+        } else {
+            s.len() - 1
+        };
+        (&s[..end], 1024u64 * 1024 * 1024)
+    } else if s.ends_with("MiB") || s.ends_with("mib") {
+        (&s[..s.len() - 3], 1024u64 * 1024)
+    } else if s.ends_with('M') || s.ends_with('m') || s.ends_with("MB") || s.ends_with("mb") {
+        let end = if s.ends_with("MB") || s.ends_with("mb") {
+            s.len() - 2
+        } else {
+            s.len() - 1
+        };
+        (&s[..end], 1024u64 * 1024)
+    } else if s.ends_with("KiB") || s.ends_with("kib") {
+        (&s[..s.len() - 3], 1024u64)
+    } else if s.ends_with('K') || s.ends_with('k') || s.ends_with("KB") || s.ends_with("kb") {
+        let end = if s.ends_with("KB") || s.ends_with("kb") {
+            s.len() - 2
+        } else {
+            s.len() - 1
+        };
+        (&s[..end], 1024u64)
+    } else if s.ends_with('B') || s.ends_with('b') {
+        (&s[..s.len() - 1], 1u64)
+    } else {
+        (s, 1u64)
+    };
+
+    let num: f64 = num_part
+        .trim()
+        .parse()
+        .map_err(|_| format!("Invalid size format '{}'. Expected e.g. 500K, 10M, 1G", s))?;
+
+    Ok((num * multiplier as f64) as u64)
+}
+
+#[derive(Serialize)]
+struct DuplicatesOutput {
+    schema_version: &'static str,
+    target_path: String,
+    stats: vacua_content::DedupStats,
+    groups: Vec<vacua_content::DuplicateGroup>,
+}
+
+fn handle_duplicates_scan(
+    path: &Path,
+    min_size_str: &str,
+    include_empty: bool,
+    jobs: usize,
+    no_cache: bool,
+    json_mode: bool,
+) {
+    let min_size = match parse_size(min_size_str) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let db_path = default_index_path();
+    let db = if !no_cache {
+        IndexDatabase::open(&db_path).ok()
+    } else {
+        None
+    };
+
+    let options = vacua_content::DuplicateScanOptions {
+        min_size,
+        include_empty,
+        hash_jobs: jobs,
+        skip_cloud: true,
+        use_cache: !no_cache && db.is_some(),
+    };
+
+    let (groups, stats) =
+        match vacua_content::DuplicateEngine::scan_path(&canonical, &options, db.as_ref()) {
+            Ok(res) => res,
+            Err(e) => {
+                eprintln!("Error scanning for duplicates: {}", e);
+                std::process::exit(1);
+            }
+        };
+
+    if json_mode {
+        let output = DuplicatesOutput {
+            schema_version: "vacua-duplicates-v1",
+            target_path: canonical.display().to_string(),
+            stats,
+            groups,
+        };
+        println!("{}", serde_json::to_string_pretty(&output).unwrap());
+    } else {
+        println!();
+        println!("Vacua Duplicate Discovery — APFS Content Identity");
+        println!("==================================================");
+        println!("Target Path:              {}", canonical.display());
+        println!("Files Scanned:            {}", stats.files_seen);
+        println!("Eligible Files:           {}", stats.eligible_files);
+        println!("Size Collisions Checked:  {}", stats.size_collision_files);
+        println!("Sample Fingerprints:      {}", stats.sampled_files);
+        println!("Full BLAKE3 Hashes:       {}", stats.full_hashed_files);
+        if stats.full_hash_cache_hits > 0 {
+            println!("Fingerprint Cache Hits:   {}", stats.full_hash_cache_hits);
+        }
+        if stats.cloud_placeholders_skipped > 0 {
+            println!(
+                "Cloud Placeholders Skipped: {}",
+                stats.cloud_placeholders_skipped
+            );
+        }
+        println!("--------------------------------------------------");
+        println!("Exact duplicate groups:   {}", stats.duplicate_groups);
+        println!(
+            "Logical duplicate bytes:  {}",
+            format_bytes(stats.logical_duplicate_bytes)
+        );
+        println!(
+            "Confirmed reclaimable:    {}",
+            format_bytes(stats.confirmed_reclaimable_bytes)
+        );
+        println!(
+            "Estimated reclaimable:    {}",
+            format_bytes(stats.estimated_reclaimable_bytes)
+        );
+        let apfs_shared = stats
+            .upper_bound_reclaimable_bytes
+            .saturating_sub(stats.confirmed_reclaimable_bytes);
+        println!("APFS shared/uncertain:    {}", format_bytes(apfs_shared));
+        println!("Scan Elapsed Time:        {} ms", stats.elapsed_ms);
+        println!("==================================================");
+        println!();
+
+        if groups.is_empty() {
+            println!("No duplicate files found matching criteria.");
+            return;
+        }
+
+        println!("Top Duplicate Groups (ordered by logical waste):");
+        for (i, group) in groups.iter().take(20).enumerate() {
+            println!(
+                "\nGroup {} [{}]: Size: {} ({} copies) | Logical Waste: {} | Reclaim: {} | Physical: {:?}",
+                i + 1,
+                group.group_id,
+                format_bytes(group.logical_size),
+                group.members.len(),
+                format_bytes(group.logical_duplicate_bytes),
+                format_bytes(group.confirmed_reclaimable_bytes),
+                group.physical_sharing_state,
+            );
+            for m in &group.members {
+                let keep_tag = if m.is_suggested_keep {
+                    "[SUGGESTED KEEP]"
+                } else {
+                    "[REDUNDANT]     "
+                };
+                println!(
+                    "  {} {} (Risk: {}, Inode: {})",
+                    keep_tag,
+                    m.path.display(),
+                    m.risk,
+                    m.inode
+                );
+            }
+        }
+
+        if groups.len() > 20 {
+            println!(
+                "\n... and {} more duplicate groups. Use 'vacua duplicates --json' to view all.",
+                groups.len() - 20
+            );
+        }
+
+        println!(
+            "\nTo inspect a group:  vacua duplicates show <group-id> --path {}",
+            canonical.display()
+        );
+        println!(
+            "To build a plan:     vacua duplicates plan <group-id> --keep <path> -o plan.json"
+        );
+    }
+}
+
+fn handle_duplicates_show(group_id: &str, path: &Path, min_size_str: &str, json_mode: bool) {
+    let min_size = parse_size(min_size_str).unwrap_or(0);
+    let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let db_path = default_index_path();
+    let db = IndexDatabase::open(&db_path).ok();
+
+    let options = vacua_content::DuplicateScanOptions {
+        min_size,
+        include_empty: true,
+        hash_jobs: 4,
+        skip_cloud: true,
+        use_cache: db.is_some(),
+    };
+
+    let (groups, _) =
+        match vacua_content::DuplicateEngine::scan_path(&canonical, &options, db.as_ref()) {
+            Ok(res) => res,
+            Err(e) => {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+        };
+
+    let group = match groups.into_iter().find(|g| g.group_id == group_id) {
+        Some(g) => g,
+        None => {
+            eprintln!(
+                "Error: Duplicate group '{}' not found in path '{}'",
+                group_id,
+                canonical.display()
+            );
+            std::process::exit(1);
+        }
+    };
+
+    if json_mode {
+        println!("{}", serde_json::to_string_pretty(&group).unwrap());
+    } else {
+        println!();
+        println!("Duplicate Group Detail: {}", group.group_id);
+        println!("==================================================");
+        println!("Full BLAKE3 Digest:       {}", group.full_digest);
+        println!(
+            "Individual File Size:     {}",
+            format_bytes(group.logical_size)
+        );
+        println!(
+            "Physical Sharing State:   {:?}",
+            group.physical_sharing_state
+        );
+        println!("Total Members:            {}", group.members.len());
+        println!(
+            "Logical Duplicate Waste:  {}",
+            format_bytes(group.logical_duplicate_bytes)
+        );
+        println!(
+            "Confirmed Reclaimable:    {}",
+            format_bytes(group.confirmed_reclaimable_bytes)
+        );
+        println!(
+            "Estimated Reclaimable:    {}",
+            format_bytes(group.estimated_reclaimable_bytes)
+        );
+        println!(
+            "Upper Bound Reclaimable:  {}",
+            format_bytes(group.upper_bound_reclaimable_bytes)
+        );
+        println!("--------------------------------------------------");
+        println!("Group Members:");
+        for (i, m) in group.members.iter().enumerate() {
+            println!("\n  Member {}: {}", i + 1, m.path.display());
+            println!("    Inode:                {}", m.inode);
+            println!("    Device ID:            {}", m.device_id);
+            println!(
+                "    Allocated Space:      {}",
+                format_bytes(m.allocation.allocated_bytes)
+            );
+            if let Some(cid) = m.clone_id {
+                println!(
+                    "    APFS Clone ID:        {} (refcnt: {})",
+                    cid, m.clone_refcnt
+                );
+            }
+            println!("    Evaluated Risk:       {}", m.risk);
+            println!("    Category:             {}", m.category);
+            if m.is_suggested_keep {
+                println!("    Suggested Keep:       YES");
+                if let Some(reason) = &m.suggest_keep_reason {
+                    println!("    Keep Rationale:       {}", reason);
+                }
+            } else {
+                println!("    Suggested Keep:       NO (redundant candidate)");
+            }
+        }
+        println!("==================================================");
+        println!(
+            "\nTo plan removal, run: vacua duplicates plan {} --keep <chosen-path> -o plan.json",
+            group.group_id
+        );
+    }
+}
+
+fn handle_duplicates_plan(
+    group_id: &str,
+    keep_path: &Path,
+    root_path: &Path,
+    output: Option<PathBuf>,
+    json_mode: bool,
+) {
+    let canonical_root = root_path
+        .canonicalize()
+        .unwrap_or_else(|_| root_path.to_path_buf());
+    let canonical_keep = keep_path
+        .canonicalize()
+        .unwrap_or_else(|_| keep_path.to_path_buf());
+
+    let db_path = default_index_path();
+    let db = IndexDatabase::open(&db_path).ok();
+
+    let options = vacua_content::DuplicateScanOptions {
+        min_size: 0,
+        include_empty: true,
+        hash_jobs: 4,
+        skip_cloud: true,
+        use_cache: db.is_some(),
+    };
+
+    let (groups, _) =
+        match vacua_content::DuplicateEngine::scan_path(&canonical_root, &options, db.as_ref()) {
+            Ok(res) => res,
+            Err(e) => {
+                eprintln!("Error scanning for duplicate group: {}", e);
+                std::process::exit(1);
+            }
+        };
+
+    let group = match groups.into_iter().find(|g| g.group_id == group_id) {
+        Some(g) => g,
+        None => {
+            eprintln!("Error: Duplicate group '{}' not found", group_id);
+            std::process::exit(1);
+        }
+    };
+
+    let plan = match vacua_content::DuplicateEngine::build_cleanup_plan(&group, &canonical_keep) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Error compiling cleanup plan: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    if let Some(out_path) = output {
+        let serialized = serde_json::to_string_pretty(&plan).unwrap();
+        if let Err(e) = std::fs::write(&out_path, serialized) {
+            eprintln!("Failed to write plan to {}: {}", out_path.display(), e);
+            std::process::exit(1);
+        }
+        if !json_mode {
+            println!(
+                "Successfully saved verified duplicate cleanup plan to '{}'.",
+                out_path.display()
+            );
+            println!("Plan ID:                {}", plan.plan_id);
+            println!("Plan Integrity Hash:    {}", plan.plan_hash);
+            println!("Target Items to Trash:  {}", plan.items.len());
+            println!(
+                "Estimated Reclaim:      {}",
+                format_bytes(plan.estimated_physical_reclaim)
+            );
+            println!("\nTo inspect without executing:");
+            println!("  vacua execute {} --dry-run", out_path.display());
+            println!("\nTo execute safely with native macOS Trash:");
+            println!("  vacua execute {}", out_path.display());
+        }
+    } else if json_mode {
+        println!("{}", serde_json::to_string_pretty(&plan).unwrap());
+    } else {
+        println!();
+        println!("Generated Immutable Cleanup Plan: {}", plan.plan_id);
+        println!("==================================================");
+        println!("Preserved Original:       {}", canonical_keep.display());
+        println!("Items to Remove:          {}", plan.items.len());
+        println!(
+            "Estimated Physical Space: {}",
+            format_bytes(plan.estimated_physical_reclaim)
+        );
+        println!(
+            "Risk Summary:             {} safe, {} review, {} caution",
+            plan.risk_summary.safe_count,
+            plan.risk_summary.review_count,
+            plan.risk_summary.caution_count
+        );
+        println!("Plan Integrity Hash:      {}", plan.plan_hash);
+        println!("--------------------------------------------------");
+        for item in &plan.items {
+            println!(
+                "  [TRASH] {} (Allocated: {}, Risk: {})",
+                item.path.display(),
+                format_bytes(item.allocated_bytes),
+                item.risk
+            );
+        }
+        println!("==================================================");
+        println!(
+            "\nTo save plan for execution, use: vacua duplicates plan {} --keep {} -o <path.json>",
+            group_id,
+            canonical_keep.display()
+        );
+    }
+}
+
+fn handle_duplicates_cache_status(json_mode: bool) {
+    let db_path = default_index_path();
+    let db = match IndexDatabase::open(&db_path) {
+        Ok(db) => db,
+        Err(e) => {
+            eprintln!(
+                "Error opening index database at {}: {}",
+                db_path.display(),
+                e
+            );
+            std::process::exit(1);
+        }
+    };
+
+    let stats = match db.get_fingerprint_stats() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Error querying fingerprint stats: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    if json_mode {
+        println!("{}", serde_json::to_string_pretty(&stats).unwrap());
+    } else {
+        println!();
+        println!("Vacua Persistent Content Fingerprint Cache");
+        println!("==========================================");
+        println!("Database Path:            {}", db_path.display());
+        println!("Total Cached Identities:  {}", stats.total_entries);
+        println!("Sample Hashes Cached:     {}", stats.sample_hash_count);
+        println!("Full BLAKE3 Hashes:       {}", stats.full_hash_count);
+        println!("==========================================");
+    }
+}
+
+fn handle_duplicates_cache_prune(json_mode: bool) {
+    let db_path = default_index_path();
+    let db = match IndexDatabase::open(&db_path) {
+        Ok(db) => db,
+        Err(e) => {
+            eprintln!("Error opening index database: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let pruned = match db.prune_missing_fingerprints() {
+        Ok(n) => n,
+        Err(e) => {
+            eprintln!("Error pruning cache: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    if json_mode {
+        let out = serde_json::json!({
+            "status": "success",
+            "pruned_entries": pruned
+        });
+        println!("{}", serde_json::to_string_pretty(&out).unwrap());
+    } else {
+        println!(
+            "Pruned {} missing or deleted records from content fingerprint cache.",
+            pruned
+        );
     }
 }

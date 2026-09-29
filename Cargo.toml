@@ -8,6 +8,7 @@ members = [
     "crates/vacua-cli",
     "crates/vacua-index",
     "crates/vacua-executor",
+    "crates/vacua-content",
 ]
 resolver = "2"
 
@@ -34,3 +35,4 @@ libc = "0.2"
 walkdir = "2.5"
 thiserror = "2.0"
 rusqlite = { version = "0.33", features = ["bundled"] }
+blake3 = "1.5"

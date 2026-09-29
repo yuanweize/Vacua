@@ -3,9 +3,9 @@ pub mod fsevents;
 pub mod schema;
 
 pub use db::{
-    build_recursive_subtrees, IncrementalRefreshResult, IndexDatabase, IndexError, IndexStats,
-    IndexedEntry, SnapshotDiff, SnapshotSubtreeStats, StorageSnapshot, StorageSnapshotSummary,
-    SubtreeDelta, WatchedRootRecord,
+    build_recursive_subtrees, CachedFingerprint, ContentFingerprintRecord, FingerprintCacheStats,
+    IncrementalRefreshResult, IndexDatabase, IndexError, IndexStats, IndexedEntry, SnapshotDiff,
+    SnapshotSubtreeStats, StorageSnapshot, StorageSnapshotSummary, SubtreeDelta, WatchedRootRecord,
 };
 pub use fsevents::{
     flags as fsevent_flags, get_current_event_id, replay_fsevents_since, DirtySubtreeTracker,
