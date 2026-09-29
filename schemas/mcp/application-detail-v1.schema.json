@@ -1,0 +1,87 @@
+{
+  "$defs": {
+    "ApplicationArtifactV1": {
+      "description": "Application artifact item in detail view.",
+      "properties": {
+        "allocated_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "artifact_id": {
+          "type": "string"
+        },
+        "display_path": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "risk": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "display_path",
+        "kind",
+        "allocated_bytes",
+        "risk"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Discovered application detail and residual artifacts.",
+  "properties": {
+    "app_name": {
+      "type": "string"
+    },
+    "application_id": {
+      "type": "string"
+    },
+    "artifact_count": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "artifacts": {
+      "items": {
+        "$ref": "#/$defs/ApplicationArtifactV1"
+      },
+      "type": "array"
+    },
+    "display_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "estimated_reclaim_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "installed": {
+      "type": "boolean"
+    },
+    "orphan_confidence": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "application_id",
+    "app_name",
+    "installed",
+    "orphan_confidence",
+    "artifact_count",
+    "estimated_reclaim_bytes",
+    "artifacts"
+  ],
+  "title": "ApplicationDetailV1",
+  "type": "object"
+}

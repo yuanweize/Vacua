@@ -1,0 +1,71 @@
+{
+  "$defs": {
+    "ApplicationSummaryV1": {
+      "description": "Discovered application summary.",
+      "properties": {
+        "app_name": {
+          "type": "string"
+        },
+        "application_id": {
+          "type": "string"
+        },
+        "display_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "installed": {
+          "type": "boolean"
+        },
+        "orphan_confidence": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "application_id",
+        "app_name",
+        "installed",
+        "orphan_confidence"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Paginated application list response.",
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/ApplicationSummaryV1"
+      },
+      "type": "array"
+    },
+    "limit": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "next_cursor": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "total_count": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "items",
+    "total_count",
+    "limit"
+  ],
+  "title": "ApplicationListResponseV1",
+  "type": "object"
+}

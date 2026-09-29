@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Compact candidate summary for list views.",
+  "properties": {
+    "allocated_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "candidate_id": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string"
+    },
+    "display_path": {
+      "type": "string"
+    },
+    "reclaim_estimate_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "reconstructable": {
+      "type": "boolean"
+    },
+    "risk": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "candidate_id",
+    "display_path",
+    "category",
+    "risk",
+    "allocated_bytes",
+    "reclaim_estimate_bytes",
+    "reconstructable"
+  ],
+  "title": "CandidateSummaryV1",
+  "type": "object"
+}

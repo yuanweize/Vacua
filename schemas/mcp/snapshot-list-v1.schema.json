@@ -1,0 +1,77 @@
+{
+  "$defs": {
+    "SnapshotSummaryV1": {
+      "description": "Snapshot summary item.",
+      "properties": {
+        "allocated_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "root_path": {
+          "type": "string"
+        },
+        "snapshot_id": {
+          "type": "string"
+        },
+        "total_files": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "snapshot_id",
+        "name",
+        "root_path",
+        "created_at",
+        "total_files",
+        "allocated_bytes"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Paginated snapshot list response.",
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/SnapshotSummaryV1"
+      },
+      "type": "array"
+    },
+    "limit": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "next_cursor": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "total_count": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "items",
+    "total_count",
+    "limit"
+  ],
+  "title": "SnapshotListResponseV1",
+  "type": "object"
+}

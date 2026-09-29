@@ -1,0 +1,75 @@
+{
+  "$defs": {
+    "SubtreeDeltaV1": {
+      "description": "Subtree delta for diff views.",
+      "properties": {
+        "delta_bytes": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "display_path": {
+          "type": "string"
+        },
+        "files_delta": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "display_path",
+        "delta_bytes",
+        "files_delta"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Allocation difference between two snapshots or live filesystem.",
+  "properties": {
+    "allocated_delta_bytes": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "base_snapshot": {
+      "type": "string"
+    },
+    "files_delta": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "logical_delta_bytes": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "target_snapshot": {
+      "type": "string"
+    },
+    "top_growing": {
+      "items": {
+        "$ref": "#/$defs/SubtreeDeltaV1"
+      },
+      "type": "array"
+    },
+    "top_shrinking": {
+      "items": {
+        "$ref": "#/$defs/SubtreeDeltaV1"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "base_snapshot",
+    "target_snapshot",
+    "allocated_delta_bytes",
+    "logical_delta_bytes",
+    "files_delta",
+    "top_growing",
+    "top_shrinking"
+  ],
+  "title": "SnapshotDiffV1",
+  "type": "object"
+}

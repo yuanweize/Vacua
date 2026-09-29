@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Duplicate group summary.",
+  "properties": {
+    "algorithm": {
+      "type": "string"
+    },
+    "confirmed_reclaim_lower_bound": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "content_identity_verified": {
+      "type": "boolean"
+    },
+    "estimated_reclaim": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "file_size": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "group_id": {
+      "type": "string"
+    },
+    "kernel_private_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "logical_duplicate_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "member_count": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "group_id",
+    "member_count",
+    "file_size",
+    "logical_duplicate_bytes",
+    "kernel_private_bytes",
+    "confirmed_reclaim_lower_bound",
+    "estimated_reclaim",
+    "content_identity_verified",
+    "algorithm"
+  ],
+  "title": "DuplicateGroupSummaryV1",
+  "type": "object"
+}

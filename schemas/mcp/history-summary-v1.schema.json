@@ -1,0 +1,74 @@
+{
+  "$defs": {
+    "HistoryTransactionV1": {
+      "description": "Recent transaction entry in history summary.",
+      "properties": {
+        "plan_hash": {
+          "type": "string"
+        },
+        "reclaimed_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "successful_count": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "timestamp": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "total_items": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "transaction_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "transaction_id",
+        "plan_hash",
+        "timestamp",
+        "total_items",
+        "successful_count",
+        "reclaimed_bytes"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "History journal summary.",
+  "properties": {
+    "recent_transactions": {
+      "items": {
+        "$ref": "#/$defs/HistoryTransactionV1"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "total_reclaimed_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "total_transactions": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "total_transactions",
+    "total_reclaimed_bytes",
+    "recent_transactions"
+  ],
+  "title": "HistorySummaryV1",
+  "type": "object"
+}

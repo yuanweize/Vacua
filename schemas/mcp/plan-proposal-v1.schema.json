@@ -1,0 +1,109 @@
+{
+  "$defs": {
+    "PlanProposalItemV1": {
+      "description": "Item in a proposed immutable CleanupPlan.",
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "candidate_id": {
+          "type": "string"
+        },
+        "display_path": {
+          "type": "string"
+        },
+        "estimated_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "risk": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "display_path",
+        "action",
+        "risk",
+        "estimated_bytes"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Proposed immutable CleanupPlan v2 with cryptographic hash.",
+  "properties": {
+    "created_at": {
+      "type": "string"
+    },
+    "estimated_eventual_reclaim_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "highest_risk": {
+      "type": "string"
+    },
+    "immediate_reclaim_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "item_count": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/PlanProposalItemV1"
+      },
+      "type": "array"
+    },
+    "plan_hash": {
+      "type": "string"
+    },
+    "plan_id": {
+      "type": "string"
+    },
+    "plan_schema_version": {
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "preservation_guard_count": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "proposal_status": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "serialized_plan": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "plan_schema_version",
+    "plan_id",
+    "plan_hash",
+    "created_at",
+    "item_count",
+    "highest_risk",
+    "estimated_eventual_reclaim_bytes",
+    "immediate_reclaim_bytes",
+    "preservation_guard_count",
+    "items",
+    "proposal_status"
+  ],
+  "title": "CleanupPlanProposalV1",
+  "type": "object"
+}
