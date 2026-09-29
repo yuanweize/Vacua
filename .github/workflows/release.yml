@@ -35,7 +35,9 @@ jobs:
           swift run foundation-models-proof
 
       - name: Assemble Distribution Package
-        run: ./scripts/package-release.sh
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          ./scripts/package-release.sh "${VERSION}"
 
       - name: Release Smoke Test Outside Repository
         run: |

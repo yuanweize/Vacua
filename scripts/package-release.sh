@@ -4,7 +4,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-VERSION="${1:-0.2.0}"
+if [ -z "${1:-}" ]; then
+  VERSION=$(grep -m 1 '^version = ' "${REPO_ROOT}/Cargo.toml" | cut -d '"' -f 2)
+else
+  VERSION="${1#v}"
+fi
 TARGET="aarch64-apple-darwin"
 DIST_DIR="${REPO_ROOT}/dist"
 PKG_NAME="vacua-v${VERSION}-${TARGET}"
