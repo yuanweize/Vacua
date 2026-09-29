@@ -42,7 +42,7 @@ jobs:
         run: ./target/release/vacua-mcp --self-test
 
   swift-check:
-    name: Swift Intelligence Module & FoundationModels Compile Proof
+    name: Swift Intelligence Modules
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
