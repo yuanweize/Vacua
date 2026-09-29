@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-09-29
+
+Content Identity & Duplicate Intelligence Engine: Staged BLAKE3 pipeline, persistent SQLite fingerprint cache, APFS copy-on-write sharing awareness, TOCTOU-safe hashing, and verified duplicate cleanup planning.
+
+### Added
+- **Staged Duplicate Intelligence Engine (`vacua-content`)**:
+  - 6-stage pipeline: Eligibility filter -> Size bucketing -> Hardlink inode collapse -> APFS clone metadata classification -> Domain-separated 3-window sample hashing (`VACUA_SAMPLE_V1`, 192 KiB) -> Bounded sequential streaming BLAKE3 -> Stage 6 Destructive Pair Confirmation.
+  - Bypasses up to 100% of I/O on unique files and 62.5% on same-size adversarial files.
+- **APFS Physical-Sharing Duplicate Accounting**:
+  - Strict distinction between hardlinks (0 bytes reclaimable), APFS copy-on-write clones (0 bytes confirmed lower bound, exclusive bytes estimate), and independent copies (full allocated bytes reclaimable).
+  - Deterministic suggested keep member selection based on protection tier, modification time, and canonical path.
+- **Persistent SQLite Content Fingerprint Cache (`vacua-index`)**:
+  - Schema migration v3 introducing `content_fingerprints` table.
+  - Nanosecond filesystem identity resolution (`mtime_nsec`, `ctime_nsec`) with automatic invalidation upon mutation.
+  - Tested migration from v2 to v3 preserving existing snapshots and index records.
+- **TOCTOU Safety & Cloud Dataless Protection**:
+  - Dual `fstat` on open file descriptors before and after hashing, invalidating cache on `ChangedDuringRead`.
+  - Kernel `SF_DATALESS | UF_DATALESS` check skips iCloud/cloud placeholders by default to prevent unwanted remote hydration.
+- **CLI Duplicate Discovery & Planning (`vacua-cli`)**:
+  - `vacua duplicates <path>` with `--min-size`, `--jobs`, and `--json`.
+  - `vacua duplicates show <group-id>` displaying content ID, physical relations, risks, and reclaim bounds.
+  - `vacua duplicates plan <group-id> --keep <member>` compiling an immutable `CleanupPlan` with SHA-256 hash. Zero direct deletion authority.
+  - `vacua duplicates cache [status|prune]` for cache observability.
+- **Duplicate Benchmark Suite (`scripts/benchmark-dedup.py`)**:
+  - Evaluates Scenarios A–F against synthetic APFS fixtures, verifying 100% I/O avoidance on mostly unique workloads and 100% cache hits on warm runs.
+
 ## [0.3.1] - 2026-09-29
 
 Vacua Reality Hardening release: Grounded Storage AI, recursive subtree accounting, FSEvents reconciliation, multi-signal evidence graph, and verified Homebrew tap automation.
