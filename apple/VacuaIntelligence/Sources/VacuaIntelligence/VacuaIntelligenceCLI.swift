@@ -2,6 +2,8 @@ import Foundation
 
 @main
 struct VacuaIntelligenceCLI {
+    static let version = "0.3.1"
+
     static func main() async {
         let provider = AppleOnDeviceProvider()
         let args = CommandLine.arguments
@@ -9,7 +11,7 @@ struct VacuaIntelligenceCLI {
         if args.count > 1 {
             let command = args[1]
             if command == "--version" || command == "-V" {
-                print("vacua-intelligence 0.2.0")
+                print("vacua-intelligence \(version)")
                 return
             }
 

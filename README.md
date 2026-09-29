@@ -220,11 +220,11 @@ Download the pre-compiled binary package from [GitHub Releases](https://github.c
 
 ```bash
 # Verify checksum
-shasum -a 256 vacua-v0.2.0-aarch64-apple-darwin.tar.gz
+shasum -a 256 vacua-v0.3.1-aarch64-apple-darwin.tar.gz
 
 # Extract and install
-tar -xzf vacua-v0.2.0-aarch64-apple-darwin.tar.gz
-cd vacua-v0.2.0-aarch64-apple-darwin
+tar -xzf vacua-v0.3.1-aarch64-apple-darwin.tar.gz
+cd vacua-v0.3.1-aarch64-apple-darwin
 sudo cp bin/vacua bin/vacua-intelligence /usr/local/bin/
 ```
 

@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-09-29
+
+Vacua Reality Hardening release: Grounded Storage AI, recursive subtree accounting, FSEvents reconciliation, multi-signal evidence graph, and verified Homebrew tap automation.
+
+### Added
+- **Apple Foundation Models Real Guided Generation (`vacua-intelligence`)**:
+  - `@Generable struct GeneratedCleanupIntent` and `@Generable struct GeneratedStorageExplanation` with schema validation.
+  - Native `session.respond(to:generating:)` on macOS 26.0+ SDK with compile-time release gate and compile proof.
+  - Runtime provenance explicitly distinguishing `apple-guided-generation` from `deterministic-parser`.
+- **Grounded Storage Reasoning (`vacua ask`)**:
+  - `StorageReasoningContext` feeding candidate facts and snapshot diffs into Foundation Models.
+  - Strict Rust reference validator enforcing that models can only cite real candidates and snapshots.
+  - Zero deletion authority hard-enforced.
+- **Multi-Signal Application Evidence Graph (`vacua-core`)**:
+  - Discovery of `/var/db/receipts` (`NodeKind::PackageReceipt`), LaunchAgents/Daemons, Preferences (`NodeKind::Preferences`), Saved State, and active memory processes.
+- **Recursive Snapshot Subtree Engine (`vacua-index`)**:
+  - Exact bottom-up recursive aggregation of physical directory subtrees ($O(N \log N)$), replacing shallow directory inode block size bug.
+- **FSEvents Incremental Index Reconciliation (`vacua-index`)**:
+  - Prunes deleted and renamed rows from SQLite index during dirty subtree refresh. Verified identical to fresh full scans.
+
+### Fixed
+- Synced `vacua-intelligence` binary version output with CLI suite.
+- Reconciled benchmark documentation and peak RSS metrics (`/usr/bin/time -l`).
+- Restored Homebrew tap single source of truth with automated post-release SHA256 propagation.
+
 ## [0.2.0] - 2026-09-29
 
 Reality-First Storage Intelligence Engine release for macOS.

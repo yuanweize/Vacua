@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="${1:-0.2.0}"
+VERSION="${1:-}"
+if [ -z "$VERSION" ]; then
+  VERSION=$(grep '^version =' Cargo.toml | head -n1 | cut -d '"' -f2)
+fi
 TARBALL="${2:-dist/vacua-v${VERSION}-aarch64-apple-darwin.tar.gz}"
 TARGET_FORMULA="${3:-packaging/homebrew/vacua.rb.template}"
 
