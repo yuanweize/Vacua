@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-09-29
+
+Agent-Native MCP Interface & Stable Machine API: Official `rmcp` stdio server, compile-time capability isolation without `vacua-executor` linkage, 14 strictly non-destructive tools, versioned DTO boundary (`vacua-api`), JSON Schema drift gate, untrusted metadata sanitization, and vendor-neutral agent skill.
+
+### Added
+- **Stable Public Machine DTO Boundary (`vacua-api`)**:
+  - 18 public, versioned DTOs (`vacua.mcp.*.v1`) for storage state, snapshot diffs, cleanup candidates, application evidence graph, exact BLAKE3 duplicates, simulations, plan proposals, and execution history.
+  - Canonical machine error codes (`VacuaErrorCode`) and JSON Schema generation via `schemars`.
+  - Schema drift CI gate (`crates/vacua-api/tests/schema_drift.rs`) ensuring tracked schemas in `schemas/mcp/*.schema.json` match code exactly.
+- **Agent-Native MCP Stdio Server (`vacua-mcp`)**:
+  - Official `rmcp` 3.5.0 implementation supporting stdio transport, dynamic capability negotiation, tools, resources, and prompts.
+  - **Compile-Time Capability Isolation**: `vacua-mcp` does not depend on `vacua-executor` under any code path. Zero deletion or execution authority. Verified via automated dependency boundary assertions in CI (`cargo tree -p vacua-mcp`).
+  - **Stdout Purity**: Protocol stdout traffic is strictly framed JSON-RPC; all logs and tracing are routed exclusively to stderr.
+  - **14 Tools**: `vacua_get_capabilities`, `vacua_storage_summary`, `vacua_list_snapshots`, `vacua_diff_snapshots`, `vacua_list_candidates`, `vacua_explain_candidate`, `vacua_list_applications`, `vacua_get_application`, `vacua_list_duplicates`, `vacua_get_duplicate_group`, `vacua_simulate_cleanup`, `vacua_propose_cleanup_plan`, `vacua_history_summary`, `vacua_verify_history`.
+  - **Direct Resources & Templates**: `vacua://capabilities`, `vacua://storage/summary`, and templates for candidates, snapshots, duplicates, and applications.
+  - **MCP Prompts**: `review_storage_growth` and `review_cleanup_proposal`.
+  - **Propose-Only Plan Tool**: Generates immutable `CleanupPlan` v2 with SHA-256 seal and preservation guards; marked `proposal_status: PROPOSAL_ONLY_NOT_EXECUTABLE_VIA_MCP`.
+- **Security & Untrusted Metadata Handling**:
+  - Filesystem names and paths treated strictly as untrusted data with ANSI/control-character sanitization.
+  - Path disclosure modes: `home-relative` (default), `full`, and `redacted`.
+  - Allowed roots policy with pre-indexed bounds preventing arbitrary filesystem enumeration.
+  - Bounded pagination (default 50, maximum 200) with opaque base64 cursors and concurrency semaphore for expensive operations.
+- **Vendor-Neutral Agent Skill (`skills/vacua/SKILL.md`)**:
+  - Operating manual for AI agents (Claude, Cursor, Codex, VS Code) outlining truth model, APFS clone/hardlink reclaim semantics, and execution prohibition.
+- **Official MCP Inspector Qualification**:
+  - Live qualification against `@modelcontextprotocol/inspector` v2.8.0 CLI for all tools, resources, and prompts.
+
+---
+
 ## [0.4.1] - 2026-09-29
 
 Content Integrity, APFS Reclaim Truth & Plan Safety Hardening: CleanupPlan schema v2, PreservationGuards, full preflight revalidation, APFS kernel private size accounting, conservative external hardlink/clone detection, fingerprint cache v4 with merge semantics, safe regular-file open primitives, and deterministic benchmark suite.
