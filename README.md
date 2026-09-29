@@ -204,8 +204,31 @@ Execution:          Forbidden (Zero deletion authority)
 | **SQLite Transaction Journal** | Rust | Offline / Local Audit | Shipped (v0.1.0) |
 | **Apple Intent Translation** | Swift | Optional On-Device / Fallback | Shipped (v0.1.0) |
 | **Cloud AI / Telemetry** | None | Disabled / Zero Network Egress | Never / Excluded |
-| **Read-Only MCP Server** | Specification | JSON v1 supported | Planned (Phase 4) |
+| **Agent MCP Server** | Rust (`rmcp`) | Stdio / Propose-Only / Isolated | Shipped (v0.5.0) |
 | **Native SwiftUI GUI** | Swift | Desktop Interface | Planned (Phase 5) |
+
+---
+
+## Agent & MCP Interface (`vacua-mcp`)
+
+Vacua v0.5.0 introduces an official, versioned, capability-isolated Model Context Protocol (MCP) server:
+
+```text
+                    ┌── CLI (`vacua`)
+Vacua Domain Core ──┼── MCP Server (`vacua-mcp`, stdio)
+                    └── future SwiftUI
+
+vacua-mcp ──X──► vacua-executor (NO DEPENDENCY PATH, ZERO DELETION AUTHORITY)
+```
+
+The MCP interface allows external AI environments (**Claude Desktop**, **Cursor**, **Codex**, **VS Code**) to inspect APFS volume pressure, evaluate snapshot diffs, analyze multi-signal application evidence, identify exact BLAKE3 duplicates, simulate what-if reclaims, and propose cryptographically sealed `CleanupPlan` files.
+
+### Compile-Time Capability Isolation
+- `vacua-mcp` **does not link `vacua-executor`**. It is physically impossible for an AI agent to execute deletions, move items to Trash, run shell commands, or mutate files through the MCP server.
+- The server exposes 14 strictly non-destructive tools (`READ_ONLY`, `ANALYZE_ONLY`, `PROPOSE_ONLY`), 2 resources, 4 resource templates, and 2 prompts.
+- All filesystem metadata (paths, names) is treated as untrusted data with control-character sanitization.
+- For complete setup instructions and security details, see [docs/MCP.md](docs/MCP.md) and [skills/vacua/SKILL.md](skills/vacua/SKILL.md).
+
 
 ---
 
@@ -247,12 +270,12 @@ Download the pre-compiled binary package from [GitHub Releases](https://github.c
 
 ```bash
 # Verify checksum
-shasum -a 256 vacua-v0.4.1-aarch64-apple-darwin.tar.gz
+shasum -a 256 vacua-v0.5.0-aarch64-apple-darwin.tar.gz
 
 # Extract and install
-tar -xzf vacua-v0.4.1-aarch64-apple-darwin.tar.gz
-cd vacua-v0.4.1-aarch64-apple-darwin
-sudo cp bin/vacua bin/vacua-intelligence /usr/local/bin/
+tar -xzf vacua-v0.5.0-aarch64-apple-darwin.tar.gz
+cd vacua-v0.5.0-aarch64-apple-darwin
+sudo cp bin/vacua bin/vacua-intelligence bin/vacua-mcp /usr/local/bin/
 ```
 
 ### 3. Build from Source
