@@ -1,0 +1,150 @@
+use crate::cache::FingerprintCache;
+use crate::group::DuplicateGroup;
+use crate::identity::ContentError;
+use crate::staged::{
+    run_staged_duplicate_pipeline, verify_duplicate_pair_before_deletion, DuplicateScanOptions,
+};
+use crate::stats::DedupStats;
+use std::path::Path;
+use vacua_core::candidate::{Candidate, CandidateCategory};
+use vacua_core::evidence::{Evidence, EvidenceSource};
+use vacua_core::risk::{RecommendationValue, RiskLevel};
+use vacua_index::IndexDatabase;
+use vacua_plan::CleanupPlan;
+use vacua_risk::CandidateEvaluator;
+use vacua_rules::engine::RulesEngine;
+use vacua_scan::{FilesystemScanner, ScanOptions, ScannedEntry};
+
+pub struct DuplicateEngine;
+
+impl DuplicateEngine {
+    /// Scans a root path for exact duplicate files using the 6-stage pipeline.
+    pub fn scan_path(
+        root: &Path,
+        options: &DuplicateScanOptions,
+        cache_db: Option<&IndexDatabase>,
+    ) -> Result<(Vec<DuplicateGroup>, DedupStats), ContentError> {
+        let scanner = FilesystemScanner::new(ScanOptions {
+            jobs: Some(options.hash_jobs),
+            ..Default::default()
+        });
+        let report = scanner.scan(root).map_err(ContentError::Io)?;
+        let entries = report.entries;
+
+        let mut rules = RulesEngine::new();
+        let mut evaluator = CandidateEvaluator::new(&mut rules);
+
+        let cache = cache_db.map(FingerprintCache::new);
+
+        let start = std::time::Instant::now();
+        let (groups, mut stats) =
+            run_staged_duplicate_pipeline(&entries, options, cache.as_ref(), |entry| {
+                let cand = evaluator.evaluate(
+                    &entry.path,
+                    entry.to_allocation(),
+                    entry.inode,
+                    entry.device_id,
+                    entry.mtime_sec,
+                    entry.is_dir,
+                );
+                (cand.risk, cand.category.to_string())
+            })?;
+        stats.elapsed_ms = start.elapsed().as_millis() as u64;
+
+        Ok((groups, stats))
+    }
+
+    /// Scans pre-collected ScannedEntry records directly (e.g. from index or parallel scanner).
+    pub fn scan_entries<F>(
+        entries: &[ScannedEntry],
+        options: &DuplicateScanOptions,
+        cache: Option<&FingerprintCache>,
+        risk_classifier: F,
+    ) -> Result<(Vec<DuplicateGroup>, DedupStats), ContentError>
+    where
+        F: FnMut(&ScannedEntry) -> (RiskLevel, String),
+    {
+        let start = std::time::Instant::now();
+        let (groups, mut stats) =
+            run_staged_duplicate_pipeline(entries, options, cache, risk_classifier)?;
+        stats.elapsed_ms = start.elapsed().as_millis() as u64;
+        Ok((groups, stats))
+    }
+
+    /// Generates an immutable, verified CleanupPlan to remove redundant duplicate members
+    /// while strictly keeping `keep_path`.
+    pub fn build_cleanup_plan(
+        group: &DuplicateGroup,
+        keep_path: &Path,
+    ) -> Result<CleanupPlan, ContentError> {
+        let keep_member = group.find_member(keep_path).ok_or_else(|| {
+            ContentError::Group(format!(
+                "Specified keep path '{}' is not a member of duplicate group '{}'",
+                keep_path.display(),
+                group.group_id
+            ))
+        })?;
+
+        let mut candidates = Vec::new();
+
+        for member in &group.members {
+            if member.path == keep_member.path {
+                continue;
+            }
+
+            // Stage 6: Destructive pair confirmation before inclusion in plan
+            let is_match = verify_duplicate_pair_before_deletion(&keep_member.path, &member.path)?;
+            if !is_match {
+                return Err(ContentError::Group(format!(
+                    "Destructive confirmation failed: '{}' does not match keep candidate '{}'",
+                    member.path.display(),
+                    keep_member.path.display()
+                )));
+            }
+
+            let cand_id = format!(
+                "cand-dup-{}",
+                blake3::hash(member.path.to_string_lossy().as_bytes())
+                    .to_hex()
+                    .get(..12)
+                    .unwrap_or("000000000000")
+            );
+
+            // Reconstruct candidate model
+            let candidate = Candidate {
+                id: cand_id,
+                path: member.path.clone(),
+                category: CandidateCategory::Duplicate,
+                allocation: member.allocation,
+                risk: member.risk,
+                value: RecommendationValue::Medium,
+                confidence_score: 1.0,
+                evidence: vec![Evidence::new(
+                    EvidenceSource::FilesystemMetadata,
+                    "Exact BLAKE3 content duplicate",
+                    1.0,
+                    format!(
+                        "Verified identical to preserved file '{}'",
+                        keep_member.path.display()
+                    ),
+                )],
+                reconstructable: true,
+                rebuild_consequence: Some(format!(
+                    "Redundant duplicate copy removed; canonical original preserved at '{}'",
+                    keep_member.path.display()
+                )),
+                inode: member.inode,
+                device_id: member.device_id,
+                mtime_sec: member.mtime_sec,
+            };
+
+            candidates.push(candidate);
+        }
+
+        // Build cleanup plan using vacua_plan
+        let plan = CleanupPlan::build(&candidates, RiskLevel::Review, "vacua-dedup-v1")
+            .map_err(|e| ContentError::Group(e.to_string()))?;
+
+        Ok(plan)
+    }
+}
