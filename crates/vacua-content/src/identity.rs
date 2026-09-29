@@ -1,11 +1,11 @@
 use crate::cloud::is_cloud_placeholder_fd;
 use serde::{Deserialize, Serialize};
-use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::os::unix::fs::MetadataExt;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use thiserror::Error;
+use vacua_core::fs::open_regular_file_safely;
 
 pub const SAMPLE_WINDOW_SIZE: usize = 64 * 1024; // 64 KiB
 pub const DIRECT_FULL_HASH_THRESHOLD: u64 = 192 * 1024; // 192 KiB
@@ -48,8 +48,10 @@ pub enum FingerprintState {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PhysicalRelation {
     Independent,
-    HardlinkSameInode,
-    APFSCloneFamily,
+    HardlinkAliasInGroup,
+    HardlinkSharedExternal,
+    APFSCloneInGroup,
+    APFSCloneSharedExternal,
     UnknownShared,
 }
 
@@ -76,13 +78,20 @@ pub fn compute_sample_fingerprint(
     path: &Path,
     file_size: u64,
 ) -> Result<(String, FingerprintState, u64), ContentError> {
-    if file_size <= DIRECT_FULL_HASH_THRESHOLD {
-        let mut file = File::open(path)?;
-        let fd = file.as_raw_fd();
-        if is_cloud_placeholder_fd(fd) {
-            return Ok((String::new(), FingerprintState::SkippedCloudPlaceholder, 0));
+    let mut file = match open_regular_file_safely(path) {
+        Ok(f) => f,
+        Err(e) if e.kind() == std::io::ErrorKind::InvalidInput => {
+            return Err(ContentError::SkippedSpecialFile);
         }
+        Err(e) => return Err(ContentError::Io(e)),
+    };
 
+    let fd = file.as_raw_fd();
+    if is_cloud_placeholder_fd(fd) {
+        return Ok((String::new(), FingerprintState::SkippedCloudPlaceholder, 0));
+    }
+
+    if file_size <= DIRECT_FULL_HASH_THRESHOLD {
         let mut hasher = blake3::Hasher::new();
         let mut buffer = [0u8; 64 * 1024];
         let mut total_read = 0u64;
@@ -98,12 +107,6 @@ pub fn compute_sample_fingerprint(
 
         let digest = hasher.finalize().to_hex().to_string();
         return Ok((digest, FingerprintState::FullHash, total_read));
-    }
-
-    let mut file = File::open(path)?;
-    let fd = file.as_raw_fd();
-    if is_cloud_placeholder_fd(fd) {
-        return Ok((String::new(), FingerprintState::SkippedCloudPlaceholder, 0));
     }
 
     let mut hasher = blake3::Hasher::new();
@@ -158,7 +161,13 @@ pub fn compute_full_fingerprint_toctou(
     expected_ctime_sec: i64,
     expected_ctime_nsec: i64,
 ) -> Result<(String, FingerprintState, u64), ContentError> {
-    let mut file = File::open(path)?;
+    let mut file = match open_regular_file_safely(path) {
+        Ok(f) => f,
+        Err(e) if e.kind() == std::io::ErrorKind::InvalidInput => {
+            return Err(ContentError::SkippedSpecialFile);
+        }
+        Err(e) => return Err(ContentError::Io(e)),
+    };
     let fd = file.as_raw_fd();
 
     if is_cloud_placeholder_fd(fd) {

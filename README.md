@@ -95,6 +95,7 @@ Discover exact byte-identical duplicates without blind full-disk hashing, while 
 $ vacua duplicates ~ --min-size 10M
 ```
 
+*(Example illustrative output)*:
 ```text
 Exact duplicate groups:        14
 Logical duplicate bytes:       38.2 GB
@@ -116,10 +117,10 @@ Most cleanup utilities for macOS are either simplistic shell wrappers (`rm -rf ~
 
 Vacua is engineered around a core tenet: **Understand storage before modifying storage.**
 
-- **APFS Extent-Aware Accounting**: Distinguishes logical file size from actual physical blocks (`st_blocks * 512`), properly accounting for sparse files and copy-on-write clone references.
+- **APFS Clone-Aware Reclaim Accounting**: Distinguishes logical file size from actual physical blocks (`st_blocks * 512`), properly accounting for copy-on-write clone references, hardlink sharing, and kernel private sizes (`ATTR_CMNEXT_PRIVATESIZE`) on supported APFS volumes.
 - **Evidence-First Classification**: Every candidate is linked to an evidence vector detailing matched rules, active process guards, reconstructability ratings, and rebuild consequences.
 - **Fail-Closed Safety Invariants**: `PROTECTED` locations (`/System`, `~/.ssh`, `~/.gnupg`, `~/Library/Keychains`, `.git/`) and `UNKNOWN` files are unconditionally blocked from automated cleaning.
-- **TOCTOU Protected Execution**: Re-validates live device ID, inode, and modification time immediately before touching any file. If a file changed since the plan was compiled, it is skipped.
+- **TOCTOU Mitigated Execution**: Safely opens regular files via `O_NOFOLLOW | O_NONBLOCK`, re-validates live device ID, inode, regular file type, size, nanosecond mtime/ctime, and cryptographic BLAKE3 content digest immediately before moving to Trash. If a file changed since plan compilation, execution is aborted.
 - **Native macOS Trash**: Approved actions invoke native macOS `-[NSFileManager trashItemAtURL:resultingItemURL:error:]` across volumes, preserving the ability to restore files via Finder.
 - **Hash-Chained Audit Journal**: Every execution records a local SQLite audit transaction forming an unbroken SHA-256 hash chain verified via `vacua history verify`. *(Note: without a separately protected signing key, the chain detects unsynchronized modifications and broken links rather than preventing complete history rewrites by an attacker with direct database write access).*
 
@@ -246,11 +247,11 @@ Download the pre-compiled binary package from [GitHub Releases](https://github.c
 
 ```bash
 # Verify checksum
-shasum -a 256 vacua-v0.4.0-aarch64-apple-darwin.tar.gz
+shasum -a 256 vacua-v0.4.1-aarch64-apple-darwin.tar.gz
 
 # Extract and install
-tar -xzf vacua-v0.4.0-aarch64-apple-darwin.tar.gz
-cd vacua-v0.4.0-aarch64-apple-darwin
+tar -xzf vacua-v0.4.1-aarch64-apple-darwin.tar.gz
+cd vacua-v0.4.1-aarch64-apple-darwin
 sudo cp bin/vacua bin/vacua-intelligence /usr/local/bin/
 ```
 

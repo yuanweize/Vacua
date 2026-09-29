@@ -1130,8 +1130,8 @@ fn handle_plan(
                 println!("Plan Integrity Hash:    {}", plan.plan_hash);
                 println!("Items Included:         {}", plan.items.len());
                 println!(
-                    "Est. Physical Reclaim:  {}",
-                    format_bytes(plan.estimated_physical_reclaim)
+                    "Est. Eventual Reclaim:  {}",
+                    format_bytes(plan.estimated_eventual_reclaim_bytes)
                 );
                 println!("Risk Breakdown:");
                 println!(
@@ -1205,8 +1205,8 @@ fn handle_execute(plan_path: &Path, dry_run: bool, json_mode: bool) {
         println!("Plan Hash:           {}", &plan.plan_hash[..16]);
         println!("Items to Process:    {}", plan.items.len());
         println!(
-            "Estimated Reclaim:   {}",
-            format_bytes(plan.estimated_physical_reclaim)
+            "Estimated Eventual Reclaim: {}",
+            format_bytes(plan.estimated_eventual_reclaim_bytes)
         );
         println!("Safe Items:          {}", plan.risk_summary.safe_count);
         println!("Review Items:        {}", plan.risk_summary.review_count);
@@ -1275,10 +1275,17 @@ fn handle_execute(plan_path: &Path, dry_run: bool, json_mode: bool) {
                 println!("Total Planned:       {}", report.total_planned_items);
                 println!("Successfully Moved:  {}", report.successful_items.len());
                 println!("Skipped (Guards):    {}", report.skipped_items.len());
-                println!("Failed:              {}", report.failed_items.len());
                 println!(
-                    "Total Reclaimed:     {}",
-                    format_bytes(report.total_reclaimed_bytes)
+                    "Moved to Trash:                          {}",
+                    format_bytes(report.bytes_moved_to_trash)
+                );
+                println!(
+                    "Potential Reclaim After Trash Is Emptied: {}",
+                    format_bytes(report.estimated_eventual_reclaim_after_purge)
+                );
+                println!(
+                    "Immediate Filesystem Reclaim:             {}",
+                    format_bytes(report.immediate_reclaimed_bytes)
                 );
 
                 if !report.skipped_items.is_empty() {
@@ -2520,11 +2527,11 @@ fn handle_duplicates_scan(
             format_bytes(stats.logical_duplicate_bytes)
         );
         println!(
-            "Confirmed reclaimable:    {}",
+            "Confirmed reclaimable (suggested keep): {}",
             format_bytes(stats.confirmed_reclaimable_bytes)
         );
         println!(
-            "Estimated reclaimable:    {}",
+            "Estimated reclaimable (suggested keep): {}",
             format_bytes(stats.estimated_reclaimable_bytes)
         );
         let apfs_shared = stats
@@ -2750,10 +2757,9 @@ fn handle_duplicates_plan(
             );
             println!("Plan ID:                {}", plan.plan_id);
             println!("Plan Integrity Hash:    {}", plan.plan_hash);
-            println!("Target Items to Trash:  {}", plan.items.len());
             println!(
-                "Estimated Reclaim:      {}",
-                format_bytes(plan.estimated_physical_reclaim)
+                "Estimated Eventual Reclaim: {}",
+                format_bytes(plan.estimated_eventual_reclaim_bytes)
             );
             println!("\nTo inspect without executing:");
             println!("  vacua execute {} --dry-run", out_path.display());
@@ -2769,8 +2775,8 @@ fn handle_duplicates_plan(
         println!("Preserved Original:       {}", canonical_keep.display());
         println!("Items to Remove:          {}", plan.items.len());
         println!(
-            "Estimated Physical Space: {}",
-            format_bytes(plan.estimated_physical_reclaim)
+            "Estimated Eventual Reclaim: {}",
+            format_bytes(plan.estimated_eventual_reclaim_bytes)
         );
         println!(
             "Risk Summary:             {} safe, {} review, {} caution",

@@ -1,0 +1,125 @@
+{
+  "benchmark_schema_version": "1.0",
+  "vacua_version": "0.4.1",
+  "git_sha": "8c17514",
+  "timestamp": "2026-09-29T09:35:09.556731+00:00",
+  "seed": 42,
+  "hardware": "arm",
+  "macos": "27.0",
+  "filesystem": "APFS",
+  "scenarios": {
+    "scenario_a": {
+      "scenario": "A: Mostly Unique",
+      "description": "2,000 files (10 KB \u2013 50 KB variable sizes, 55.22 MiB total)",
+      "naive_bytes": 57906680,
+      "naive_ms": 61.497875,
+      "vacua_bytes": 0,
+      "vacua_ms": 14.19345899921609,
+      "io_saved_pct": 100.0,
+      "proof": "Size bucketing eliminates 100% of non-colliding files before touching disk contents"
+    },
+    "scenario_b": {
+      "scenario": "B: Same-Size Adversarial",
+      "description": "100 files of identical size (512 KiB) with identical prefix & unique suffix",
+      "naive_bytes": 52428800,
+      "naive_ms": 24.30425,
+      "vacua_bytes": 19660800,
+      "vacua_ms": 8.038583999223192,
+      "io_saved_pct": 62.5,
+      "proof": "3-window sample hash (first/middle/last 64KiB) eliminates 100% false full hashes without full file reads"
+    },
+    "scenario_c": {
+      "scenario": "C: Duplicate Heavy",
+      "description": "10 duplicate groups \u00d7 4 copies (1 MiB per file, 40 MiB total)",
+      "naive_bytes": 41943040,
+      "naive_ms": 18.963667,
+      "vacua_bytes": 49807360,
+      "vacua_ms": 15.995708999980707,
+      "io_saved_pct": -18.75,
+      "groups": 10,
+      "members": 40,
+      "proof": "Correctly identifies 10 groups, 40 members; staged I/O truthfully accounts for 47.50 MiB staged reads"
+    },
+    "scenario_d": {
+      "scenario": "D: Cache Warm Run",
+      "description": "500 files (256 KiB, 50 duplicate pairs) second run (125.00 MiB total)",
+      "naive_bytes": 131072000,
+      "vacua_bytes": 0,
+      "io_saved_pct": 100.0,
+      "proof": "SQLite persistent fingerprint cache satisfies 100 lookups; full re-hashing completely bypassed",
+      "speedup": 3.618320109573233,
+      "warm_ms": 17.63629199922434
+    },
+    "scenario_e": {
+      "scenario": "E: 1% Modifications",
+      "description": "5 files modified out of 500 (125.00 MiB total)",
+      "naive_bytes": 131072000,
+      "vacua_bytes": 1048652,
+      "io_saved_pct": 99.19994201660157,
+      "proof": "Stat identity invalidation preserves 95 valid cache entries; surgical incremental rehash of modified entries",
+      "mut_ms": 18.733541000983678,
+      "mut_hits": 95,
+      "mut_misses": 4
+    },
+    "scenario_f": {
+      "groups": 1,
+      "members": 4,
+      "logical_duplicate_bytes": 15728640,
+      "confirmed_reclaimable_bytes": 5242880,
+      "estimated_reclaimable_bytes": 5242880,
+      "upper_bound_reclaimable_bytes": 10485760,
+      "member_details": [
+        {
+          "name": "apfs_clone.bin",
+          "relation": "APFSCloneInGroup",
+          "nlink": 1,
+          "clone_id": 57770360,
+          "kernel_private_bytes": null
+        },
+        {
+          "name": "hardlink_copy.bin",
+          "relation": "HardlinkAliasInGroup",
+          "nlink": 2,
+          "clone_id": 57770360,
+          "kernel_private_bytes": null
+        },
+        {
+          "name": "independent_copy.bin",
+          "relation": "Independent",
+          "nlink": 1,
+          "clone_id": 57770364,
+          "kernel_private_bytes": null
+        },
+        {
+          "name": "original.bin",
+          "relation": "HardlinkAliasInGroup",
+          "nlink": 2,
+          "clone_id": 57770360,
+          "kernel_private_bytes": null
+        }
+      ]
+    }
+  },
+  "concurrency": [
+    {
+      "jobs": 1,
+      "elapsed_ms": 46.03112499898998,
+      "throughput_mibs": 1737.9544819240323
+    },
+    {
+      "jobs": 2,
+      "elapsed_ms": 26.543625001067994,
+      "throughput_mibs": 3013.9063521572944
+    },
+    {
+      "jobs": 4,
+      "elapsed_ms": 18.237166999824694,
+      "throughput_mibs": 4386.646237366199
+    },
+    {
+      "jobs": 8,
+      "elapsed_ms": 15.053833998535993,
+      "throughput_mibs": 5314.260806102958
+    }
+  ]
+}

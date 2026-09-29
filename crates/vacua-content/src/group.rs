@@ -1,5 +1,6 @@
 use crate::identity::PhysicalRelation;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use vacua_core::{AllocationInfo, RiskLevel};
 
@@ -15,9 +16,115 @@ pub struct DuplicateMember {
     pub risk: RiskLevel,
     pub category: String,
     pub mtime_sec: i64,
+    pub mtime_nsec: i64,
+    pub ctime_sec: i64,
+    pub ctime_nsec: i64,
     pub physical_relation: PhysicalRelation,
     pub is_suggested_keep: bool,
     pub suggest_keep_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DuplicatePlanEstimate {
+    pub confirmed_reclaimable_bytes: u64,
+    pub estimated_reclaimable_bytes: u64,
+    pub upper_bound_reclaimable_bytes: u64,
+}
+
+impl DuplicatePlanEstimate {
+    /// Dynamically calculates confirmed, estimated, and upper bound physical reclaim
+    /// given a chosen keep path and a list of paths selected for removal.
+    pub fn for_keep(
+        group: &DuplicateGroup,
+        keep_path: &Path,
+        selected_remove_paths: &[PathBuf],
+    ) -> Self {
+        Self::calculate_reclaim(&group.members, keep_path, selected_remove_paths)
+    }
+
+    pub fn calculate_reclaim(
+        members: &[DuplicateMember],
+        keep_path: &Path,
+        selected_remove_paths: &[PathBuf],
+    ) -> Self {
+        let mut confirmed = 0u64;
+        let mut estimated = 0u64;
+        let mut upper = 0u64;
+
+        let keep_member = members.iter().find(|m| m.path == keep_path);
+
+        // Count how many times each (dev, inode) is selected for removal
+        let mut removed_inodes_count: HashMap<(u64, u64), u64> = HashMap::new();
+        for path in selected_remove_paths {
+            if let Some(m) = members.iter().find(|m| &m.path == path) {
+                *removed_inodes_count
+                    .entry((m.device_id, m.inode))
+                    .or_default() += 1;
+            }
+        }
+
+        for path in selected_remove_paths {
+            if path == keep_path {
+                continue;
+            }
+            if let Some(m) = members.iter().find(|m| &m.path == path) {
+                let dev_ino = (m.device_id, m.inode);
+                let same_inode_as_keep =
+                    keep_member.is_some_and(|km| (km.device_id, km.inode) == dev_ino);
+
+                // If this member shares the inode with the kept file, unlinking it reclaims 0 bytes!
+                if same_inode_as_keep {
+                    continue;
+                }
+
+                // If hardlink: if not all links are removed (or if external hardlinks exist),
+                // deleting this link does not free inode blocks.
+                let removed_count = *removed_inodes_count.get(&dev_ino).unwrap_or(&0);
+                if m.nlink > removed_count {
+                    // Links still exist elsewhere, unlink reclaim is 0.
+                    continue;
+                }
+
+                match m.physical_relation {
+                    PhysicalRelation::HardlinkSharedExternal => {
+                        // External hardlinks exist; cannot reclaim blocks.
+                    }
+                    PhysicalRelation::APFSCloneSharedExternal => {
+                        // Shared with clones outside the group.
+                        if let Some(priv_bytes) = m.allocation.kernel_private_bytes {
+                            confirmed = confirmed.saturating_add(priv_bytes);
+                            estimated = estimated.saturating_add(priv_bytes);
+                        } else {
+                            estimated = estimated.saturating_add(m.allocation.exclusive_bytes);
+                        }
+                        upper = upper.saturating_add(m.allocation.allocated_bytes);
+                    }
+                    PhysicalRelation::APFSCloneInGroup => {
+                        if let Some(priv_bytes) = m.allocation.kernel_private_bytes {
+                            confirmed = confirmed.saturating_add(priv_bytes);
+                            estimated = estimated.saturating_add(priv_bytes);
+                        } else {
+                            estimated = estimated.saturating_add(m.allocation.exclusive_bytes);
+                        }
+                        upper = upper.saturating_add(m.allocation.allocated_bytes);
+                    }
+                    PhysicalRelation::Independent
+                    | PhysicalRelation::HardlinkAliasInGroup
+                    | PhysicalRelation::UnknownShared => {
+                        confirmed = confirmed.saturating_add(m.allocation.allocated_bytes);
+                        estimated = estimated.saturating_add(m.allocation.allocated_bytes);
+                        upper = upper.saturating_add(m.allocation.allocated_bytes);
+                    }
+                }
+            }
+        }
+
+        Self {
+            confirmed_reclaimable_bytes: confirmed,
+            estimated_reclaimable_bytes: estimated,
+            upper_bound_reclaimable_bytes: upper,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -72,97 +179,95 @@ impl DuplicateGroup {
             }
         }
 
-        // Determine per-member physical relation relative to other members
+        // Determine per-member physical relation relative to other members and filesystem facts
         for i in 0..members.len() {
             let m_inode = (members[i].device_id, members[i].inode);
+            let m_nlink = members[i].nlink;
             let m_clone = members[i].clone_id;
             let m_clone_refcnt = members[i].clone_refcnt;
 
-            let is_hardlink = members
+            let same_inode_visible_count = members
                 .iter()
-                .enumerate()
-                .any(|(j, other)| i != j && (other.device_id, other.inode) == m_inode);
+                .filter(|o| (o.device_id, o.inode) == m_inode)
+                .count();
 
-            let is_clone = if !is_hardlink && m_clone_refcnt > 1 {
-                if let Some(cid) = m_clone {
-                    cid > 0
-                        && members
-                            .iter()
-                            .enumerate()
-                            .any(|(j, other)| i != j && other.clone_id == Some(cid))
+            let same_clone_visible_count = if let Some(cid) = m_clone {
+                if cid > 0 {
+                    members.iter().filter(|o| o.clone_id == Some(cid)).count()
                 } else {
-                    false
+                    0
                 }
             } else {
-                false
+                0
             };
 
-            members[i].physical_relation = if is_hardlink {
-                PhysicalRelation::HardlinkSameInode
-            } else if is_clone {
-                PhysicalRelation::APFSCloneFamily
+            members[i].physical_relation = if m_nlink as usize > same_inode_visible_count {
+                PhysicalRelation::HardlinkSharedExternal
+            } else if same_inode_visible_count > 1 {
+                PhysicalRelation::HardlinkAliasInGroup
+            } else if m_clone_refcnt > 1 {
+                if m_clone_refcnt as usize > same_clone_visible_count
+                    || same_clone_visible_count <= 1
+                {
+                    PhysicalRelation::APFSCloneSharedExternal
+                } else {
+                    PhysicalRelation::APFSCloneInGroup
+                }
             } else {
                 PhysicalRelation::Independent
             };
         }
 
         // Determine overall group physical sharing state
-        let any_hardlink = members
+        let any_hardlink_ext = members
             .iter()
-            .any(|m| m.physical_relation == PhysicalRelation::HardlinkSameInode);
-        let any_clone = members
+            .any(|m| m.physical_relation == PhysicalRelation::HardlinkSharedExternal);
+        let any_hardlink_grp = members
             .iter()
-            .any(|m| m.physical_relation == PhysicalRelation::APFSCloneFamily);
-        let all_hardlink = members
+            .any(|m| m.physical_relation == PhysicalRelation::HardlinkAliasInGroup);
+        let any_clone_ext = members
             .iter()
-            .all(|m| m.physical_relation == PhysicalRelation::HardlinkSameInode);
-        let all_clone = members
+            .any(|m| m.physical_relation == PhysicalRelation::APFSCloneSharedExternal);
+        let any_clone_grp = members
             .iter()
-            .all(|m| m.physical_relation == PhysicalRelation::APFSCloneFamily);
+            .any(|m| m.physical_relation == PhysicalRelation::APFSCloneInGroup);
 
-        let physical_sharing_state = if all_hardlink {
-            PhysicalRelation::HardlinkSameInode
+        let all_hardlink = members.iter().all(|m| {
+            m.physical_relation == PhysicalRelation::HardlinkAliasInGroup
+                || m.physical_relation == PhysicalRelation::HardlinkSharedExternal
+        });
+        let all_clone = members.iter().all(|m| {
+            m.physical_relation == PhysicalRelation::APFSCloneInGroup
+                || m.physical_relation == PhysicalRelation::APFSCloneSharedExternal
+        });
+
+        let physical_sharing_state = if any_hardlink_ext {
+            PhysicalRelation::HardlinkSharedExternal
+        } else if all_hardlink {
+            PhysicalRelation::HardlinkAliasInGroup
+        } else if any_clone_ext {
+            PhysicalRelation::APFSCloneSharedExternal
         } else if all_clone {
-            PhysicalRelation::APFSCloneFamily
-        } else if any_hardlink || any_clone {
+            PhysicalRelation::APFSCloneInGroup
+        } else if any_hardlink_grp || any_clone_grp {
             PhysicalRelation::UnknownShared
         } else {
             PhysicalRelation::Independent
         };
 
-        // Granular physical reclaim calculation across all non-kept members
-        let mut confirmed_reclaimable_bytes = 0u64;
-        let mut estimated_reclaimable_bytes = 0u64;
-        let mut upper_bound_reclaimable_bytes = 0u64;
+        // Granular physical reclaim calculation across all non-kept members based on suggested keep
+        let remove_paths: Vec<PathBuf> = members
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| *i != keep_idx)
+            .map(|(_, m)| m.path.clone())
+            .collect();
 
-        for (i, m) in members.iter().enumerate() {
-            if i == keep_idx {
-                continue;
-            }
-
-            match m.physical_relation {
-                PhysicalRelation::HardlinkSameInode => {
-                    // Hardlinks sharing inode with kept member reclaim 0
-                    // in confirmed, estimated, and upper bound.
-                }
-                PhysicalRelation::APFSCloneFamily => {
-                    // APFS clone extents: confirmed 0, estimated is exclusive bytes,
-                    // upper bound is allocated bytes.
-                    upper_bound_reclaimable_bytes =
-                        upper_bound_reclaimable_bytes.saturating_add(m.allocation.allocated_bytes);
-                    estimated_reclaimable_bytes =
-                        estimated_reclaimable_bytes.saturating_add(m.allocation.exclusive_bytes);
-                }
-                PhysicalRelation::Independent | PhysicalRelation::UnknownShared => {
-                    upper_bound_reclaimable_bytes =
-                        upper_bound_reclaimable_bytes.saturating_add(m.allocation.allocated_bytes);
-                    confirmed_reclaimable_bytes =
-                        confirmed_reclaimable_bytes.saturating_add(m.allocation.allocated_bytes);
-                    estimated_reclaimable_bytes =
-                        estimated_reclaimable_bytes.saturating_add(m.allocation.allocated_bytes);
-                }
-            }
-        }
+        let initial_estimate = DuplicatePlanEstimate::calculate_reclaim(
+            &members,
+            &members[keep_idx].path,
+            &remove_paths,
+        );
 
         Self {
             group_id,
@@ -170,9 +275,9 @@ impl DuplicateGroup {
             full_digest,
             members,
             logical_duplicate_bytes,
-            confirmed_reclaimable_bytes,
-            estimated_reclaimable_bytes,
-            upper_bound_reclaimable_bytes,
+            confirmed_reclaimable_bytes: initial_estimate.confirmed_reclaimable_bytes,
+            estimated_reclaimable_bytes: initial_estimate.estimated_reclaimable_bytes,
+            upper_bound_reclaimable_bytes: initial_estimate.upper_bound_reclaimable_bytes,
             physical_sharing_state,
         }
     }
@@ -197,7 +302,6 @@ impl DuplicateGroup {
             if curr_risk_rank > best_risk_rank {
                 best_idx = i;
             } else if curr_risk_rank == best_risk_rank {
-                // Prefer shorter path, then earlier modification time
                 let curr_len = curr.path.as_os_str().len();
                 let best_len = best.path.as_os_str().len();
                 if curr_len < best_len || (curr_len == best_len && curr.mtime_sec < best.mtime_sec)
@@ -236,6 +340,7 @@ mod tests {
         ino: u64,
         alloc: u64,
         clone_id: Option<u64>,
+        nlink: u64,
     ) -> DuplicateMember {
         DuplicateMember {
             path: PathBuf::from(path),
@@ -251,10 +356,13 @@ mod tests {
             ),
             clone_id,
             clone_refcnt: if clone_id.is_some() { 2 } else { 1 },
-            nlink: 1,
+            nlink,
             risk: RiskLevel::Review,
             category: "test".to_string(),
             mtime_sec: 100,
+            mtime_nsec: 0,
+            ctime_sec: 100,
+            ctime_nsec: 0,
             physical_relation: PhysicalRelation::Independent,
             is_suggested_keep: false,
             suggest_keep_reason: None,
@@ -263,13 +371,13 @@ mod tests {
 
     #[test]
     fn test_hardlink_members_have_zero_reclaimable_bytes() {
-        let m1 = dummy_member("/tmp/a", 1, 100, 1024 * 1024, None);
-        let m2 = dummy_member("/tmp/b", 1, 100, 1024 * 1024, None);
+        let m1 = dummy_member("/tmp/a", 1, 100, 1024 * 1024, None, 2);
+        let m2 = dummy_member("/tmp/b", 1, 100, 1024 * 1024, None, 2);
 
         let group = DuplicateGroup::new(1024 * 1024, "abcd1234".to_string(), vec![m1, m2]);
         assert_eq!(
             group.physical_sharing_state,
-            PhysicalRelation::HardlinkSameInode
+            PhysicalRelation::HardlinkAliasInGroup
         );
         assert_eq!(group.confirmed_reclaimable_bytes, 0);
         assert_eq!(group.estimated_reclaimable_bytes, 0);
@@ -278,14 +386,27 @@ mod tests {
     }
 
     #[test]
+    fn test_external_hardlink_detected() {
+        // nlink is 3, but only 1 visible in group
+        let m1 = dummy_member("/tmp/a", 1, 100, 1024 * 1024, None, 3);
+        let m2 = dummy_member("/tmp/b", 1, 101, 1024 * 1024, None, 1);
+
+        let group = DuplicateGroup::new(1024 * 1024, "abcd1234".to_string(), vec![m1, m2]);
+        assert_eq!(
+            group.members[0].physical_relation,
+            PhysicalRelation::HardlinkSharedExternal
+        );
+    }
+
+    #[test]
     fn test_apfs_clone_members_have_conservative_reclaimable_bytes() {
-        let m1 = dummy_member("/tmp/a", 1, 101, 1024 * 1024, Some(555));
-        let m2 = dummy_member("/tmp/b", 1, 102, 1024 * 1024, Some(555));
+        let m1 = dummy_member("/tmp/a", 1, 101, 1024 * 1024, Some(555), 1);
+        let m2 = dummy_member("/tmp/b", 1, 102, 1024 * 1024, Some(555), 1);
 
         let group = DuplicateGroup::new(1024 * 1024, "abcd1234".to_string(), vec![m1, m2]);
         assert_eq!(
             group.physical_sharing_state,
-            PhysicalRelation::APFSCloneFamily
+            PhysicalRelation::APFSCloneInGroup
         );
         assert_eq!(group.confirmed_reclaimable_bytes, 0);
         assert_eq!(group.upper_bound_reclaimable_bytes, 1024 * 1024);
@@ -294,8 +415,8 @@ mod tests {
 
     #[test]
     fn test_independent_copies_reclaim_full_allocated_bytes() {
-        let m1 = dummy_member("/tmp/a", 1, 101, 1024 * 1024, None);
-        let m2 = dummy_member("/tmp/b", 1, 102, 1024 * 1024, None);
+        let m1 = dummy_member("/tmp/a", 1, 101, 1024 * 1024, None, 1);
+        let m2 = dummy_member("/tmp/b", 1, 102, 1024 * 1024, None, 1);
 
         let group = DuplicateGroup::new(1024 * 1024, "abcd1234".to_string(), vec![m1, m2]);
         assert_eq!(group.physical_sharing_state, PhysicalRelation::Independent);

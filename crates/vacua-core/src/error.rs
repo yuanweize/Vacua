@@ -14,6 +14,12 @@ pub enum ReclaimError {
     #[error("Plan integrity check failed: expected hash {expected}, got {computed}")]
     PlanIntegrityFailure { expected: String, computed: String },
 
+    #[error("Plan execution refused: {reason}")]
+    PlanExecutionRefused { reason: String },
+
+    #[error("Preservation guard failed for kept copy {path}: {reason}")]
+    PreservationGuardFailure { path: String, reason: String },
+
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
 

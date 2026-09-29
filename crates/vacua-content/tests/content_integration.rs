@@ -172,7 +172,7 @@ fn test_hardlink_collapse_and_plan_generation() {
     let group = &groups[0];
     assert_eq!(
         group.physical_sharing_state,
-        vacua_content::PhysicalRelation::HardlinkSameInode
+        vacua_content::PhysicalRelation::HardlinkAliasInGroup
     );
     assert_eq!(group.confirmed_reclaimable_bytes, 0);
     assert_eq!(stats.hardlinks_collapsed, 1);
@@ -181,7 +181,93 @@ fn test_hardlink_collapse_and_plan_generation() {
     let plan = DuplicateEngine::build_cleanup_plan(group, &original).unwrap();
     assert_eq!(plan.items.len(), 1);
     assert_eq!(plan.items[0].path, hardlink);
+    assert_eq!(plan.preservation_guards.len(), 1);
+    assert_eq!(plan.preservation_guards[0].path, original);
+    assert!(plan.items[0].content_guard.is_some());
     assert!(plan.verify_integrity().is_ok());
+}
+
+#[test]
+fn test_external_hardlink_sharing_classification() {
+    let dir = tempdir().unwrap();
+    let original = dir.path().join("original.bin");
+    let external_link = dir.path().join("external_link.bin");
+    let duplicate = dir.path().join("duplicate.bin");
+
+    let data = vec![0x88; 200 * 1024];
+    std::fs::write(&original, &data).unwrap();
+    std::fs::hard_link(&original, &external_link).unwrap();
+    std::fs::write(&duplicate, &data).unwrap();
+
+    // Scan includes 'original' and 'duplicate', but omits 'external_link'
+    let entries = vec![
+        ScannedEntry::from_path(original.clone()).unwrap(),
+        ScannedEntry::from_path(duplicate.clone()).unwrap(),
+    ];
+
+    let options = DuplicateScanOptions {
+        min_size: 100 * 1024,
+        include_empty: false,
+        hash_jobs: 1,
+        skip_cloud: true,
+        use_cache: false,
+    };
+
+    let (groups, _) = run_staged_duplicate_pipeline(&entries, &options, None, |_| {
+        (RiskLevel::Review, "test".to_string())
+    })
+    .unwrap();
+
+    assert_eq!(groups.len(), 1);
+    let group = &groups[0];
+    let orig_member = group.find_member(&original).unwrap();
+    // Invariant: original must NOT be marked Independent because it has an external hardlink!
+    assert_eq!(
+        orig_member.physical_relation,
+        vacua_content::PhysicalRelation::HardlinkSharedExternal
+    );
+}
+
+#[test]
+fn test_special_files_fifo_symlink_skipped_without_blocking() {
+    let dir = tempdir().unwrap();
+    let f1 = dir.path().join("reg1.bin");
+    let f2 = dir.path().join("reg2.bin");
+    let symlink = dir.path().join("symlink.bin");
+
+    let data = vec![0x33; 150 * 1024];
+    std::fs::write(&f1, &data).unwrap();
+    std::fs::write(&f2, &data).unwrap();
+    std::os::unix::fs::symlink(&f1, &symlink).unwrap();
+
+    let fifo_path = dir.path().join("test_fifo.pipe");
+    let c_fifo = std::ffi::CString::new(fifo_path.to_str().unwrap()).unwrap();
+    unsafe {
+        libc::mkfifo(c_fifo.as_ptr(), 0o644);
+    }
+
+    let entries = vec![
+        ScannedEntry::from_path(f1).unwrap(),
+        ScannedEntry::from_path(f2).unwrap(),
+        ScannedEntry::from_path(symlink).unwrap(),
+        ScannedEntry::from_path(fifo_path).unwrap(),
+    ];
+
+    let options = DuplicateScanOptions {
+        min_size: 100 * 1024,
+        include_empty: false,
+        hash_jobs: 2,
+        skip_cloud: true,
+        use_cache: false,
+    };
+
+    let (groups, stats) = run_staged_duplicate_pipeline(&entries, &options, None, |_| {
+        (RiskLevel::Review, "test".to_string())
+    })
+    .unwrap();
+
+    assert_eq!(groups.len(), 1);
+    assert!(stats.special_files_skipped >= 2);
 }
 
 #[cfg(target_os = "macos")]
@@ -231,11 +317,11 @@ fn test_real_apfs_clonefile_duplicate_behavior() {
     assert_eq!(groups.len(), 1);
     let group = &groups[0];
 
-    // If on APFS, clone_id is detected and physical relation is APFSCloneFamily
+    // If on APFS, clone_id is detected and physical relation is APFSCloneInGroup
     if entries[0].is_clone && entries[1].is_clone {
         assert_eq!(
             group.physical_sharing_state,
-            vacua_content::PhysicalRelation::APFSCloneFamily
+            vacua_content::PhysicalRelation::APFSCloneInGroup
         );
         assert_eq!(group.confirmed_reclaimable_bytes, 0);
         assert_eq!(group.upper_bound_reclaimable_bytes, 256 * 1024);

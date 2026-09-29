@@ -112,6 +112,15 @@ pub struct Candidate {
 
     /// Last modification timestamp in unix seconds.
     pub mtime_sec: i64,
+
+    /// Last modification timestamp subsecond nanoseconds.
+    pub mtime_nsec: i64,
+
+    /// Metadata status change timestamp in unix seconds.
+    pub ctime_sec: i64,
+
+    /// Metadata status change timestamp subsecond nanoseconds.
+    pub ctime_nsec: i64,
 }
 
 impl Candidate {

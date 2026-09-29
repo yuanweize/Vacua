@@ -28,6 +28,16 @@ impl std::fmt::Display for RiskLevel {
 }
 
 impl RiskLevel {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            RiskLevel::Safe => "SAFE",
+            RiskLevel::Review => "REVIEW",
+            RiskLevel::Caution => "CAUTION",
+            RiskLevel::Protected => "PROTECTED",
+            RiskLevel::Unknown => "UNKNOWN",
+        }
+    }
+
     pub fn is_automatable(&self) -> bool {
         matches!(self, RiskLevel::Safe)
     }
