@@ -455,4 +455,63 @@ mod tests {
         assert_eq!(report.total_symlinks, 1);
         assert_eq!(report.total_files, 0);
     }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_apfs_private_size_semantics() {
+        use std::ffi::CString;
+
+        extern "C" {
+            fn clonefile(
+                src: *const std::ffi::c_char,
+                dst: *const std::ffi::c_char,
+                flags: u32,
+            ) -> i32;
+        }
+
+        let dir = tempdir().unwrap();
+        let orig = dir.path().join("orig.bin");
+        let clone = dir.path().join("clone.bin");
+        let mutated = dir.path().join("mutated.bin");
+
+        let data = vec![0xBB; 64 * 1024]; // 64 KiB
+        fs::write(&orig, &data).unwrap();
+
+        let c_orig = CString::new(orig.to_str().unwrap()).unwrap();
+        let c_clone = CString::new(clone.to_str().unwrap()).unwrap();
+        let c_mutated = CString::new(mutated.to_str().unwrap()).unwrap();
+
+        if unsafe { clonefile(c_orig.as_ptr(), c_clone.as_ptr(), 0) } == 0
+            && unsafe { clonefile(c_orig.as_ptr(), c_mutated.as_ptr(), 0) } == 0
+        {
+            // Mutate 'mutated.bin' with 4 KiB of distinct data
+            use std::io::{Seek, SeekFrom, Write};
+            let mut f = fs::OpenOptions::new().write(true).open(&mutated).unwrap();
+            f.seek(SeekFrom::Start(0)).unwrap();
+            f.write_all(&vec![0xCC; 4096]).unwrap();
+            f.flush().unwrap();
+            drop(f);
+
+            let entry_clone = ScannedEntry::from_path(clone).unwrap();
+            let entry_mutated = ScannedEntry::from_path(mutated).unwrap();
+
+            // If private size was retrieved from APFS kernel:
+            if let Some(priv_clone) = entry_clone.kernel_private_bytes {
+                // Invariant: Unmodified clonefile shares all extents, private size is 0!
+                assert_eq!(priv_clone, 0, "Unmodified clonefile private size must be 0");
+            }
+            if let (Some(priv_mut), Some(priv_clone)) = (
+                entry_mutated.kernel_private_bytes,
+                entry_clone.kernel_private_bytes,
+            ) {
+                // Invariant: Mutated clone has private size > unmodified clone
+                assert!(
+                    priv_mut > priv_clone,
+                    "Mutated clone private size ({}) must exceed clone ({})",
+                    priv_mut,
+                    priv_clone
+                );
+            }
+        }
+    }
 }

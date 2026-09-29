@@ -19,11 +19,13 @@ pub struct ScannedEntry {
     pub mtime_nsec: i64,
     pub ctime_sec: i64,
     pub ctime_nsec: i64,
+    pub file_kind: vacua_core::FileKind,
+    pub kernel_private_bytes: Option<u64>,
 }
 
 impl ScannedEntry {
     /// Converts scanned metadata into full AllocationInfo preserving APFS clone identifiers,
-    /// reference counts, and sparse characteristics.
+    /// reference counts, private bytes, and sparse characteristics.
     pub fn to_allocation(&self) -> vacua_core::AllocationInfo {
         vacua_core::AllocationInfo::new_with_clone(
             self.logical_bytes,
@@ -33,6 +35,7 @@ impl ScannedEntry {
             self.is_clone,
             self.is_sparse,
         )
+        .with_kernel_private_bytes(self.kernel_private_bytes)
     }
 }
 
@@ -54,6 +57,7 @@ struct AttrList {
 #[derive(Default, Debug)]
 struct AttrBufClone {
     length: u32,
+    private_size: i64,
     clone_id: u64,
     ext_flags: u64,
     clone_refcnt: u32,
@@ -68,21 +72,72 @@ extern "C" {
         attrBufSize: usize,
         options: u32,
     ) -> i32;
+
+    fn fgetattrlist(
+        fd: i32,
+        attrList: *mut std::ffi::c_void,
+        attrBuf: *mut std::ffi::c_void,
+        attrBufSize: usize,
+        options: u32,
+    ) -> i32;
 }
 
 #[cfg(target_os = "macos")]
-fn query_apfs_clone_attributes(path: &Path) -> (Option<u64>, u32, bool, bool) {
+pub fn query_apfs_clone_attributes_fd(
+    fd: std::os::unix::io::RawFd,
+) -> (Option<u64>, u32, bool, bool, Option<u64>) {
+    let mut al = AttrList {
+        bitmapcount: 5,
+        // ATTR_CMNEXT_PRIVATESIZE (0x08) | ATTR_CMNEXT_CLONEID (0x100) | ATTR_CMNEXT_EXT_FLAGS (0x200) | ATTR_CMNEXT_CLONE_REFCNT (0x1000)
+        forkattr: 0x00000008 | 0x00000100 | 0x00000200 | 0x00001000,
+        ..Default::default()
+    };
+
+    let mut buf = AttrBufClone::default();
+
+    let res = unsafe {
+        fgetattrlist(
+            fd,
+            &mut al as *mut _ as *mut std::ffi::c_void,
+            &mut buf as *mut _ as *mut std::ffi::c_void,
+            std::mem::size_of::<AttrBufClone>(),
+            0x00000020, // FSOPT_ATTR_CMN_EXTENDED
+        )
+    };
+
+    if res == 0 {
+        let is_cloned = buf.clone_refcnt > 1 || (buf.ext_flags & 0x41) != 0;
+        let is_sparse = (buf.ext_flags & 0x10) != 0;
+        let private_size = if buf.private_size >= 0 {
+            Some(buf.private_size as u64)
+        } else {
+            None
+        };
+        (
+            Some(buf.clone_id),
+            buf.clone_refcnt.max(1),
+            is_cloned,
+            is_sparse,
+            private_size,
+        )
+    } else {
+        (None, 1, false, false, None)
+    }
+}
+
+#[cfg(target_os = "macos")]
+pub fn query_apfs_clone_attributes(path: &Path) -> (Option<u64>, u32, bool, bool, Option<u64>) {
     use std::ffi::CString;
 
     let c_path = match path.to_str().and_then(|s| CString::new(s).ok()) {
         Some(cp) => cp,
-        None => return (None, 1, false, false),
+        None => return (None, 1, false, false, None),
     };
 
     let mut al = AttrList {
         bitmapcount: 5,
-        // ATTR_CMNEXT_CLONEID (0x100) | ATTR_CMNEXT_EXT_FLAGS (0x200) | ATTR_CMNEXT_CLONE_REFCNT (0x1000)
-        forkattr: 0x00000100 | 0x00000200 | 0x00001000,
+        // ATTR_CMNEXT_PRIVATESIZE (0x08) | ATTR_CMNEXT_CLONEID (0x100) | ATTR_CMNEXT_EXT_FLAGS (0x200) | ATTR_CMNEXT_CLONE_REFCNT (0x1000)
+        forkattr: 0x00000008 | 0x00000100 | 0x00000200 | 0x00001000,
         ..Default::default()
     };
 
@@ -99,17 +154,22 @@ fn query_apfs_clone_attributes(path: &Path) -> (Option<u64>, u32, bool, bool) {
     };
 
     if res == 0 {
-        // EF_MAY_SHARE_BLOCKS = 0x01, EF_SHARES_ALL_BLOCKS = 0x40
         let is_cloned = buf.clone_refcnt > 1 || (buf.ext_flags & 0x41) != 0;
         let is_sparse = (buf.ext_flags & 0x10) != 0;
+        let private_size = if buf.private_size >= 0 {
+            Some(buf.private_size as u64)
+        } else {
+            None
+        };
         (
             Some(buf.clone_id),
             buf.clone_refcnt.max(1),
             is_cloned,
             is_sparse,
+            private_size,
         )
     } else {
-        (None, 1, false, false)
+        (None, 1, false, false, None)
     }
 }
 
@@ -118,24 +178,27 @@ impl ScannedEntry {
     pub fn from_path(path: PathBuf) -> std::io::Result<Self> {
         use std::os::unix::fs::MetadataExt;
         let meta = std::fs::symlink_metadata(&path)?;
-        let is_symlink = meta.file_type().is_symlink();
-        let is_dir = meta.is_dir();
+        let file_kind = vacua_core::classify_file_type(&meta.file_type());
+        let is_symlink = file_kind == vacua_core::FileKind::Symlink;
+        let is_dir = file_kind == vacua_core::FileKind::Directory;
 
         let logical_bytes = meta.len();
         // On macOS / APFS / HFS+, blocks are 512-byte units
         let allocated_bytes = meta.blocks() * 512;
-        let mut is_sparse = !is_dir && !is_symlink && (allocated_bytes < logical_bytes);
+        let mut is_sparse = file_kind.is_regular() && (allocated_bytes < logical_bytes);
         let mut is_clone = false;
         let mut clone_id = None;
         let mut clone_refcnt = 1;
+        let mut kernel_private_bytes = None;
 
         #[cfg(target_os = "macos")]
-        if !is_dir && !is_symlink && logical_bytes > 0 {
-            let (cid, refcnt, cloned, sparse_flag) = query_apfs_clone_attributes(&path);
+        if file_kind.is_regular() && logical_bytes > 0 {
+            let (cid, refcnt, cloned, sparse_flag, priv_bytes) = query_apfs_clone_attributes(&path);
             clone_id = cid;
             clone_refcnt = refcnt;
             is_clone = cloned;
             is_sparse = is_sparse || sparse_flag;
+            kernel_private_bytes = priv_bytes;
         }
 
         Ok(Self {
@@ -155,6 +218,8 @@ impl ScannedEntry {
             mtime_nsec: meta.mtime_nsec(),
             ctime_sec: meta.ctime(),
             ctime_nsec: meta.ctime_nsec(),
+            file_kind,
+            kernel_private_bytes,
         })
     }
 }
