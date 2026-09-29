@@ -7,12 +7,30 @@
       "minimum": 0,
       "type": "integer"
     },
+    "candidate_confirmed_reclaim_bytes": {
+      "default": 0,
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
     "candidate_count": {
       "format": "uint",
       "minimum": 0,
       "type": "integer"
     },
+    "candidate_estimated_reclaim_bytes": {
+      "default": 0,
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
     "candidate_reclaim_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "candidate_reclaim_upper_bound": {
+      "default": 0,
       "format": "uint64",
       "minimum": 0,
       "type": "integer"

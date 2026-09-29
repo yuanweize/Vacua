@@ -13,11 +13,23 @@
     "category": {
       "type": "string"
     },
+    "confirmed_reclaim_lower_bound": {
+      "default": 0,
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
     "cost_model_status": {
       "type": "string"
     },
     "display_path": {
       "type": "string"
+    },
+    "estimated_reclaim_bytes": {
+      "default": 0,
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
     },
     "evidence_count": {
       "format": "uint",
@@ -47,6 +59,12 @@
         "string",
         "null"
       ]
+    },
+    "reclaim_upper_bound": {
+      "default": 0,
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
     },
     "reconstructable": {
       "type": "boolean"

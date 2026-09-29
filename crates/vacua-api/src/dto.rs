@@ -1,6 +1,39 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+/// Risk filter level for querying cleanup candidates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum McpRiskFilter {
+    Safe,
+    Review,
+    Caution,
+    Protected,
+    Unknown,
+}
+
+impl McpRiskFilter {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Safe => "safe",
+            Self::Review => "review",
+            Self::Caution => "caution",
+            Self::Protected => "protected",
+            Self::Unknown => "unknown",
+        }
+    }
+}
+
+/// Application orphan status filter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum ApplicationFilter {
+    #[default]
+    All,
+    OrphansOnly,
+    InstalledOnly,
+}
+
 /// High-level macOS storage summary with deterministic APFS metrics.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct StorageSummaryV1 {
@@ -17,6 +50,12 @@ pub struct StorageSummaryV1 {
     pub candidate_count: usize,
     pub candidate_reclaim_bytes: u64,
     pub candidate_reviewable_bytes: u64,
+    #[serde(default)]
+    pub candidate_confirmed_reclaim_bytes: u64,
+    #[serde(default)]
+    pub candidate_estimated_reclaim_bytes: u64,
+    #[serde(default)]
+    pub candidate_reclaim_upper_bound: u64,
     pub index_freshness: Option<String>,
     pub is_stale: bool,
 }
@@ -31,6 +70,10 @@ pub struct CandidateSummaryV1 {
     pub allocated_bytes: u64,
     pub reclaim_estimate_bytes: u64,
     pub reconstructable: bool,
+    #[serde(default)]
+    pub confirmed_reclaim_lower_bound: u64,
+    #[serde(default)]
+    pub reclaim_upper_bound: u64,
 }
 
 /// Paginated candidate list response.
@@ -54,6 +97,12 @@ pub struct CandidateDetailV1 {
     pub risk: String,
     pub allocated_bytes: u64,
     pub logical_bytes: u64,
+    #[serde(default)]
+    pub confirmed_reclaim_lower_bound: u64,
+    #[serde(default)]
+    pub estimated_reclaim_bytes: u64,
+    #[serde(default)]
+    pub reclaim_upper_bound: u64,
     pub reconstructable: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rebuild_consequence: Option<String>,
@@ -73,6 +122,21 @@ pub struct SnapshotSummaryV1 {
     pub created_at: String,
     pub total_files: u64,
     pub allocated_bytes: u64,
+}
+
+/// Detailed snapshot state inspection for vacua://snapshot/{snapshot_id}.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct SnapshotDetailV1 {
+    pub schema_version: String,
+    pub snapshot_id: String,
+    pub name: String,
+    pub root_path: String,
+    pub created_at: String,
+    pub total_files: u64,
+    pub total_dirs: u64,
+    pub logical_bytes: u64,
+    pub allocated_bytes: u64,
+    pub subtree_count: usize,
 }
 
 /// Paginated snapshot list response.
@@ -162,6 +226,8 @@ pub struct DuplicateMemberV1 {
     pub physical_relation: String,
     pub allocated_bytes: u64,
     pub kernel_private_bytes: u64,
+    #[serde(default)]
+    pub kernel_private_bytes_known: bool,
     pub is_cloud_placeholder: bool,
 }
 
@@ -177,6 +243,10 @@ pub struct DuplicateGroupSummaryV1 {
     pub estimated_reclaim: u64,
     pub content_identity_verified: bool,
     pub algorithm: String,
+    #[serde(default)]
+    pub kernel_private_bytes_known_members: usize,
+    #[serde(default)]
+    pub kernel_private_bytes_unknown_members: usize,
 }
 
 /// Paginated duplicate groups list response.
@@ -203,6 +273,10 @@ pub struct DuplicateGroupDetailV1 {
     pub reclaim_upper_bound: u64,
     pub content_identity_verified: bool,
     pub algorithm: String,
+    #[serde(default)]
+    pub kernel_private_bytes_known_members: usize,
+    #[serde(default)]
+    pub kernel_private_bytes_unknown_members: usize,
     pub members: Vec<DuplicateMemberV1>,
 }
 
@@ -213,6 +287,10 @@ pub struct CleanupSimulationV1 {
     pub candidate_count: usize,
     pub immediate_reclaim_bytes: u64,
     pub eventual_reclaim_estimate_bytes: u64,
+    #[serde(default)]
+    pub confirmed_lower_bound_bytes: u64,
+    #[serde(default)]
+    pub reclaim_upper_bound_bytes: u64,
     pub highest_risk: String,
     pub rebuild_consequences: Vec<String>,
     pub blocked_items: Vec<String>,
@@ -268,6 +346,14 @@ pub struct ServerCapabilitiesV1 {
     pub duplicate_engine_available: bool,
     pub app_evidence_graph_available: bool,
     pub apple_foundation_models_status: String,
+    #[serde(default)]
+    pub plan_export_enabled: bool,
+    #[serde(default)]
+    pub system_app_metadata_enabled: bool,
+    #[serde(default)]
+    pub foundation_models_integration: String,
+    #[serde(default)]
+    pub foundation_models_runtime_status: String,
 }
 
 /// Recent transaction entry in history summary.
@@ -279,6 +365,8 @@ pub struct HistoryTransactionV1 {
     pub total_items: usize,
     pub successful_count: usize,
     pub reclaimed_bytes: u64,
+    #[serde(default)]
+    pub bytes_moved_to_trash: u64,
 }
 
 /// History journal summary.
@@ -287,6 +375,8 @@ pub struct HistorySummaryV1 {
     pub schema_version: String,
     pub total_transactions: usize,
     pub total_reclaimed_bytes: u64,
+    #[serde(default)]
+    pub total_bytes_moved_to_trash: u64,
     pub recent_transactions: Vec<HistoryTransactionV1>,
 }
 

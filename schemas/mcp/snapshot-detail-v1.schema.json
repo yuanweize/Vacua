@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Detailed snapshot state inspection for vacua://snapshot/{snapshot_id}.",
+  "properties": {
+    "allocated_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "logical_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "name": {
+      "type": "string"
+    },
+    "root_path": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "snapshot_id": {
+      "type": "string"
+    },
+    "subtree_count": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "total_dirs": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "total_files": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "snapshot_id",
+    "name",
+    "root_path",
+    "created_at",
+    "total_files",
+    "total_dirs",
+    "logical_bytes",
+    "allocated_bytes",
+    "subtree_count"
+  ],
+  "title": "SnapshotDetailV1",
+  "type": "object"
+}

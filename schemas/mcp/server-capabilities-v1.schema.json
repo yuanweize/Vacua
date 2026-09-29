@@ -23,6 +23,14 @@
     "executor_linked": {
       "type": "boolean"
     },
+    "foundation_models_integration": {
+      "default": "",
+      "type": "string"
+    },
+    "foundation_models_runtime_status": {
+      "default": "",
+      "type": "string"
+    },
     "index_available": {
       "type": "boolean"
     },
@@ -34,6 +42,10 @@
     },
     "path_disclosure_mode": {
       "type": "string"
+    },
+    "plan_export_enabled": {
+      "default": false,
+      "type": "boolean"
     },
     "platform": {
       "type": "string"
@@ -51,6 +63,10 @@
       "type": "string"
     },
     "snapshot_engine_available": {
+      "type": "boolean"
+    },
+    "system_app_metadata_enabled": {
+      "default": false,
       "type": "boolean"
     },
     "transport": {

@@ -13,6 +13,12 @@
       "minimum": 0,
       "type": "integer"
     },
+    "confirmed_lower_bound_bytes": {
+      "default": 0,
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
     "cost_model_status": {
       "type": "string"
     },
@@ -34,6 +40,12 @@
         "type": "string"
       },
       "type": "array"
+    },
+    "reclaim_upper_bound_bytes": {
+      "default": 0,
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
     },
     "schema_version": {
       "type": "string"
