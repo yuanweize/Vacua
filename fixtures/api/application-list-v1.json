@@ -1,0 +1,22 @@
+{
+  "schema_version": "vacua.mcp.application-list.v1",
+  "items": [
+    {
+      "application_id": "com.apple.dt.Xcode",
+      "app_name": "Xcode",
+      "display_path": "/Applications/Xcode.app",
+      "installed": true,
+      "orphan_confidence": "none"
+    },
+    {
+      "application_id": "com.spotify.client",
+      "app_name": "Spotify",
+      "display_path": null,
+      "installed": false,
+      "orphan_confidence": "high"
+    }
+  ],
+  "total_count": 2,
+  "limit": 50,
+  "next_cursor": null
+}

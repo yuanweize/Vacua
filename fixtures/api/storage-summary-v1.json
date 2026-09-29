@@ -1,0 +1,20 @@
+{
+  "schema_version": "vacua.mcp.storage-summary.v1",
+  "observed_at": "2026-09-29T14:00:00Z",
+  "target_path": "~",
+  "mount_point": "/",
+  "filesystem_type": "apfs",
+  "total_space_bytes": 994662584320,
+  "free_space_bytes": 450000000000,
+  "available_space_bytes": 480000000000,
+  "purgeable_space_bytes": 30000000000,
+  "pressure_level": "normal",
+  "candidate_count": 42,
+  "candidate_reclaim_bytes": 12884901888,
+  "candidate_reviewable_bytes": 3221225472,
+  "candidate_confirmed_reclaim_bytes": 8589934592,
+  "candidate_estimated_reclaim_bytes": 12884901888,
+  "candidate_reclaim_upper_bound": 17179869184,
+  "index_freshness": "FSEvents Reconciled",
+  "is_stale": false
+}

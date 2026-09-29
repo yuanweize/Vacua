@@ -1,0 +1,25 @@
+{
+  "schema_version": "vacua.mcp.server-capabilities.v1",
+  "server_version": "0.6.0",
+  "mcp_protocol_generation": "2026-07-28",
+  "platform": "macOS",
+  "transport": "stdio",
+  "path_disclosure_mode": "home-relative",
+  "allowed_roots": [
+    "~"
+  ],
+  "mutation_authority": false,
+  "executor_linked": false,
+  "read_only_tier": true,
+  "analyze_only_tier": true,
+  "propose_only_tier": true,
+  "index_available": true,
+  "snapshot_engine_available": true,
+  "duplicate_engine_available": true,
+  "app_evidence_graph_available": true,
+  "apple_foundation_models_status": "Implemented / Not Queried by MCP (Zero Subprocess)",
+  "plan_export_enabled": false,
+  "system_app_metadata_enabled": false,
+  "foundation_models_integration": "IMPLEMENTED",
+  "foundation_models_runtime_status": "NOT_QUERIED_BY_MCP"
+}

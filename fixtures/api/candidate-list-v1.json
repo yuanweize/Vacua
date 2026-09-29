@@ -1,0 +1,30 @@
+{
+  "schema_version": "vacua.mcp.candidate-list.v1",
+  "items": [
+    {
+      "candidate_id": "cand-8a9b7c6d5e4f3a2b",
+      "display_path": "~/Library/Caches/com.apple.dt.Xcode",
+      "category": "build-cache",
+      "risk": "safe",
+      "allocated_bytes": 5368709120,
+      "reclaim_estimate_bytes": 5368709120,
+      "reconstructable": true,
+      "confirmed_reclaim_lower_bound": 5368709120,
+      "reclaim_upper_bound": 5368709120
+    },
+    {
+      "candidate_id": "cand-1f2e3d4c5b6a7988",
+      "display_path": "~/Library/Developer/Xcode/DerivedData/ModuleCache.noindex",
+      "category": "package-cache",
+      "risk": "review",
+      "allocated_bytes": 2147483648,
+      "reclaim_estimate_bytes": 2147483648,
+      "reconstructable": true,
+      "confirmed_reclaim_lower_bound": 0,
+      "reclaim_upper_bound": 2147483648
+    }
+  ],
+  "total_count": 2,
+  "limit": 50,
+  "next_cursor": "eyJ2IjoxLCJlbnRpdHlfa2luZCI6ImNhbmRpZGF0ZXMiLCJyb290X2lkIjoicm9vdC1ob21lIiwicXVlcnlfZmluZ2VycHJpbnQiOiJkZWZhdWx0Iiwib2Zmc2V0IjoyLCJzdGF0ZV9nZW5lcmF0aW9uIjoxfQ"
+}

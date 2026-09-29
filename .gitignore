@@ -9,3 +9,8 @@
 *.db-wal
 /dist/
 /fixtures/demo-home/
+apps/macos/build/
+**/xcuserdata/
+**/DerivedData/
+*.xcuserstate
+*.xcresult

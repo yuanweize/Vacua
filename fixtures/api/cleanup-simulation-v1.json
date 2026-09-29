@@ -1,0 +1,15 @@
+{
+  "schema_version": "vacua.mcp.cleanup-simulation.v1",
+  "candidate_count": 2,
+  "immediate_reclaim_bytes": 0,
+  "eventual_reclaim_estimate_bytes": 7516192768,
+  "confirmed_lower_bound_bytes": 5368709120,
+  "reclaim_upper_bound_bytes": 7516192768,
+  "highest_risk": "review",
+  "rebuild_consequences": [
+    "Xcode will rebuild module caches upon next build",
+    "Package caches will need redownload upon build"
+  ],
+  "blocked_items": [],
+  "cost_model_status": "CALIBRATED"
+}
