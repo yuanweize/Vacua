@@ -2,7 +2,7 @@ import Foundation
 
 @main
 struct VacuaIntelligenceCLI {
-    static let version = "0.5.0"
+    static let version = "0.5.1"
 
     static func main() async {
         let provider = AppleOnDeviceProvider()
