@@ -49,6 +49,8 @@ jobs:
           "${SMOKE_DIR}/bin/vacua" intelligence status
           "${SMOKE_DIR}/bin/vacua-mcp" --version
           "${SMOKE_DIR}/bin/vacua-mcp" --self-test
+          npx -y @modelcontextprotocol/inspector@2.8.0 --cli "${SMOKE_DIR}/bin/vacua-mcp" --method tools/list --format json | grep -q "vacua_get_capabilities"
+          npx -y @modelcontextprotocol/inspector@2.8.0 --cli "${SMOKE_DIR}/bin/vacua-mcp" --method tools/call --tool-name vacua_get_capabilities --format json | grep -q '"mutation_authority":false'
           CAP_JSON=$("${SMOKE_DIR}/bin/vacua-intelligence" capabilities)
           echo "Capabilities: ${CAP_JSON}"
           echo "${CAP_JSON}" | grep '"foundation_models_compiled" : true' || {
