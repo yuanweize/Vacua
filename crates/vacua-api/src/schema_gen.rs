@@ -33,6 +33,10 @@ pub fn generate_all_schemas() -> BTreeMap<&'static str, Value> {
         serde_json::to_value(schema_for!(SnapshotListResponseV1)).unwrap(),
     );
     map.insert(
+        "snapshot-detail-v1.schema.json",
+        serde_json::to_value(schema_for!(SnapshotDetailV1)).unwrap(),
+    );
+    map.insert(
         "snapshot-diff-v1.schema.json",
         serde_json::to_value(schema_for!(SnapshotDiffV1)).unwrap(),
     );

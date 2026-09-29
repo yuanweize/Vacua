@@ -6,7 +6,7 @@ use vacua_api::*;
 use vacua_content::DuplicateScanOptions;
 use vacua_core::candidate::Candidate;
 use vacua_core::evidence_graph::{ApplicationEvidenceGraph, NodeKind, OrphanConfidence};
-use vacua_core::pressure::{query_volume_status, StoragePressure, VolumeStorageStatus};
+use vacua_core::pressure::query_volume_status;
 use vacua_core::risk::RiskLevel;
 use vacua_index::{ExecutionJournal, IndexDatabase};
 use vacua_plan::CleanupPlan;
@@ -14,9 +14,12 @@ use vacua_risk::CandidateEvaluator;
 use vacua_rules::engine::RulesEngine;
 use vacua_scan::{FilesystemScanner, ScanOptions};
 
-use crate::policy::McpPolicy;
+use crate::policy::{
+    AllowedRoot, McpPolicy, PathDisclosureMode, MAX_PROPOSAL_CANDIDATES, MAX_SIMULATION_CANDIDATES,
+    MAX_STRING_PARAM_LEN,
+};
 
-type CachedCandidates = Arc<Mutex<Option<(Vec<Candidate>, i64)>>>;
+type CachedCandidates = Arc<Mutex<HashMap<String, (Vec<Candidate>, i64)>>>;
 
 /// Domain service coordinating storage intelligence queries.
 pub struct VacuaDomainService {
@@ -24,6 +27,7 @@ pub struct VacuaDomainService {
     index_path: Option<PathBuf>,
     journal_path: Option<PathBuf>,
     cached_candidates: CachedCandidates,
+    member_id_map: Arc<Mutex<HashMap<String, PathBuf>>>,
 }
 
 impl VacuaDomainService {
@@ -36,7 +40,8 @@ impl VacuaDomainService {
             policy,
             index_path,
             journal_path,
-            cached_candidates: Arc::new(Mutex::new(None)),
+            cached_candidates: Arc::new(Mutex::new(HashMap::new())),
+            member_id_map: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -53,7 +58,7 @@ impl VacuaDomainService {
         });
 
         if path.exists() {
-            IndexDatabase::open(&path).ok()
+            IndexDatabase::open_read_only(&path).ok()
         } else {
             None
         }
@@ -68,25 +73,27 @@ impl VacuaDomainService {
         });
 
         if path.exists() {
-            ExecutionJournal::open(&path).ok()
+            ExecutionJournal::open_read_only(&path).ok()
         } else {
             None
         }
     }
 
-    /// Retrieve or evaluate candidates under allowed roots.
-    pub fn get_or_evaluate_candidates(&self) -> Vec<Candidate> {
+    /// Retrieve or evaluate candidates for an authoritative root.
+    pub fn get_or_evaluate_candidates_for_root(
+        &self,
+        root: &AllowedRoot,
+    ) -> Result<Vec<Candidate>, VacuaErrorResponse> {
         let now = Utc::now().timestamp();
         {
             let lock = self.cached_candidates.lock().unwrap();
-            if let Some((ref cands, ts)) = *lock {
+            if let Some((ref cands, ts)) = lock.get(&root.root_id) {
                 if now - ts < 15 {
-                    return cands.clone();
+                    return Ok(cands.clone());
                 }
             }
         }
 
-        let primary_root = self.policy.primary_root();
         let scanner = FilesystemScanner::new(ScanOptions {
             cross_mounts: false,
             max_depth: Some(5),
@@ -94,13 +101,13 @@ impl VacuaDomainService {
         });
 
         let mut candidates = Vec::new();
-        if let Ok(report) = scanner.scan(&primary_root) {
+        if let Ok(report) = scanner.scan(&root.canonical_path) {
             let mut engine = RulesEngine::new();
             let mut evaluator = CandidateEvaluator::new(&mut engine);
 
             for entry in report.entries {
                 let alloc = entry.to_allocation();
-                let cand = evaluator.evaluate(
+                let mut cand = evaluator.evaluate(
                     &entry.path,
                     alloc,
                     entry.inode,
@@ -109,13 +116,18 @@ impl VacuaDomainService {
                     entry.is_dir,
                 );
 
-                if !cand.risk.is_protected_or_unknown() {
-                    candidates.push(cand);
-                }
+                // Assign opaque deterministic candidate ID (no absolute paths leaked)
+                let rel = entry
+                    .path
+                    .strip_prefix(&root.canonical_path)
+                    .unwrap_or(&entry.path);
+                cand.id = self.policy.generate_candidate_id(&root.root_id, rel);
+
+                candidates.push(cand);
             }
         }
 
-        // Sort deterministically: reclaim desc, candidate_id asc
+        // Sort deterministically: allocated desc, id asc
         candidates.sort_by(|a, b| {
             b.allocation
                 .allocated_bytes
@@ -124,33 +136,76 @@ impl VacuaDomainService {
         });
 
         let mut lock = self.cached_candidates.lock().unwrap();
-        *lock = Some((candidates.clone(), now));
-        candidates
+        lock.insert(root.root_id.clone(), (candidates.clone(), now));
+        Ok(candidates)
     }
 
     /// Storage summary tool implementation.
-    pub fn storage_summary(&self, req_path: Option<&str>) -> StorageSummaryV1 {
-        let target_path = if let Some(p) = req_path {
-            PathBuf::from(p)
+    pub fn storage_summary(
+        &self,
+        root_id: Option<&str>,
+        deprecated_path: Option<&str>,
+    ) -> Result<StorageSummaryV1, VacuaErrorResponse> {
+        let root = if let Some(p) = deprecated_path {
+            let target_path = PathBuf::from(p);
+            if !self.policy.is_path_allowed(&target_path) {
+                return Err(VacuaErrorResponse::new(
+                    VacuaErrorCode::VacuaPolicyDenied,
+                    format!("Path '{}' is outside configured allowed roots", p),
+                ));
+            }
+            // Find which root contains this target path
+            let canonical = target_path.canonicalize().map_err(|e| {
+                VacuaErrorResponse::new(
+                    VacuaErrorCode::VacuaNotFound,
+                    format!("Cannot canonicalize path '{}': {}", p, e),
+                )
+            })?;
+            self.policy
+                .allowed_roots
+                .iter()
+                .find(|r| canonical.starts_with(&r.canonical_path))
+                .ok_or_else(|| {
+                    VacuaErrorResponse::new(
+                        VacuaErrorCode::VacuaPolicyDenied,
+                        "Path does not match any configured allowed root",
+                    )
+                })?
         } else {
-            self.policy.primary_root()
+            self.policy.get_root(root_id)?
         };
 
-        let status = query_volume_status(&target_path).unwrap_or_else(|_| VolumeStorageStatus {
-            mount_point: target_path.to_string_lossy().to_string(),
-            filesystem_type: "apfs".to_string(),
-            total_bytes: 0,
-            free_bytes: 0,
-            available_bytes: 0,
-            free_ratio: 0.0,
-            pressure: StoragePressure::Normal,
-        });
+        let status = query_volume_status(&root.canonical_path).map_err(|e| {
+            VacuaErrorResponse::new(
+                VacuaErrorCode::VacuaInternal,
+                format!(
+                    "Failed to query volume storage status for root '{}': {}",
+                    root.root_id, e
+                ),
+            )
+        })?;
 
-        let candidates = self.get_or_evaluate_candidates();
-        let candidate_reclaim: u64 = candidates
+        let candidates = self.get_or_evaluate_candidates_for_root(root)?;
+        let non_protected: Vec<&Candidate> = candidates
             .iter()
-            .map(|c| c.allocation.allocated_bytes)
-            .sum();
+            .filter(|c| !c.risk.is_protected_or_unknown())
+            .collect();
+
+        let mut confirmed_reclaim = 0u64;
+        let mut estimated_reclaim = 0u64;
+        let mut upper_reclaim = 0u64;
+        let mut reviewable_reclaim = 0u64;
+
+        for c in &non_protected {
+            let (lower, est, upper) = Self::compute_reclaim_bounds(c);
+            confirmed_reclaim = confirmed_reclaim.saturating_add(lower);
+            estimated_reclaim = estimated_reclaim.saturating_add(est);
+            upper_reclaim = upper_reclaim.saturating_add(upper);
+
+            if c.risk == RiskLevel::Review || c.risk == RiskLevel::Caution {
+                reviewable_reclaim = reviewable_reclaim.saturating_add(est);
+            }
+        }
 
         let (index_freshness, is_stale) = if let Some(index) = self.open_index() {
             if let Ok(stats) = index.get_index_stats() {
@@ -170,10 +225,10 @@ impl VacuaDomainService {
             (None, false)
         };
 
-        StorageSummaryV1 {
+        Ok(StorageSummaryV1 {
             schema_version: SCHEMA_STORAGE_SUMMARY_V1.to_string(),
             observed_at: Utc::now().to_rfc3339(),
-            target_path: self.policy.format_path(&target_path),
+            target_path: self.policy.format_path(&root.canonical_path),
             mount_point: self.policy.format_path(Path::new(&status.mount_point)),
             filesystem_type: status.filesystem_type,
             total_space_bytes: status.total_bytes,
@@ -181,15 +236,18 @@ impl VacuaDomainService {
             available_space_bytes: status.available_bytes,
             purgeable_space_bytes: None,
             pressure_level: format!("{:?}", status.pressure),
-            candidate_count: candidates.len(),
-            candidate_reclaim_bytes: candidate_reclaim,
-            candidate_reviewable_bytes: candidate_reclaim,
+            candidate_count: non_protected.len(),
+            candidate_reclaim_bytes: estimated_reclaim,
+            candidate_reviewable_bytes: reviewable_reclaim,
+            candidate_confirmed_reclaim_bytes: confirmed_reclaim,
+            candidate_estimated_reclaim_bytes: estimated_reclaim,
+            candidate_reclaim_upper_bound: upper_reclaim,
             index_freshness,
             is_stale,
-        }
+        })
     }
 
-    /// List snapshots tool implementation.
+    /// List snapshots tool implementation obeying root policy.
     pub fn list_snapshots(
         &self,
         limit: Option<usize>,
@@ -199,16 +257,26 @@ impl VacuaDomainService {
             VacuaErrorResponse::new(VacuaErrorCode::VacuaNotFound, "Index database not found")
         })?;
 
-        let summaries = index
+        let all_summaries = index
             .list_snapshots()
             .map_err(|e| VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, e.to_string()))?;
 
+        // STRICT ROOT BOUNDARY: Only return snapshots whose root_path falls within an AllowedRoot
+        let summaries: Vec<_> = all_summaries
+            .into_iter()
+            .filter(|s| self.policy.is_path_allowed(&s.root_path))
+            .collect();
+
         let total_count = summaries.len();
         let limit = self.policy.clamp_limit(limit);
-        let offset = cursor
-            .and_then(McpPolicy::decode_cursor)
-            .unwrap_or(0)
-            .min(total_count);
+
+        let query_fp = "snapshots:all";
+        let offset = if let Some(c) = cursor {
+            McpPolicy::decode_cursor_v2(c, "snapshot", "all", query_fp)?
+        } else {
+            0
+        }
+        .min(total_count);
 
         let end = (offset + limit).min(total_count);
         let paged_items = summaries[offset..end]
@@ -226,7 +294,9 @@ impl VacuaDomainService {
             .collect();
 
         let next_cursor = if end < total_count {
-            Some(McpPolicy::encode_cursor(end))
+            Some(McpPolicy::encode_cursor_v2(
+                "snapshot", "all", query_fp, end, 1,
+            ))
         } else {
             None
         };
@@ -240,7 +310,49 @@ impl VacuaDomainService {
         })
     }
 
-    /// Diff snapshots tool implementation.
+    /// Get snapshot details for vacua://snapshot/{snapshot_id}.
+    pub fn get_snapshot(&self, snapshot_id: &str) -> Result<SnapshotDetailV1, VacuaErrorResponse> {
+        let index = self.open_index().ok_or_else(|| {
+            VacuaErrorResponse::new(VacuaErrorCode::VacuaNotFound, "Index database not found")
+        })?;
+
+        let snapshot = index
+            .get_snapshot(snapshot_id)
+            .map_err(|e| VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, e.to_string()))?
+            .ok_or_else(|| {
+                VacuaErrorResponse::new(
+                    VacuaErrorCode::VacuaNotFound,
+                    format!("Snapshot '{}' not found", snapshot_id),
+                )
+            })?;
+
+        if !self.policy.is_path_allowed(&snapshot.root_path) {
+            return Err(VacuaErrorResponse::new(
+                VacuaErrorCode::VacuaPolicyDenied,
+                format!(
+                    "Snapshot '{}' root is outside configured allowed roots",
+                    snapshot_id
+                ),
+            ));
+        }
+
+        Ok(SnapshotDetailV1 {
+            schema_version: SCHEMA_SNAPSHOT_DETAIL_V1.to_string(),
+            snapshot_id: snapshot.snapshot_id,
+            name: self.policy.sanitize_string(&snapshot.name),
+            root_path: self.policy.format_path(&snapshot.root_path),
+            created_at: chrono::DateTime::from_timestamp(snapshot.timestamp, 0)
+                .map(|dt| dt.to_rfc3339())
+                .unwrap_or_default(),
+            total_files: snapshot.total_files,
+            total_dirs: snapshot.total_dirs,
+            logical_bytes: snapshot.logical_bytes,
+            allocated_bytes: snapshot.allocated_bytes,
+            subtree_count: snapshot.subtrees.len(),
+        })
+    }
+
+    /// Diff snapshots tool implementation with strict root authorization.
     pub fn diff_snapshots(
         &self,
         base: &str,
@@ -250,7 +362,43 @@ impl VacuaDomainService {
             VacuaErrorResponse::new(VacuaErrorCode::VacuaNotFound, "Index database not found")
         })?;
 
+        let base_snap = index
+            .get_snapshot(base)
+            .map_err(|e| VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, e.to_string()))?
+            .ok_or_else(|| {
+                VacuaErrorResponse::new(
+                    VacuaErrorCode::VacuaNotFound,
+                    format!("Base snapshot '{}' not found", base),
+                )
+            })?;
+
+        if !self.policy.is_path_allowed(&base_snap.root_path) {
+            return Err(VacuaErrorResponse::new(
+                VacuaErrorCode::VacuaPolicyDenied,
+                "Base snapshot root path is outside configured allowed roots",
+            ));
+        }
+
         let target_name = target.unwrap_or("current");
+        if target_name != "current" {
+            let target_snap = index
+                .get_snapshot(target_name)
+                .map_err(|e| VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, e.to_string()))?
+                .ok_or_else(|| {
+                    VacuaErrorResponse::new(
+                        VacuaErrorCode::VacuaNotFound,
+                        format!("Target snapshot '{}' not found", target_name),
+                    )
+                })?;
+
+            if !self.policy.is_path_allowed(&target_snap.root_path) {
+                return Err(VacuaErrorResponse::new(
+                    VacuaErrorCode::VacuaPolicyDenied,
+                    "Target snapshot root path is outside configured allowed roots",
+                ));
+            }
+        }
+
         let diff = index
             .diff_snapshots(base, target_name)
             .map_err(|e| VacuaErrorResponse::new(VacuaErrorCode::VacuaNotFound, e.to_string()))?;
@@ -303,30 +451,40 @@ impl VacuaDomainService {
         })
     }
 
-    /// List candidates tool implementation.
+    /// List candidates tool implementation scoped to root.
     pub fn list_candidates(
         &self,
-        max_risk: Option<&str>,
+        root_id: Option<&str>,
+        max_risk: Option<McpRiskFilter>,
         category: Option<&str>,
         min_reclaim: Option<u64>,
         limit: Option<usize>,
         cursor: Option<&str>,
-    ) -> CandidateListResponseV1 {
-        let all_cands = self.get_or_evaluate_candidates();
-        let target_risk = max_risk
-            .and_then(|r| match r.to_lowercase().as_str() {
-                "safe" => Some(RiskLevel::Safe),
-                "review" => Some(RiskLevel::Review),
-                "caution" => Some(RiskLevel::Caution),
-                "protected" => Some(RiskLevel::Protected),
-                "unknown" => Some(RiskLevel::Unknown),
-                _ => None,
-            })
-            .unwrap_or(RiskLevel::Safe);
+    ) -> Result<CandidateListResponseV1, VacuaErrorResponse> {
+        let root = self.policy.get_root(root_id)?;
+        let all_cands = self.get_or_evaluate_candidates_for_root(root)?;
+
+        let target_risk = match max_risk.unwrap_or(McpRiskFilter::Safe) {
+            McpRiskFilter::Safe => RiskLevel::Safe,
+            McpRiskFilter::Review => RiskLevel::Review,
+            McpRiskFilter::Caution => RiskLevel::Caution,
+            McpRiskFilter::Protected => RiskLevel::Protected,
+            McpRiskFilter::Unknown => RiskLevel::Unknown,
+        };
+
+        if let Some(cat) = category {
+            if cat.len() > MAX_STRING_PARAM_LEN {
+                return Err(VacuaErrorResponse::new(
+                    VacuaErrorCode::VacuaLimitExceeded,
+                    "Category string exceeds maximum length limit",
+                ));
+            }
+        }
 
         let filtered: Vec<&Candidate> = all_cands
             .iter()
             .filter(|c| c.risk <= target_risk)
+            .filter(|c| !c.risk.is_protected_or_unknown())
             .filter(|c| {
                 if let Some(cat) = category {
                     c.category.to_string().eq_ignore_ascii_case(cat)
@@ -345,37 +503,78 @@ impl VacuaDomainService {
 
         let total_count = filtered.len();
         let limit = self.policy.clamp_limit(limit);
-        let offset = cursor
-            .and_then(McpPolicy::decode_cursor)
-            .unwrap_or(0)
-            .min(total_count);
+
+        let query_fp = format!(
+            "risk={:?}:cat={:?}:min={:?}",
+            target_risk, category, min_reclaim
+        );
+        let offset = if let Some(c) = cursor {
+            McpPolicy::decode_cursor_v2(c, "candidate", &root.root_id, &query_fp)?
+        } else {
+            0
+        }
+        .min(total_count);
 
         let end = (offset + limit).min(total_count);
         let items = filtered[offset..end]
             .iter()
-            .map(|c| CandidateSummaryV1 {
-                candidate_id: c.id.clone(),
-                display_path: self.policy.format_path(&c.path),
-                category: c.category.to_string(),
-                risk: c.risk.to_string(),
-                allocated_bytes: c.allocation.allocated_bytes,
-                reclaim_estimate_bytes: c.allocation.allocated_bytes,
-                reconstructable: c.reconstructable,
+            .map(|c| {
+                let (lower, est, upper) = Self::compute_reclaim_bounds(c);
+                CandidateSummaryV1 {
+                    candidate_id: c.id.clone(),
+                    display_path: self.policy.format_path(&c.path),
+                    category: c.category.to_string(),
+                    risk: c.risk.to_string(),
+                    allocated_bytes: c.allocation.allocated_bytes,
+                    reclaim_estimate_bytes: est,
+                    reconstructable: c.reconstructable,
+                    confirmed_reclaim_lower_bound: lower,
+                    reclaim_upper_bound: upper,
+                }
             })
             .collect();
 
         let next_cursor = if end < total_count {
-            Some(McpPolicy::encode_cursor(end))
+            Some(McpPolicy::encode_cursor_v2(
+                "candidate",
+                &root.root_id,
+                &query_fp,
+                end,
+                1,
+            ))
         } else {
             None
         };
 
-        CandidateListResponseV1 {
+        Ok(CandidateListResponseV1 {
             schema_version: SCHEMA_CANDIDATE_LIST_V1.to_string(),
             items,
             total_count,
             limit,
             next_cursor,
+        })
+    }
+
+    /// Compute conservative lower bound, estimate, and upper bound for reclaim.
+    fn compute_reclaim_bounds(cand: &Candidate) -> (u64, u64, u64) {
+        let alloc = cand.allocation.allocated_bytes;
+        if cand.allocation.is_clone
+            || cand.allocation.extent_uncertainty
+            || cand.allocation.clone_refcnt > 1
+        {
+            if let Some(priv_bytes) = cand.allocation.kernel_private_bytes {
+                (priv_bytes, priv_bytes, alloc)
+            } else {
+                // Unknown private bytes or uncertain clone: lower bound 0, upper bound alloc
+                (0, cand.allocation.exclusive_bytes.min(alloc), alloc)
+            }
+        } else {
+            let exclusive = cand.allocation.exclusive_bytes;
+            (
+                exclusive,
+                cand.allocation.potentially_reclaimable_bytes.min(alloc),
+                alloc,
+            )
         }
     }
 
@@ -384,16 +583,29 @@ impl VacuaDomainService {
         &self,
         candidate_id: &str,
     ) -> Result<CandidateDetailV1, VacuaErrorResponse> {
-        let all_cands = self.get_or_evaluate_candidates();
-        let cand = all_cands
-            .iter()
-            .find(|c| c.id == candidate_id)
-            .ok_or_else(|| {
-                VacuaErrorResponse::new(
-                    VacuaErrorCode::VacuaNotFound,
-                    format!("Candidate with ID '{}' not found", candidate_id),
-                )
-            })?;
+        if candidate_id.len() > MAX_STRING_PARAM_LEN {
+            return Err(VacuaErrorResponse::new(
+                VacuaErrorCode::VacuaLimitExceeded,
+                "Candidate ID exceeds maximum length limit",
+            ));
+        }
+
+        // Search in all configured allowed roots
+        let mut matched = None;
+        for root in &self.policy.allowed_roots {
+            let cands = self.get_or_evaluate_candidates_for_root(root)?;
+            if let Some(found) = cands.into_iter().find(|c| c.id == candidate_id) {
+                matched = Some(found);
+                break;
+            }
+        }
+
+        let cand = matched.ok_or_else(|| {
+            VacuaErrorResponse::new(
+                VacuaErrorCode::VacuaNotFound,
+                format!("Candidate with ID '{}' not found", candidate_id),
+            )
+        })?;
 
         let signals: Vec<String> = cand
             .evidence
@@ -408,6 +620,8 @@ impl VacuaDomainService {
             })
             .collect();
 
+        let (lower, est, upper) = Self::compute_reclaim_bounds(&cand);
+
         Ok(CandidateDetailV1 {
             schema_version: SCHEMA_CANDIDATE_DETAIL_V1.to_string(),
             candidate_id: cand.id.clone(),
@@ -416,6 +630,9 @@ impl VacuaDomainService {
             risk: cand.risk.to_string(),
             allocated_bytes: cand.allocation.allocated_bytes,
             logical_bytes: cand.allocation.logical_bytes,
+            confirmed_reclaim_lower_bound: lower,
+            estimated_reclaim_bytes: est,
+            reclaim_upper_bound: upper,
             reconstructable: cand.reconstructable,
             rebuild_consequence: cand
                 .rebuild_consequence
@@ -428,13 +645,13 @@ impl VacuaDomainService {
         })
     }
 
-    /// List applications tool implementation.
+    /// List applications tool implementation with explicit system metadata scope check.
     pub fn list_applications(
         &self,
-        filter: Option<&str>,
+        filter: Option<ApplicationFilter>,
         limit: Option<usize>,
         cursor: Option<&str>,
-    ) -> ApplicationListResponseV1 {
+    ) -> Result<ApplicationListResponseV1, VacuaErrorResponse> {
         let graph = ApplicationEvidenceGraph::build_from_system();
         let mut apps = Vec::new();
 
@@ -442,39 +659,52 @@ impl VacuaDomainService {
             if node.kind == NodeKind::ApplicationBundle {
                 let name = node.metadata.get("name").cloned().unwrap_or_default();
                 let bundle_id = node.metadata.get("bundle_id").cloned().unwrap_or_default();
-                let path_str = node.path.as_ref().map(|p| self.policy.format_path(p));
+                let path_opt = node.path.as_ref();
+
+                // If system app metadata is NOT allowed, strictly filter to paths inside allowed roots
+                if !self.policy.allow_system_app_metadata {
+                    if let Some(p) = path_opt {
+                        if !self.policy.is_path_allowed(p) {
+                            continue;
+                        }
+                    } else {
+                        continue;
+                    }
+                }
+
+                let path_str = path_opt.map(|p| self.policy.format_path(p));
                 apps.push((name, bundle_id, path_str));
             }
         }
 
-        // Sort deterministically by name, then bundle_id
         apps.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
 
+        let active_filter = filter.unwrap_or_default();
         let filtered: Vec<(String, String, Option<String>)> = apps
             .into_iter()
-            .filter(|(_name, bundle_id, _path)| {
-                if let Some(f) = filter {
-                    if f.eq_ignore_ascii_case("orphans-only") {
-                        let eval = graph.evaluate_orphan(bundle_id);
-                        eval.orphan_confidence > OrphanConfidence::NotOrphan
-                    } else if f.eq_ignore_ascii_case("installed-only") {
-                        let eval = graph.evaluate_orphan(bundle_id);
-                        eval.bundle_installed
-                    } else {
-                        true
-                    }
-                } else {
-                    true
+            .filter(|(_name, bundle_id, _path)| match active_filter {
+                ApplicationFilter::OrphansOnly => {
+                    let eval = graph.evaluate_orphan(bundle_id);
+                    eval.orphan_confidence > OrphanConfidence::NotOrphan
                 }
+                ApplicationFilter::InstalledOnly => {
+                    let eval = graph.evaluate_orphan(bundle_id);
+                    eval.bundle_installed
+                }
+                ApplicationFilter::All => true,
             })
             .collect();
 
         let total_count = filtered.len();
         let limit = self.policy.clamp_limit(limit);
-        let offset = cursor
-            .and_then(McpPolicy::decode_cursor)
-            .unwrap_or(0)
-            .min(total_count);
+
+        let query_fp = format!("app_filter={:?}", active_filter);
+        let offset = if let Some(c) = cursor {
+            McpPolicy::decode_cursor_v2(c, "application", "system", &query_fp)?
+        } else {
+            0
+        }
+        .min(total_count);
 
         let end = (offset + limit).min(total_count);
         let items = filtered[offset..end]
@@ -492,18 +722,24 @@ impl VacuaDomainService {
             .collect();
 
         let next_cursor = if end < total_count {
-            Some(McpPolicy::encode_cursor(end))
+            Some(McpPolicy::encode_cursor_v2(
+                "application",
+                "system",
+                &query_fp,
+                end,
+                1,
+            ))
         } else {
             None
         };
 
-        ApplicationListResponseV1 {
+        Ok(ApplicationListResponseV1 {
             schema_version: SCHEMA_APPLICATION_LIST_V1.to_string(),
             items,
             total_count,
             limit,
             next_cursor,
-        }
+        })
     }
 
     /// Get application detail tool implementation.
@@ -511,6 +747,13 @@ impl VacuaDomainService {
         &self,
         application_id: &str,
     ) -> Result<ApplicationDetailV1, VacuaErrorResponse> {
+        if application_id.len() > MAX_STRING_PARAM_LEN {
+            return Err(VacuaErrorResponse::new(
+                VacuaErrorCode::VacuaLimitExceeded,
+                "Application ID exceeds maximum length limit",
+            ));
+        }
+
         let graph = ApplicationEvidenceGraph::build_from_system();
         let eval = graph.evaluate_orphan(application_id);
 
@@ -524,16 +767,43 @@ impl VacuaDomainService {
             ));
         }
 
-        let artifacts: Vec<ApplicationArtifactV1> = eval
+        // Scope filter: if system app metadata is disallowed, only include artifacts within allowed roots
+        let filtered_paths: Vec<&PathBuf> = eval
             .artifact_paths
             .iter()
+            .filter(|p| {
+                if self.policy.allow_system_app_metadata {
+                    true
+                } else {
+                    self.policy.is_path_allowed(p)
+                }
+            })
+            .collect();
+
+        let artifacts: Vec<ApplicationArtifactV1> = filtered_paths
+            .into_iter()
             .map(|p| {
-                let bytes = std::fs::symlink_metadata(p).map(|m| m.len()).unwrap_or(0);
+                // TRUE ALLOCATION: st_blocks * 512, NOT metadata.len()
+                let alloc_bytes = {
+                    #[cfg(unix)]
+                    {
+                        use std::os::unix::fs::MetadataExt;
+                        std::fs::symlink_metadata(p)
+                            .map(|m| m.blocks() * 512)
+                            .unwrap_or(0)
+                    }
+                    #[cfg(not(unix))]
+                    {
+                        std::fs::symlink_metadata(p).map(|m| m.len()).unwrap_or(0)
+                    }
+                };
+
+                let artifact_id = self.policy.generate_artifact_id(p);
                 ApplicationArtifactV1 {
-                    artifact_id: self.policy.sanitize_string(&p.to_string_lossy()),
+                    artifact_id,
                     display_path: self.policy.format_path(p),
                     kind: "FilesystemArtifact".to_string(),
-                    allocated_bytes: bytes,
+                    allocated_bytes: alloc_bytes,
                     risk: eval.risk_level.to_string(),
                 }
             })
@@ -549,21 +819,22 @@ impl VacuaDomainService {
                 .map(|p| self.policy.format_path(p)),
             installed: eval.bundle_installed,
             orphan_confidence: format!("{:?}", eval.orphan_confidence),
-            artifact_count: eval.artifact_paths.len(),
+            artifact_count: artifacts.len(),
             estimated_reclaim_bytes: eval.associated_artifacts_bytes,
             artifacts,
         })
     }
 
-    /// List duplicates tool implementation.
+    /// List duplicates tool implementation scoped to root.
     pub async fn list_duplicates(
         &self,
+        root_id: Option<&str>,
         min_size_bytes: Option<u64>,
         limit: Option<usize>,
         cursor: Option<&str>,
     ) -> Result<DuplicateListResponseV1, VacuaErrorResponse> {
-        let _permit = self.policy.acquire_expensive_permit().await;
-        let root = self.policy.primary_root();
+        let _permit = self.policy.acquire_expensive_permit().await?;
+        let root = self.policy.get_root(root_id)?.clone();
 
         let db = self.open_index();
         let opts = DuplicateScanOptions {
@@ -574,14 +845,20 @@ impl VacuaDomainService {
             use_cache: db.is_some(),
         };
 
-        let (mut groups, _stats) = tokio::task::spawn_blocking(move || {
-            vacua_content::DuplicateEngine::scan_path(&root, &opts, db.as_ref())
-        })
+        let canonical_root = root.canonical_path.clone();
+        let (mut groups, _stats) = tokio::time::timeout(
+            self.policy.timeout,
+            tokio::task::spawn_blocking(move || {
+                vacua_content::DuplicateEngine::scan_path(&canonical_root, &opts, db.as_ref())
+            }),
+        )
         .await
+        .map_err(|_| {
+            VacuaErrorResponse::new(VacuaErrorCode::VacuaBusy, "Duplicate scan timed out")
+        })?
         .map_err(|e| VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, e.to_string()))?
         .map_err(|e| VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, e.to_string()))?;
 
-        // Deterministic sort: confirmed reclaim lower bound desc, group_id asc
         groups.sort_by(|a, b| {
             b.confirmed_reclaimable_bytes
                 .cmp(&a.confirmed_reclaimable_bytes)
@@ -590,33 +867,56 @@ impl VacuaDomainService {
 
         let total_count = groups.len();
         let limit = self.policy.clamp_limit(limit);
-        let offset = cursor
-            .and_then(McpPolicy::decode_cursor)
-            .unwrap_or(0)
-            .min(total_count);
+
+        let query_fp = format!("dup_min={:?}", min_size_bytes);
+        let offset = if let Some(c) = cursor {
+            McpPolicy::decode_cursor_v2(c, "duplicate", &root.root_id, &query_fp)?
+        } else {
+            0
+        }
+        .min(total_count);
 
         let end = (offset + limit).min(total_count);
         let items = groups[offset..end]
             .iter()
-            .map(|g| DuplicateGroupSummaryV1 {
-                group_id: g.group_id.clone(),
-                member_count: g.members.len(),
-                file_size: g.logical_size,
-                logical_duplicate_bytes: g.logical_duplicate_bytes,
-                kernel_private_bytes: g
+            .map(|g| {
+                let known_members = g
                     .members
                     .iter()
-                    .map(|m| m.allocation.kernel_private_bytes.unwrap_or(0))
-                    .sum(),
-                confirmed_reclaim_lower_bound: g.confirmed_reclaimable_bytes,
-                estimated_reclaim: g.estimated_reclaimable_bytes,
-                content_identity_verified: true,
-                algorithm: "BLAKE3".to_string(),
+                    .filter(|m| m.allocation.kernel_private_bytes.is_some())
+                    .count();
+                let unknown_members = g.members.len() - known_members;
+
+                DuplicateGroupSummaryV1 {
+                    group_id: self
+                        .policy
+                        .generate_duplicate_group_id(&root.root_id, &g.group_id),
+                    member_count: g.members.len(),
+                    file_size: g.logical_size,
+                    logical_duplicate_bytes: g.logical_duplicate_bytes,
+                    kernel_private_bytes: g
+                        .members
+                        .iter()
+                        .map(|m| m.allocation.kernel_private_bytes.unwrap_or(0))
+                        .sum(),
+                    confirmed_reclaim_lower_bound: g.confirmed_reclaimable_bytes,
+                    estimated_reclaim: g.estimated_reclaimable_bytes,
+                    content_identity_verified: true,
+                    algorithm: "BLAKE3".to_string(),
+                    kernel_private_bytes_known_members: known_members,
+                    kernel_private_bytes_unknown_members: unknown_members,
+                }
             })
             .collect();
 
         let next_cursor = if end < total_count {
-            Some(McpPolicy::encode_cursor(end))
+            Some(McpPolicy::encode_cursor_v2(
+                "duplicate",
+                &root.root_id,
+                &query_fp,
+                end,
+                1,
+            ))
         } else {
             None
         };
@@ -635,9 +935,16 @@ impl VacuaDomainService {
         &self,
         group_id: &str,
     ) -> Result<DuplicateGroupDetailV1, VacuaErrorResponse> {
-        let _permit = self.policy.acquire_expensive_permit().await;
-        let root = self.policy.primary_root();
+        if group_id.len() > MAX_STRING_PARAM_LEN {
+            return Err(VacuaErrorResponse::new(
+                VacuaErrorCode::VacuaLimitExceeded,
+                "Group ID exceeds maximum length limit",
+            ));
+        }
 
+        let _permit = self.policy.acquire_expensive_permit().await?;
+
+        // Scan across allowed roots
         let db = self.open_index();
         let opts = DuplicateScanOptions {
             min_size: 1,
@@ -647,57 +954,93 @@ impl VacuaDomainService {
             use_cache: db.is_some(),
         };
 
-        let target_group_id = group_id.to_string();
-        let (groups, _stats) = tokio::task::spawn_blocking(move || {
-            vacua_content::DuplicateEngine::scan_path(&root, &opts, db.as_ref())
-        })
-        .await
-        .map_err(|e| VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, e.to_string()))?
-        .map_err(|e| VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, e.to_string()))?;
+        for root in &self.policy.allowed_roots {
+            let canonical_root = root.canonical_path.clone();
+            let db_clone = self.open_index();
+            let opts_clone = opts.clone();
 
-        let group = groups
-            .into_iter()
-            .find(|g| g.group_id == target_group_id)
-            .ok_or_else(|| {
-                VacuaErrorResponse::new(
-                    VacuaErrorCode::VacuaNotFound,
-                    format!("Duplicate group '{}' not found", group_id),
-                )
-            })?;
+            let (groups, _stats) = tokio::time::timeout(
+                self.policy.timeout,
+                tokio::task::spawn_blocking(move || {
+                    vacua_content::DuplicateEngine::scan_path(
+                        &canonical_root,
+                        &opts_clone,
+                        db_clone.as_ref(),
+                    )
+                }),
+            )
+            .await
+            .map_err(|_| {
+                VacuaErrorResponse::new(VacuaErrorCode::VacuaBusy, "Duplicate group scan timed out")
+            })?
+            .map_err(|e| VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, e.to_string()))?
+            .map_err(|e| VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, e.to_string()))?;
 
-        let members = group
-            .members
-            .iter()
-            .map(|m| DuplicateMemberV1 {
-                member_id: self.policy.sanitize_string(&m.path.to_string_lossy()),
-                display_path: self.policy.format_path(&m.path),
-                physical_relation: format!("{:?}", m.physical_relation),
-                allocated_bytes: m.allocation.allocated_bytes,
-                kernel_private_bytes: m
-                    .allocation
-                    .kernel_private_bytes
-                    .unwrap_or(m.allocation.allocated_bytes),
-                is_cloud_placeholder: vacua_content::is_cloud_placeholder(&m.path),
-            })
-            .collect();
+            for group in groups {
+                let computed_id = self
+                    .policy
+                    .generate_duplicate_group_id(&root.root_id, &group.group_id);
+                if computed_id == group_id || group.group_id == group_id {
+                    let known_members = group
+                        .members
+                        .iter()
+                        .filter(|m| m.allocation.kernel_private_bytes.is_some())
+                        .count();
+                    let unknown_members = group.members.len() - known_members;
 
-        Ok(DuplicateGroupDetailV1 {
-            schema_version: SCHEMA_DUPLICATE_GROUP_V1.to_string(),
-            group_id: group.group_id.clone(),
-            file_size: group.logical_size,
-            logical_duplicate_bytes: group.logical_duplicate_bytes,
-            kernel_private_bytes: group
-                .members
-                .iter()
-                .map(|m| m.allocation.kernel_private_bytes.unwrap_or(0))
-                .sum(),
-            confirmed_reclaim_lower_bound: group.confirmed_reclaimable_bytes,
-            estimated_reclaim: group.estimated_reclaimable_bytes,
-            reclaim_upper_bound: group.upper_bound_reclaimable_bytes,
-            content_identity_verified: true,
-            algorithm: "BLAKE3".to_string(),
-            members,
-        })
+                    let mut member_map_lock = self.member_id_map.lock().unwrap();
+                    let members: Vec<DuplicateMemberV1> = group
+                        .members
+                        .iter()
+                        .map(|m| {
+                            let member_id = self.policy.generate_duplicate_member_id(&m.path);
+                            member_map_lock.insert(member_id.clone(), m.path.clone());
+
+                            DuplicateMemberV1 {
+                                member_id,
+                                display_path: self.policy.format_path(&m.path),
+                                physical_relation: format!("{:?}", m.physical_relation),
+                                allocated_bytes: m.allocation.allocated_bytes,
+                                kernel_private_bytes: m
+                                    .allocation
+                                    .kernel_private_bytes
+                                    .unwrap_or(0),
+                                kernel_private_bytes_known: m
+                                    .allocation
+                                    .kernel_private_bytes
+                                    .is_some(),
+                                is_cloud_placeholder: vacua_content::is_cloud_placeholder(&m.path),
+                            }
+                        })
+                        .collect();
+
+                    return Ok(DuplicateGroupDetailV1 {
+                        schema_version: SCHEMA_DUPLICATE_GROUP_V1.to_string(),
+                        group_id: computed_id,
+                        file_size: group.logical_size,
+                        logical_duplicate_bytes: group.logical_duplicate_bytes,
+                        kernel_private_bytes: group
+                            .members
+                            .iter()
+                            .map(|m| m.allocation.kernel_private_bytes.unwrap_or(0))
+                            .sum(),
+                        confirmed_reclaim_lower_bound: group.confirmed_reclaimable_bytes,
+                        estimated_reclaim: group.estimated_reclaimable_bytes,
+                        reclaim_upper_bound: group.upper_bound_reclaimable_bytes,
+                        content_identity_verified: true,
+                        algorithm: "BLAKE3".to_string(),
+                        kernel_private_bytes_known_members: known_members,
+                        kernel_private_bytes_unknown_members: unknown_members,
+                        members,
+                    });
+                }
+            }
+        }
+
+        Err(VacuaErrorResponse::new(
+            VacuaErrorCode::VacuaNotFound,
+            format!("Duplicate group '{}' not found", group_id),
+        ))
     }
 
     /// Simulate cleanup tool implementation.
@@ -705,7 +1048,22 @@ impl VacuaDomainService {
         &self,
         candidate_ids: &[String],
     ) -> Result<CleanupSimulationV1, VacuaErrorResponse> {
-        let all_cands = self.get_or_evaluate_candidates();
+        if candidate_ids.len() > MAX_SIMULATION_CANDIDATES {
+            return Err(VacuaErrorResponse::new(
+                VacuaErrorCode::VacuaLimitExceeded,
+                format!(
+                    "Number of candidate IDs ({}) exceeds maximum simulation budget of {}",
+                    candidate_ids.len(),
+                    MAX_SIMULATION_CANDIDATES
+                ),
+            ));
+        }
+
+        let mut all_cands = Vec::new();
+        for root in &self.policy.allowed_roots {
+            all_cands.extend(self.get_or_evaluate_candidates_for_root(root)?);
+        }
+
         let cand_map: HashMap<&str, &Candidate> =
             all_cands.iter().map(|c| (c.id.as_str(), c)).collect();
 
@@ -724,7 +1082,16 @@ impl VacuaDomainService {
             }
         }
 
-        let eventual_reclaim: u64 = matched.iter().map(|c| c.allocation.allocated_bytes).sum();
+        let mut confirmed_lower = 0u64;
+        let mut eventual_reclaim = 0u64;
+        let mut reclaim_upper = 0u64;
+
+        for c in &matched {
+            let (lower, est, upper) = Self::compute_reclaim_bounds(c);
+            confirmed_lower = confirmed_lower.saturating_add(lower);
+            eventual_reclaim = eventual_reclaim.saturating_add(est);
+            reclaim_upper = reclaim_upper.saturating_add(upper);
+        }
 
         let highest_risk = matched
             .iter()
@@ -742,8 +1109,10 @@ impl VacuaDomainService {
         Ok(CleanupSimulationV1 {
             schema_version: SCHEMA_CLEANUP_SIMULATION_V1.to_string(),
             candidate_count: matched.len(),
-            immediate_reclaim_bytes: 0, // Trash movement does NOT equal reclaim
+            immediate_reclaim_bytes: 0, // Moving to Trash never frees disk space immediately
             eventual_reclaim_estimate_bytes: eventual_reclaim,
+            confirmed_lower_bound_bytes: confirmed_lower,
+            reclaim_upper_bound_bytes: reclaim_upper,
             highest_risk,
             rebuild_consequences,
             blocked_items: blocked,
@@ -752,12 +1121,27 @@ impl VacuaDomainService {
     }
 
     /// Propose CleanupPlan tool implementation.
-    /// Crucial safety rule: Never executes, never trashes, never persists to disk.
+    /// Strictly proposal-only. Serialized plan is disabled unless allow_plan_export && Full mode.
     pub fn propose_cleanup_plan(
         &self,
         candidate_ids: &[String],
     ) -> Result<CleanupPlanProposalV1, VacuaErrorResponse> {
-        let all_cands = self.get_or_evaluate_candidates();
+        if candidate_ids.len() > MAX_PROPOSAL_CANDIDATES {
+            return Err(VacuaErrorResponse::new(
+                VacuaErrorCode::VacuaLimitExceeded,
+                format!(
+                    "Number of candidate IDs ({}) exceeds maximum proposal budget of {}",
+                    candidate_ids.len(),
+                    MAX_PROPOSAL_CANDIDATES
+                ),
+            ));
+        }
+
+        let mut all_cands = Vec::new();
+        for root in &self.policy.allowed_roots {
+            all_cands.extend(self.get_or_evaluate_candidates_for_root(root)?);
+        }
+
         let cand_map: HashMap<&str, &Candidate> =
             all_cands.iter().map(|c| (c.id.as_str(), c)).collect();
 
@@ -794,8 +1178,11 @@ impl VacuaDomainService {
             .map(|c| c.risk)
             .max()
             .unwrap_or(RiskLevel::Safe);
-        let plan = CleanupPlan::build_with_guards(&selected, max_risk, "0.5.0", vec![])
-            .map_err(|e| VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, e.to_string()))?;
+        let plan =
+            CleanupPlan::build_with_guards(&selected, max_risk, env!("CARGO_PKG_VERSION"), vec![])
+                .map_err(|e| {
+                    VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, e.to_string())
+                })?;
 
         let items = plan
             .items
@@ -808,6 +1195,16 @@ impl VacuaDomainService {
                 estimated_bytes: item.allocated_bytes,
             })
             .collect();
+
+        // PRIVACY ENFORCEMENT: serialized_plan contains raw absolute PathBufs.
+        // It MUST remain None unless explicitly opted-in via --allow-plan-export AND path_disclosure == Full!
+        let serialized_plan = if self.policy.allow_plan_export
+            && self.policy.path_disclosure == PathDisclosureMode::Full
+        {
+            serde_json::to_string(&plan).ok()
+        } else {
+            None
+        };
 
         Ok(CleanupPlanProposalV1 {
             schema_version: SCHEMA_PLAN_PROPOSAL_V1.to_string(),
@@ -822,17 +1219,17 @@ impl VacuaDomainService {
             preservation_guard_count: plan.preservation_guards.len(),
             items,
             proposal_status: "PROPOSAL_ONLY_NOT_EXECUTABLE_VIA_MCP".to_string(),
-            serialized_plan: serde_json::to_string(&plan).ok(),
+            serialized_plan,
         })
     }
 
-    /// History summary tool implementation.
+    /// History summary tool implementation using read-only journal.
     pub fn history_summary(&self, limit: Option<usize>) -> HistorySummaryV1 {
         let limit = limit.unwrap_or(20).clamp(1, 100);
         if let Some(journal) = self.open_journal() {
             if let Ok(txs) = journal.list_transactions(limit) {
                 let total_tx = txs.len();
-                let total_reclaimed = txs.iter().map(|t| t.total_reclaimed_bytes).sum();
+                let total_moved: u64 = txs.iter().map(|t| t.total_reclaimed_bytes).sum();
                 let recent = txs
                     .into_iter()
                     .map(|t| HistoryTransactionV1 {
@@ -842,13 +1239,15 @@ impl VacuaDomainService {
                         total_items: t.total_items,
                         successful_count: t.successful_count,
                         reclaimed_bytes: t.total_reclaimed_bytes,
+                        bytes_moved_to_trash: t.total_reclaimed_bytes,
                     })
                     .collect();
 
                 return HistorySummaryV1 {
                     schema_version: SCHEMA_HISTORY_SUMMARY_V1.to_string(),
                     total_transactions: total_tx,
-                    total_reclaimed_bytes: total_reclaimed,
+                    total_reclaimed_bytes: total_moved,
+                    total_bytes_moved_to_trash: total_moved,
                     recent_transactions: recent,
                 };
             }
@@ -858,11 +1257,12 @@ impl VacuaDomainService {
             schema_version: SCHEMA_HISTORY_SUMMARY_V1.to_string(),
             total_transactions: 0,
             total_reclaimed_bytes: 0,
+            total_bytes_moved_to_trash: 0,
             recent_transactions: vec![],
         }
     }
 
-    /// Verify history tool implementation.
+    /// Verify history tool implementation using read-only journal.
     pub fn verify_history(&self) -> Result<HistoryVerificationV1, VacuaErrorResponse> {
         let journal = self.open_journal().ok_or_else(|| {
             VacuaErrorResponse::new(
@@ -892,12 +1292,12 @@ impl VacuaDomainService {
             .policy
             .allowed_roots
             .iter()
-            .map(|r| self.policy.format_path(r))
+            .map(|r| r.display_name.clone())
             .collect();
 
         ServerCapabilitiesV1 {
             schema_version: SCHEMA_SERVER_CAPABILITIES_V1.to_string(),
-            server_version: "0.5.0".to_string(),
+            server_version: env!("CARGO_PKG_VERSION").to_string(),
             mcp_protocol_generation: "2026-07-28".to_string(),
             platform: "macOS".to_string(),
             transport: "stdio".to_string(),
@@ -916,7 +1316,12 @@ impl VacuaDomainService {
             snapshot_engine_available: true,
             duplicate_engine_available: true,
             app_evidence_graph_available: true,
-            apple_foundation_models_status: "Available / Host Ineligible".to_string(),
+            apple_foundation_models_status: "Implemented / Not Queried by MCP (Zero Subprocess)"
+                .to_string(),
+            plan_export_enabled: self.policy.allow_plan_export,
+            system_app_metadata_enabled: self.policy.allow_system_app_metadata,
+            foundation_models_integration: "IMPLEMENTED".to_string(),
+            foundation_models_runtime_status: "NOT_QUERIED_BY_MCP".to_string(),
         }
     }
 }

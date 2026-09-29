@@ -5,9 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.5.0] - 2026-09-29
+## [0.5.1] - 2026-09-29
 
-Agent-Native MCP Interface & Stable Machine API: Official `rmcp` stdio server, compile-time capability isolation without `vacua-executor` linkage, 14 strictly non-destructive tools, versioned DTO boundary (`vacua-api`), JSON Schema drift gate, untrusted metadata sanitization, and vendor-neutral agent skill.
+MCP Truth, Privacy & Capability Policy Hardening: Authoritative startup canonicalized root authorization, symlink escape rejection, domain-separated BLAKE3 opaque IDs, recursive zero-leak privacy validation, physical reclaim lower-bound accounting, read-only SQLite open guarantees, CursorV2 query binding, snapshot resource template resolution, and pinned official Inspector CI qualification.
+
+### Fixed & Hardened
+- **Authoritative Root Authorization & Policy Boundary**:
+  - Replaced raw path matching with `AllowedRoot` model performing startup canonicalization and directory validation; server fails closed on non-existent or invalid roots.
+  - Replaced fail-open empty roots with strict fail-closed enforcement (empty roots deny all filesystem access).
+  - Eliminated arbitrary path traversal by requiring all paths to reside within canonical allowed roots; returns `VACUA_POLICY_DENIED`.
+  - Added symlink escape rejection: symlinks under allowed roots resolving to targets outside allowed roots are blocked.
+  - Multi-root candidate caches and query parameters are strictly partitioned by `root_id`.
+  - Historical snapshots and snapshot diffs are strictly restricted to configured allowed roots.
+- **Path Privacy & Domain-Separated Opaque Identifiers**:
+  - Replaced path-leaking member IDs and artifact IDs with deterministic BLAKE3 opaque identifiers (`cand-<hex>`, `dup-<hex>`, `mem-<hex>`, `art-<hex>`, `root-<hex>`).
+  - Implemented recursive JSON privacy verification proving 0 raw path leaks across all outputs, errors, proposals, and resources in `Redacted` mode.
+  - Non-home roots are displayed as `<root:{root_id}>/{rel_path}` in `HomeRelative` mode, eliminating full path leaks on external mounts.
+  - Sanitized untrusted metadata: stripped ANSI escape sequences, C0/C1 control characters, and bidi override/isolate controls while preserving valid multi-language UTF-8.
+- **Storage & Reclaim Truth**:
+  - Eliminated `allocated_bytes == reclaim_bytes` conflation in candidate summaries, storage summaries, and simulations.
+  - Added additive machine truth fields: `candidate_confirmed_reclaim_bytes`, `candidate_estimated_reclaim_bytes`, `candidate_reclaim_upper_bound`, `confirmed_reclaim_lower_bound`, `reclaim_upper_bound`.
+  - Hardlinks and shared APFS clones report 0 bytes confirmed lower-bound reclaim until extent independence is verified.
+  - Unknown APFS private sizes are truthfully marked `kernel_private_bytes_known = false` rather than assumed equal to allocated bytes.
+  - Application artifacts calculate physical storage via `st_blocks * 512` rather than logical metadata length.
+  - Clarified execution journal history semantics between immediate trash movement and eventual reclaim upon Trash emptying.
+- **Read-Only SQLite Guarantees**:
+  - Implemented `IndexDatabase::open_read_only` and `ExecutionJournal::open_read_only` using SQLite `SQLITE_OPEN_READ_ONLY | SQLITE_OPEN_NO_MUTEX`.
+  - Agent queries never perform background migrations, create WAL/SHM artifacts, or lock the database.
+  - Outdated index schemas trigger `VACUA_STALE_STATE` with actionable guidance to run the standard CLI once.
+- **Proposal-Only Plan Isolation**:
+  - Propose-only plan tool no longer exposes executable `serialized_plan` by default; requires explicit `--allow-plan-export` flag AND `Full` path disclosure.
+  - Protected candidates and unknown files return explicit `VACUA_PROTECTED` machine error codes on proposal attempts.
+- **Machine Contract, Input Budgets & CursorV2**:
+  - Upgraded cursors to `CursorV2` (Base64URL no-padding) binding offset to entity kind, root ID, and query fingerprint. Corrupted or mismatched cursors return `VACUA_INVALID_ARGUMENT`.
+  - Enforced input bounds: max 200 proposal candidates, max 500 simulation candidates, max 512 bytes string parameters (returns `VACUA_LIMIT_EXCEEDED`).
+  - Added typed enums `McpRiskFilter` and `ApplicationFilter` with strict schema validation.
+- **Resource Templates & Tool Annotations**:
+  - Implemented `get_snapshot` domain handler and `vacua://snapshot/{snapshot_id}` resource template read handler.
+  - Updated tool annotations: duplicate analysis tools accurately set `readOnlyHint: false, destructiveHint: false, idempotentHint: true` reflecting fingerprint cache updates; all local tools declare `openWorldHint: false`.
+  - Synchronous filesystem and application scanning offloaded from Tokio executor threads via `tokio::task::spawn_blocking` and bounded by semaphore.
+- **Official Client Integration & CI Verification**:
+  - Added comprehensive `rmcp` 3.5.0 client child-process test suite (`official_rmcp_client_tests.rs`).
+  - Added pinned `@modelcontextprotocol/inspector@2.8.0` automated CI verification gate testing all tools, prompts, resources, and all 4 resource templates against real fixtures.
+
+---
+
+## [0.5.0] - 2026-09-29
 
 ### Added
 - **Stable Public Machine DTO Boundary (`vacua-api`)**:

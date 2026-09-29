@@ -3,6 +3,12 @@
     "HistoryTransactionV1": {
       "description": "Recent transaction entry in history summary.",
       "properties": {
+        "bytes_moved_to_trash": {
+          "default": 0,
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
         "plan_hash": {
           "type": "string"
         },
@@ -51,6 +57,12 @@
     },
     "schema_version": {
       "type": "string"
+    },
+    "total_bytes_moved_to_trash": {
+      "default": 0,
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
     },
     "total_reclaimed_bytes": {
       "format": "uint64",

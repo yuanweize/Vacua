@@ -3,7 +3,7 @@ use rmcp::ServiceExt;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
-use vacua_mcp::{McpPolicy, PathDisclosureMode, VacuaDomainService, VacuaMcpServer};
+use vacua_mcp::{AllowedRoot, McpPolicy, PathDisclosureMode, VacuaDomainService, VacuaMcpServer};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -53,6 +53,20 @@ struct Cli {
     max_results: usize,
 
     #[arg(
+        long = "allow-plan-export",
+        default_value = "false",
+        help = "Allow proposal tool to output serialized CleanupPlan when path-disclosure is full (default: false)"
+    )]
+    allow_plan_export: bool,
+
+    #[arg(
+        long = "allow-system-app-metadata",
+        default_value = "false",
+        help = "Allow inspection of system applications outside configured roots (default: false)"
+    )]
+    allow_system_app_metadata: bool,
+
+    #[arg(
         long = "self-test",
         help = "Perform internal initialization self-test and exit"
     )]
@@ -66,14 +80,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let disclosure_mode =
         PathDisclosureMode::parse(&cli.path_disclosure).unwrap_or(PathDisclosureMode::HomeRelative);
 
-    let allowed_roots = if cli.allow_roots.is_empty() {
-        let home = std::env::var_os("HOME")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from("."));
-        vec![home]
+    let home_dir = std::env::var_os("HOME").map(PathBuf::from);
+
+    let raw_roots = if cli.allow_roots.is_empty() {
+        if let Some(ref home) = home_dir {
+            vec![home.clone()]
+        } else {
+            vec![PathBuf::from(".")]
+        }
     } else {
         cli.allow_roots
     };
+
+    // STRICT ROOT CANONICALIZATION & FAIL-CLOSED VALIDATION AT STARTUP
+    let mut allowed_roots = Vec::new();
+    for raw in &raw_roots {
+        let root = AllowedRoot::try_new(raw, home_dir.as_deref()).map_err(|e| {
+            eprintln!("Vacua MCP Configuration Error: {}", e);
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, e)
+        })?;
+        allowed_roots.push(root);
+    }
 
     let policy = McpPolicy::new(
         allowed_roots,
@@ -81,6 +108,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         cli.max_results,
         2,
         Duration::from_secs(60),
+        cli.allow_plan_export,
+        cli.allow_system_app_metadata,
     );
 
     let service = Arc::new(VacuaDomainService::new(policy, cli.index, cli.journal));
@@ -92,10 +121,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("  Mutation Authority: FALSE (strictly read/analyze/propose)");
         eprintln!("  Executor Linked: FALSE (no vacua-executor linkage)");
         eprintln!("  Tools Registered: 14");
-        eprintln!(
-            "  Primary Root: {}",
-            service.policy().primary_root().display()
-        );
+        let primary_disp = service
+            .policy()
+            .primary_root()
+            .map(|r| r.canonical_path.display().to_string())
+            .unwrap_or_else(|_| "None".to_string());
+        eprintln!("  Primary Root: {}", primary_disp);
+        eprintln!("  Plan Export Allowed: {}", cli.allow_plan_export);
+        eprintln!("  System App Metadata: {}", cli.allow_system_app_metadata);
         return Ok(());
     }
 

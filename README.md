@@ -204,14 +204,14 @@ Execution:          Forbidden (Zero deletion authority)
 | **SQLite Transaction Journal** | Rust | Offline / Local Audit | Shipped (v0.1.0) |
 | **Apple Intent Translation** | Swift | Optional On-Device / Fallback | Shipped (v0.1.0) |
 | **Cloud AI / Telemetry** | None | Disabled / Zero Network Egress | Never / Excluded |
-| **Agent MCP Server** | Rust (`rmcp`) | Stdio / Propose-Only / Isolated | Shipped (v0.5.0) |
+| **Agent MCP Server** | Rust (`rmcp`) | Stdio / Propose-Only / Isolated | Hardened (v0.5.1) |
 | **Native SwiftUI GUI** | Swift | Desktop Interface | Planned (Phase 5) |
 
 ---
 
 ## Agent & MCP Interface (`vacua-mcp`)
 
-Vacua v0.5.0 introduces an official, versioned, capability-isolated Model Context Protocol (MCP) server:
+Vacua v0.5.1 provides an authoritative, capability-isolated, policy-hardened Model Context Protocol (MCP) server:
 
 ```text
                     ┌── CLI (`vacua`)
@@ -223,10 +223,14 @@ vacua-mcp ──X──► vacua-executor (NO DEPENDENCY PATH, ZERO DELETION AUT
 
 The MCP interface allows external AI environments (**Claude Desktop**, **Cursor**, **Codex**, **VS Code**) to inspect APFS volume pressure, evaluate snapshot diffs, analyze multi-signal application evidence, identify exact BLAKE3 duplicates, simulate what-if reclaims, and propose cryptographically sealed `CleanupPlan` files.
 
-### Compile-Time Capability Isolation
+### Compile-Time Capability Isolation & Policy Hardening
 - `vacua-mcp` **does not link `vacua-executor`**. It is physically impossible for an AI agent to execute deletions, move items to Trash, run shell commands, or mutate files through the MCP server.
-- The server exposes 14 strictly non-destructive tools (`READ_ONLY`, `ANALYZE_ONLY`, `PROPOSE_ONLY`), 2 resources, 4 resource templates, and 2 prompts.
-- All filesystem metadata (paths, names) is treated as untrusted data with control-character sanitization.
+- **Authoritative Root Authorization**: All `--allow-root` paths are canonicalized at server startup. Empty roots fail closed. Traversal outside allowed roots and symlink escapes to external targets are strictly rejected with `VACUA_POLICY_DENIED`.
+- **Zero Absolute Path Leaks in Privacy Modes**: Opaque domain-separated BLAKE3 identifiers (`cand-`, `dup-`, `mem-`, `art-`, `root-`) prevent path leakage. Redacted mode is verified via automated recursive tree audits across all outputs, errors, and resources.
+- **Physical Storage & Reclaim Truth**: DTOs strictly separate confirmed lower bounds (0 bytes for shared extents/hardlinks) from conservative estimates. Unknown APFS private sizes remain unestimated (`known: false`).
+- **Read-Only SQLite Access**: Agent metadata queries open databases using SQLite `SQLITE_OPEN_READ_ONLY | SQLITE_OPEN_NO_MUTEX`, preventing implicit schema migrations or write-lock contention.
+- **Proposal-Only Plans**: The server can compile immutable `CleanupPlan` v2 proposals, but raw `serialized_plan` export is disabled by default (`--allow-plan-export` required with `Full` path disclosure). Clients are directed to review proposals via the Vacua CLI.
+- **Official Protocol & Inspector CI Qualification**: Passes standard `rmcp` 3.5.0 child process integration tests and automated GitHub Actions verification via pinned `@modelcontextprotocol/inspector@2.8.0`.
 - For complete setup instructions and security details, see [docs/MCP.md](docs/MCP.md) and [skills/vacua/SKILL.md](skills/vacua/SKILL.md).
 
 

@@ -19,7 +19,11 @@ pub struct EmptyParams {}
 #[derive(Debug, Clone, Deserialize, JsonSchema, Default)]
 pub struct StorageSummaryParams {
     #[schemars(
-        description = "Optional root path to inspect. If omitted, uses server primary root."
+        description = "Authoritative root identifier configured on server (e.g. 'root-home', 'root-1'). Defaults to primary root."
+    )]
+    pub root_id: Option<String>,
+    #[schemars(
+        description = "Deprecated path input. If supplied, must fall within configured allowed root."
     )]
     pub path: Option<String>,
 }
@@ -42,10 +46,12 @@ pub struct DiffSnapshotsParams {
 
 #[derive(Debug, Clone, Deserialize, JsonSchema, Default)]
 pub struct ListCandidatesParams {
+    #[schemars(description = "Optional root identifier to inspect (defaults to primary root).")]
+    pub root_id: Option<String>,
     #[schemars(
-        description = "Maximum risk level to include: 'safe', 'low', 'medium', 'high'. Default: 'safe'."
+        description = "Maximum risk level to include: 'safe', 'review', 'caution', 'protected', 'unknown'. Default: 'safe'."
     )]
-    pub max_risk: Option<String>,
+    pub max_risk: Option<McpRiskFilter>,
     #[schemars(
         description = "Optional candidate category filter: 'build-artifact', 'cache', 'log', 'package-cache', etc."
     )]
@@ -69,7 +75,7 @@ pub struct ListApplicationsParams {
     #[schemars(
         description = "Filter by orphan status: 'all', 'orphans-only', 'installed-only'. Default: 'all'."
     )]
-    pub filter: Option<String>,
+    pub filter: Option<ApplicationFilter>,
     #[schemars(description = "Maximum number of applications to return (default: 50, max: 200).")]
     pub limit: Option<usize>,
     #[schemars(description = "Opaque pagination cursor from previous response.")]
@@ -84,6 +90,8 @@ pub struct GetApplicationParams {
 
 #[derive(Debug, Clone, Deserialize, JsonSchema, Default)]
 pub struct ListDuplicatesParams {
+    #[schemars(description = "Optional root identifier to inspect (defaults to primary root).")]
+    pub root_id: Option<String>,
     #[schemars(description = "Minimum file size in bytes to consider (default: 1048576 = 1MB).")]
     pub min_size_bytes: Option<u64>,
     #[schemars(
@@ -123,7 +131,7 @@ pub struct HistorySummaryParams {
 #[derive(Debug, Clone, Deserialize, JsonSchema, Default)]
 pub struct VerifyHistoryParams {}
 
-fn to_mcp_error(err: VacuaErrorResponse) -> McpError {
+pub fn to_mcp_error(err: VacuaErrorResponse) -> McpError {
     McpError::new(
         match err.code {
             VacuaErrorCode::VacuaNotFound => ErrorCode::INVALID_PARAMS,
@@ -167,6 +175,7 @@ impl VacuaMcpServer {
         annotations(
             read_only_hint = true,
             destructive_hint = false,
+            open_world_hint = false,
             title = "Get Vacua Capabilities"
         )
     )]
@@ -183,6 +192,7 @@ impl VacuaMcpServer {
         annotations(
             read_only_hint = true,
             destructive_hint = false,
+            open_world_hint = false,
             title = "Storage Summary"
         )
     )]
@@ -190,15 +200,19 @@ impl VacuaMcpServer {
         &self,
         params: Parameters<StorageSummaryParams>,
     ) -> Result<Json<StorageSummaryV1>, McpError> {
-        Ok(Json(self.service.storage_summary(params.0.path.as_deref())))
+        self.service
+            .storage_summary(params.0.root_id.as_deref(), params.0.path.as_deref())
+            .map(Json)
+            .map_err(to_mcp_error)
     }
 
     #[tool(
         name = "vacua_list_snapshots",
-        description = "List point-in-time storage state snapshots stored in the local SQLite metadata index.",
+        description = "List point-in-time storage state snapshots stored in the local SQLite metadata index within configured allowed roots.",
         annotations(
             read_only_hint = true,
             destructive_hint = false,
+            open_world_hint = false,
             title = "List Storage Snapshots"
         )
     )]
@@ -214,10 +228,11 @@ impl VacuaMcpServer {
 
     #[tool(
         name = "vacua_diff_snapshots",
-        description = "Compare storage allocation deltas between two snapshots or against the live filesystem.",
+        description = "Compare storage allocation deltas between two snapshots or against the live filesystem for authorized roots.",
         annotations(
             read_only_hint = true,
             destructive_hint = false,
+            open_world_hint = false,
             title = "Diff Storage Snapshots"
         )
     )]
@@ -233,10 +248,11 @@ impl VacuaMcpServer {
 
     #[tool(
         name = "vacua_list_candidates",
-        description = "List classified cleanup candidates with risk evaluation, category, and APFS allocated bytes.",
+        description = "List classified cleanup candidates with risk evaluation, category, and APFS allocated bytes scoped to root.",
         annotations(
             read_only_hint = true,
             destructive_hint = false,
+            open_world_hint = false,
             title = "List Cleanup Candidates"
         )
     )]
@@ -244,13 +260,17 @@ impl VacuaMcpServer {
         &self,
         params: Parameters<ListCandidatesParams>,
     ) -> Result<Json<CandidateListResponseV1>, McpError> {
-        Ok(Json(self.service.list_candidates(
-            params.0.max_risk.as_deref(),
-            params.0.category.as_deref(),
-            params.0.min_reclaim_bytes,
-            params.0.limit,
-            params.0.cursor.as_deref(),
-        )))
+        self.service
+            .list_candidates(
+                params.0.root_id.as_deref(),
+                params.0.max_risk,
+                params.0.category.as_deref(),
+                params.0.min_reclaim_bytes,
+                params.0.limit,
+                params.0.cursor.as_deref(),
+            )
+            .map(Json)
+            .map_err(to_mcp_error)
     }
 
     #[tool(
@@ -259,6 +279,7 @@ impl VacuaMcpServer {
         annotations(
             read_only_hint = true,
             destructive_hint = false,
+            open_world_hint = false,
             title = "Explain Cleanup Candidate"
         )
     )]
@@ -278,6 +299,7 @@ impl VacuaMcpServer {
         annotations(
             read_only_hint = true,
             destructive_hint = false,
+            open_world_hint = false,
             title = "List Applications"
         )
     )]
@@ -285,11 +307,10 @@ impl VacuaMcpServer {
         &self,
         params: Parameters<ListApplicationsParams>,
     ) -> Result<Json<ApplicationListResponseV1>, McpError> {
-        Ok(Json(self.service.list_applications(
-            params.0.filter.as_deref(),
-            params.0.limit,
-            params.0.cursor.as_deref(),
-        )))
+        self.service
+            .list_applications(params.0.filter, params.0.limit, params.0.cursor.as_deref())
+            .map(Json)
+            .map_err(to_mcp_error)
     }
 
     #[tool(
@@ -298,6 +319,7 @@ impl VacuaMcpServer {
         annotations(
             read_only_hint = true,
             destructive_hint = false,
+            open_world_hint = false,
             title = "Get Application Evidence"
         )
     )]
@@ -315,8 +337,10 @@ impl VacuaMcpServer {
         name = "vacua_list_duplicates",
         description = "List exact duplicate groups with staged BLAKE3 verification, APFS clone awareness, and confirmed reclaim lower bounds.",
         annotations(
-            read_only_hint = true,
+            read_only_hint = false,
             destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false,
             title = "List Exact Duplicates"
         )
     )]
@@ -326,6 +350,7 @@ impl VacuaMcpServer {
     ) -> Result<Json<DuplicateListResponseV1>, McpError> {
         self.service
             .list_duplicates(
+                params.0.root_id.as_deref(),
                 params.0.min_size_bytes,
                 params.0.limit,
                 params.0.cursor.as_deref(),
@@ -339,8 +364,10 @@ impl VacuaMcpServer {
         name = "vacua_get_duplicate_group",
         description = "Inspect an exact duplicate group including members, physical extents sharing, and kernel private sizes.",
         annotations(
-            read_only_hint = true,
+            read_only_hint = false,
             destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false,
             title = "Get Duplicate Group Detail"
         )
     )]
@@ -361,6 +388,7 @@ impl VacuaMcpServer {
         annotations(
             read_only_hint = true,
             destructive_hint = false,
+            open_world_hint = false,
             title = "Simulate Cleanup Consequences"
         )
     )]
@@ -380,6 +408,7 @@ impl VacuaMcpServer {
         annotations(
             read_only_hint = true,
             destructive_hint = false,
+            open_world_hint = false,
             title = "Propose Immutable Cleanup Plan"
         )
     )]
@@ -399,6 +428,7 @@ impl VacuaMcpServer {
         annotations(
             read_only_hint = true,
             destructive_hint = false,
+            open_world_hint = false,
             title = "History Journal Summary"
         )
     )]
@@ -415,6 +445,7 @@ impl VacuaMcpServer {
         annotations(
             read_only_hint = true,
             destructive_hint = false,
+            open_world_hint = false,
             title = "Verify History Integrity"
         )
     )]
@@ -472,7 +503,9 @@ impl ServerHandler for VacuaMcpServer {
                 )
                 .with_mime_type("application/json"),
             ResourceTemplate::new("vacua://snapshot/{snapshot_id}", "Vacua Storage Snapshot")
-                .with_description("Stored point-in-time storage state snapshot")
+                .with_description(
+                    "Stored point-in-time storage state snapshot within allowed roots",
+                )
                 .with_mime_type("application/json"),
             ResourceTemplate::new("vacua://duplicate/{group_id}", "Vacua Duplicate Group")
                 .with_description(
@@ -512,7 +545,10 @@ impl ServerHandler for VacuaMcpServer {
         }
 
         if uri == "vacua://storage/summary" {
-            let sum = self.service.storage_summary(None);
+            let sum = self
+                .service
+                .storage_summary(None, None)
+                .map_err(to_mcp_error)?;
             let json = serde_json::to_string_pretty(&sum)
                 .map_err(|e| McpError::internal_error(e.to_string(), None))?;
             return Ok(
@@ -532,6 +568,24 @@ impl ServerHandler for VacuaMcpServer {
                 .explain_candidate(cand_id)
                 .map_err(to_mcp_error)?;
             let json = serde_json::to_string_pretty(&cand)
+                .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+            return Ok(
+                ReadResourceResult::new(vec![ResourceContents::TextResourceContents {
+                    uri: uri.to_string(),
+                    mime_type: Some("application/json".to_string()),
+                    text: json,
+                    meta: None,
+                }])
+                .into(),
+            );
+        }
+
+        if let Some(snapshot_id) = uri.strip_prefix("vacua://snapshot/") {
+            let snap = self
+                .service
+                .get_snapshot(snapshot_id)
+                .map_err(to_mcp_error)?;
+            let json = serde_json::to_string_pretty(&snap)
                 .map_err(|e| McpError::internal_error(e.to_string(), None))?;
             return Ok(
                 ReadResourceResult::new(vec![ResourceContents::TextResourceContents {

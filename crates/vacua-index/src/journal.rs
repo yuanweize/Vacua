@@ -96,6 +96,23 @@ fn compute_entry_hash(
 }
 
 impl ExecutionJournal {
+    /// Open execution journal strictly read-only without executing DDL, WAL pragma, or creating directories.
+    pub fn open_read_only(db_path: &Path) -> Result<Self, JournalError> {
+        if !db_path.exists() {
+            return Err(JournalError::Io(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("Journal database not found at {}", db_path.display()),
+            )));
+        }
+
+        let conn = Connection::open_with_flags(
+            db_path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )?;
+
+        Ok(Self { conn })
+    }
+
     pub fn open(db_path: &Path) -> Result<Self, JournalError> {
         if let Some(parent) = db_path.parent() {
             std::fs::create_dir_all(parent)?;

@@ -45,15 +45,20 @@ fn test_storage_summary_cli_and_mcp_equivalence() {
         serde_json::from_slice(&cli_output.stdout).expect("CLI output is not valid JSON");
 
     // 2. Query MCP Domain Service
+    let root = vacua_mcp::AllowedRoot::try_new(&root_path.canonicalize().unwrap(), None).unwrap();
     let policy = McpPolicy::new(
-        vec![root_path.to_path_buf()],
+        vec![root],
         PathDisclosureMode::Full,
         50,
         2,
         std::time::Duration::from_secs(30),
+        false,
+        false,
     );
     let service = VacuaDomainService::new(policy, None, None);
-    let mcp_summary = service.storage_summary(Some(&root_path.to_string_lossy()));
+    let mcp_summary = service
+        .storage_summary(None, Some(&root_path.to_string_lossy()))
+        .expect("storage_summary failed");
 
     // 3. Compare underlying facts
     assert_eq!(mcp_summary.filesystem_type, "apfs");

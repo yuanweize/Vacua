@@ -4,6 +4,7 @@ pub const SCHEMA_STORAGE_SUMMARY_V1: &str = "vacua.mcp.storage-summary.v1";
 pub const SCHEMA_CANDIDATE_LIST_V1: &str = "vacua.mcp.candidate-list.v1";
 pub const SCHEMA_CANDIDATE_DETAIL_V1: &str = "vacua.mcp.candidate-detail.v1";
 pub const SCHEMA_SNAPSHOT_LIST_V1: &str = "vacua.mcp.snapshot-list.v1";
+pub const SCHEMA_SNAPSHOT_DETAIL_V1: &str = "vacua.mcp.snapshot-detail.v1";
 pub const SCHEMA_SNAPSHOT_DIFF_V1: &str = "vacua.mcp.snapshot-diff.v1";
 pub const SCHEMA_APPLICATION_LIST_V1: &str = "vacua.mcp.application-list.v1";
 pub const SCHEMA_APPLICATION_DETAIL_V1: &str = "vacua.mcp.application-detail.v1";

@@ -66,3 +66,24 @@ jobs:
         run: |
           cd apple/VacuaIntelligence
           swift run vacua-intelligence test
+
+  mcp-inspector:
+    name: MCP Protocol & Inspector
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build MCP Server and Fixture Generator
+        run: cargo build --bin vacua-mcp --bin inspector_fixture
+
+      - name: Run Official MCP Inspector Protocol Verification
+        run: ./scripts/test_mcp_inspector.sh ./target/debug/vacua-mcp
+
