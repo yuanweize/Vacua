@@ -1,7 +1,7 @@
 use rusqlite::Connection;
 use thiserror::Error;
 
-pub const CURRENT_SCHEMA_VERSION: u32 = 3;
+pub const CURRENT_SCHEMA_VERSION: u32 = 4;
 
 #[derive(Error, Debug)]
 pub enum SchemaError {
@@ -147,7 +147,7 @@ pub fn run_migrations(conn: &mut Connection) -> std::result::Result<(), SchemaEr
                 sample_hash TEXT,
                 full_hash TEXT,
                 hash_algorithm TEXT NOT NULL,
-                fingerprint_version TEXT NOT NULL,
+                fingerprint_version TEXT DEFAULT '',
                 observed_at INTEGER NOT NULL,
                 PRIMARY KEY (device_id, inode, canonical_path)
             );
@@ -158,6 +158,61 @@ pub fn run_migrations(conn: &mut Connection) -> std::result::Result<(), SchemaEr
         )?;
 
         tx.pragma_update(None, "user_version", 3)?;
+        tx.commit()?;
+    }
+
+    if current_version < 4 {
+        let tx = conn.transaction()?;
+
+        tx.execute_batch(
+            r#"
+            CREATE TABLE IF NOT EXISTS content_fingerprints (
+                device_id INTEGER NOT NULL,
+                inode INTEGER NOT NULL,
+                canonical_path TEXT NOT NULL,
+                logical_size INTEGER NOT NULL,
+                mtime_sec INTEGER NOT NULL,
+                mtime_nsec INTEGER NOT NULL,
+                ctime_sec INTEGER NOT NULL,
+                ctime_nsec INTEGER NOT NULL,
+                sample_hash TEXT,
+                sample_version TEXT,
+                full_hash TEXT,
+                full_version TEXT,
+                hash_algorithm TEXT NOT NULL,
+                fingerprint_version TEXT DEFAULT '',
+                observed_at INTEGER NOT NULL,
+                PRIMARY KEY (device_id, inode, canonical_path)
+            );
+            CREATE INDEX IF NOT EXISTS idx_fingerprints_identity ON content_fingerprints(device_id, inode, logical_size, mtime_sec, mtime_nsec, ctime_sec, ctime_nsec);
+            CREATE INDEX IF NOT EXISTS idx_fingerprints_full_hash ON content_fingerprints(full_hash);
+            CREATE INDEX IF NOT EXISTS idx_fingerprints_path ON content_fingerprints(canonical_path);
+            "#,
+        )?;
+
+        let has_sample_version: bool = tx
+            .prepare("SELECT sample_version FROM content_fingerprints LIMIT 0")
+            .is_ok();
+        if !has_sample_version {
+            tx.execute(
+                "ALTER TABLE content_fingerprints ADD COLUMN sample_version TEXT",
+                [],
+            )?;
+            tx.execute(
+                "ALTER TABLE content_fingerprints ADD COLUMN full_version TEXT",
+                [],
+            )?;
+            let _ = tx.execute(
+                "UPDATE content_fingerprints SET sample_version = fingerprint_version WHERE sample_hash IS NOT NULL",
+                [],
+            );
+            let _ = tx.execute(
+                "UPDATE content_fingerprints SET full_version = fingerprint_version WHERE full_hash IS NOT NULL",
+                [],
+            );
+        }
+
+        tx.pragma_update(None, "user_version", 4)?;
         tx.commit()?;
     }
 
@@ -221,13 +276,13 @@ mod tests {
         )
         .unwrap();
 
-        // Now run full migrations to upgrade to v3
+        // Now run full migrations to upgrade to v4
         run_migrations(&mut conn).unwrap();
 
         let version: u32 = conn
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 3);
+        assert_eq!(version, CURRENT_SCHEMA_VERSION);
 
         // Check preserved snapshot data
         let snap_name: String = conn
@@ -248,6 +303,58 @@ mod tests {
             )
             .unwrap();
         assert_eq!(fp_exists, 1);
+    }
+
+    #[test]
+    fn test_migrations_v3_to_v4_adds_columns_and_migrates_data() {
+        let mut conn = Connection::open_in_memory().unwrap();
+
+        // Run migrations up to v3 manually
+        conn.execute_batch(
+            r#"
+            CREATE TABLE content_fingerprints (
+                device_id INTEGER NOT NULL,
+                inode INTEGER NOT NULL,
+                canonical_path TEXT NOT NULL,
+                logical_size INTEGER NOT NULL,
+                mtime_sec INTEGER NOT NULL,
+                mtime_nsec INTEGER NOT NULL,
+                ctime_sec INTEGER NOT NULL,
+                ctime_nsec INTEGER NOT NULL,
+                sample_hash TEXT,
+                full_hash TEXT,
+                hash_algorithm TEXT NOT NULL,
+                fingerprint_version TEXT NOT NULL,
+                observed_at INTEGER NOT NULL,
+                PRIMARY KEY (device_id, inode, canonical_path)
+            );
+            INSERT INTO content_fingerprints VALUES (
+                1, 100, '/tmp/test.txt', 1024, 100, 200, 300, 400,
+                'sample123', 'full456', 'BLAKE3', 'legacy-v1', 12345
+            );
+            PRAGMA user_version = 3;
+            "#,
+        )
+        .unwrap();
+
+        // Run migrations to upgrade to v4
+        run_migrations(&mut conn).unwrap();
+
+        let version: u32 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 4);
+
+        // Verify columns were added and legacy data populated
+        let (s_ver, f_ver): (String, String) = conn
+            .query_row(
+                "SELECT sample_version, full_version FROM content_fingerprints WHERE inode = 100",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(s_ver, "legacy-v1");
+        assert_eq!(f_ver, "legacy-v1");
     }
 
     #[test]

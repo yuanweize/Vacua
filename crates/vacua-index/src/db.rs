@@ -1,5 +1,5 @@
 use chrono::Utc;
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -147,6 +147,18 @@ pub struct IncrementalRefreshResult {
     pub previous_event_id: u64,
     pub new_event_id: u64,
     pub status: String,
+}
+
+struct ExistingFingerprintRow {
+    logical_size: u64,
+    mtime_sec: i64,
+    mtime_nsec: i64,
+    ctime_sec: i64,
+    ctime_nsec: i64,
+    sample_hash: Option<String>,
+    sample_version: Option<String>,
+    full_hash: Option<String>,
+    full_version: Option<String>,
 }
 
 pub struct IndexDatabase {
@@ -839,11 +851,13 @@ impl IndexDatabase {
         mtime_nsec: i64,
         ctime_sec: i64,
         ctime_nsec: i64,
+        expected_sample_version: Option<&str>,
+        expected_full_version: Option<&str>,
     ) -> Result<Option<CachedFingerprint>, IndexError> {
         let path_str = canonical_path.to_string_lossy();
         let mut stmt = self.conn.prepare(
             r#"
-            SELECT sample_hash, full_hash, hash_algorithm, fingerprint_version, observed_at
+            SELECT sample_hash, sample_version, full_hash, full_version, hash_algorithm, observed_at
             FROM content_fingerprints
             WHERE device_id = ?1 AND inode = ?2 AND canonical_path = ?3
               AND logical_size = ?4 AND mtime_sec = ?5 AND mtime_nsec = ?6
@@ -863,12 +877,59 @@ impl IndexDatabase {
         ])?;
 
         if let Some(row) = rows.next()? {
+            let sample_hash: Option<String> = row.get(0)?;
+            let sample_version: Option<String> = row.get(1)?;
+            let full_hash: Option<String> = row.get(2)?;
+            let full_version: Option<String> = row.get(3)?;
+            let hash_algorithm: String = row.get(4)?;
+            let observed_at: i64 = row.get(5)?;
+
+            // Only BLAKE3 is valid algorithm
+            if hash_algorithm != "BLAKE3" {
+                return Ok(None);
+            }
+
+            // Invalidate sample if sample_version does not match expected
+            let valid_sample = if let (Some(expected), Some(actual)) =
+                (expected_sample_version, sample_version.as_deref())
+            {
+                if expected == actual {
+                    sample_hash
+                } else {
+                    None
+                }
+            } else if expected_sample_version.is_none() {
+                sample_hash
+            } else {
+                None
+            };
+
+            // Invalidate full if full_version does not match expected
+            let valid_full = if let (Some(expected), Some(actual)) =
+                (expected_full_version, full_version.as_deref())
+            {
+                if expected == actual {
+                    full_hash
+                } else {
+                    None
+                }
+            } else if expected_full_version.is_none() {
+                full_hash
+            } else {
+                None
+            };
+
+            if valid_sample.is_none() && valid_full.is_none() {
+                return Ok(None);
+            }
+
             Ok(Some(CachedFingerprint {
-                sample_hash: row.get(0)?,
-                full_hash: row.get(1)?,
-                hash_algorithm: row.get(2)?,
-                fingerprint_version: row.get(3)?,
-                observed_at: row.get(4)?,
+                sample_hash: valid_sample,
+                sample_version,
+                full_hash: valid_full,
+                full_version,
+                hash_algorithm,
+                observed_at,
             }))
         } else {
             Ok(None)
@@ -880,41 +941,134 @@ impl IndexDatabase {
         record: &ContentFingerprintRecord,
     ) -> Result<(), IndexError> {
         let path_str = record.canonical_path.to_string_lossy();
-        self.conn.execute(
-            r#"
-            INSERT INTO content_fingerprints (
-                device_id, inode, canonical_path, logical_size,
-                mtime_sec, mtime_nsec, ctime_sec, ctime_nsec,
-                sample_hash, full_hash, hash_algorithm, fingerprint_version, observed_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
-            ON CONFLICT(device_id, inode, canonical_path) DO UPDATE SET
-                logical_size = excluded.logical_size,
-                mtime_sec = excluded.mtime_sec,
-                mtime_nsec = excluded.mtime_nsec,
-                ctime_sec = excluded.ctime_sec,
-                ctime_nsec = excluded.ctime_nsec,
-                sample_hash = excluded.sample_hash,
-                full_hash = excluded.full_hash,
-                hash_algorithm = excluded.hash_algorithm,
-                fingerprint_version = excluded.fingerprint_version,
-                observed_at = excluded.observed_at
+
+        let existing: Option<ExistingFingerprintRow> = self
+            .conn
+            .query_row(
+                r#"
+            SELECT logical_size, mtime_sec, mtime_nsec, ctime_sec, ctime_nsec,
+                   sample_hash, sample_version, full_hash, full_version
+            FROM content_fingerprints
+            WHERE device_id = ?1 AND inode = ?2 AND canonical_path = ?3
             "#,
-            rusqlite::params![
-                record.device_id,
-                record.inode,
-                path_str.as_ref(),
-                record.logical_size,
-                record.mtime_sec,
-                record.mtime_nsec,
-                record.ctime_sec,
-                record.ctime_nsec,
-                record.sample_hash,
-                record.full_hash,
-                record.hash_algorithm,
-                record.fingerprint_version,
-                record.observed_at,
-            ],
-        )?;
+                rusqlite::params![record.device_id, record.inode, path_str.as_ref()],
+                |row| {
+                    Ok(ExistingFingerprintRow {
+                        logical_size: row.get(0)?,
+                        mtime_sec: row.get(1)?,
+                        mtime_nsec: row.get(2)?,
+                        ctime_sec: row.get(3)?,
+                        ctime_nsec: row.get(4)?,
+                        sample_hash: row.get(5)?,
+                        sample_version: row.get(6)?,
+                        full_hash: row.get(7)?,
+                        full_version: row.get(8)?,
+                    })
+                },
+            )
+            .optional()?;
+
+        match existing {
+            Some(ex) => {
+                let identity_matches = ex.logical_size == record.logical_size
+                    && ex.mtime_sec == record.mtime_sec
+                    && ex.mtime_nsec == record.mtime_nsec
+                    && ex.ctime_sec == record.ctime_sec
+                    && ex.ctime_nsec == record.ctime_nsec;
+
+                let (final_shash, final_sver, final_fhash, final_fver) = if identity_matches {
+                    let s_hash = record.sample_hash.clone().or(ex.sample_hash);
+                    let s_ver = if record.sample_hash.is_some() {
+                        record.sample_version.clone()
+                    } else {
+                        ex.sample_version
+                    };
+                    let f_hash = record.full_hash.clone().or(ex.full_hash);
+                    let f_ver = if record.full_hash.is_some() {
+                        record.full_version.clone()
+                    } else {
+                        ex.full_version
+                    };
+                    (s_hash, s_ver, f_hash, f_ver)
+                } else {
+                    // Identity changed: clear stale sample/full hashes completely
+                    (
+                        record.sample_hash.clone(),
+                        record.sample_version.clone(),
+                        record.full_hash.clone(),
+                        record.full_version.clone(),
+                    )
+                };
+
+                self.conn.execute(
+                    r#"
+                    UPDATE content_fingerprints SET
+                        logical_size = ?1,
+                        mtime_sec = ?2,
+                        mtime_nsec = ?3,
+                        ctime_sec = ?4,
+                        ctime_nsec = ?5,
+                        sample_hash = ?6,
+                        sample_version = ?7,
+                        full_hash = ?8,
+                        full_version = ?9,
+                        hash_algorithm = ?10,
+                        observed_at = ?11
+                    WHERE device_id = ?12 AND inode = ?13 AND canonical_path = ?14
+                    "#,
+                    rusqlite::params![
+                        record.logical_size,
+                        record.mtime_sec,
+                        record.mtime_nsec,
+                        record.ctime_sec,
+                        record.ctime_nsec,
+                        final_shash,
+                        final_sver,
+                        final_fhash,
+                        final_fver,
+                        record.hash_algorithm,
+                        record.observed_at,
+                        record.device_id,
+                        record.inode,
+                        path_str.as_ref(),
+                    ],
+                )?;
+            }
+            None => {
+                let fp_ver = record
+                    .full_version
+                    .as_deref()
+                    .or(record.sample_version.as_deref())
+                    .unwrap_or("");
+                self.conn.execute(
+                    r#"
+                    INSERT INTO content_fingerprints (
+                        device_id, inode, canonical_path, logical_size,
+                        mtime_sec, mtime_nsec, ctime_sec, ctime_nsec,
+                        sample_hash, sample_version, full_hash, full_version,
+                        hash_algorithm, fingerprint_version, observed_at
+                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+                    "#,
+                    rusqlite::params![
+                        record.device_id,
+                        record.inode,
+                        path_str.as_ref(),
+                        record.logical_size,
+                        record.mtime_sec,
+                        record.mtime_nsec,
+                        record.ctime_sec,
+                        record.ctime_nsec,
+                        record.sample_hash,
+                        record.sample_version,
+                        record.full_hash,
+                        record.full_version,
+                        record.hash_algorithm,
+                        fp_ver,
+                        record.observed_at,
+                    ],
+                )?;
+            }
+        }
         Ok(())
     }
 
@@ -988,9 +1142,10 @@ impl IndexDatabase {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CachedFingerprint {
     pub sample_hash: Option<String>,
+    pub sample_version: Option<String>,
     pub full_hash: Option<String>,
+    pub full_version: Option<String>,
     pub hash_algorithm: String,
-    pub fingerprint_version: String,
     pub observed_at: i64,
 }
 
@@ -1005,9 +1160,10 @@ pub struct ContentFingerprintRecord {
     pub ctime_sec: i64,
     pub ctime_nsec: i64,
     pub sample_hash: Option<String>,
+    pub sample_version: Option<String>,
     pub full_hash: Option<String>,
+    pub full_version: Option<String>,
     pub hash_algorithm: String,
-    pub fingerprint_version: String,
     pub observed_at: i64,
 }
 
@@ -1112,8 +1268,10 @@ mod tests {
             path: PathBuf::from("/test/file.bin"),
             logical_bytes: 5000,
             allocated_bytes: 8192,
+            kernel_private_bytes: None,
             inode: 101,
             device_id: 1,
+            file_kind: vacua_core::fs::FileKind::Regular,
             is_dir: false,
             is_symlink: false,
             is_sparse: false,
@@ -1263,8 +1421,10 @@ mod tests {
                 path: dir_a.clone(),
                 logical_bytes: 0,
                 allocated_bytes: 4096,
+                kernel_private_bytes: None,
                 inode: 1,
                 device_id: 1,
+                file_kind: vacua_core::fs::FileKind::Directory,
                 is_dir: true,
                 is_symlink: false,
                 is_sparse: false,
@@ -1281,8 +1441,10 @@ mod tests {
                 path: dir_a_sub.clone(),
                 logical_bytes: 0,
                 allocated_bytes: 4096,
+                kernel_private_bytes: None,
                 inode: 2,
                 device_id: 1,
+                file_kind: vacua_core::fs::FileKind::Directory,
                 is_dir: true,
                 is_symlink: false,
                 is_sparse: false,
@@ -1299,8 +1461,10 @@ mod tests {
                 path: dir_a_sub.join("file1.bin"),
                 logical_bytes: 10 * 1024 * 1024,
                 allocated_bytes: 10 * 1024 * 1024,
+                kernel_private_bytes: None,
                 inode: 3,
                 device_id: 1,
+                file_kind: vacua_core::fs::FileKind::Regular,
                 is_dir: false,
                 is_symlink: false,
                 is_sparse: false,
@@ -1317,8 +1481,10 @@ mod tests {
                 path: dir_b.clone(),
                 logical_bytes: 0,
                 allocated_bytes: 4096,
+                kernel_private_bytes: None,
                 inode: 4,
                 device_id: 1,
+                file_kind: vacua_core::fs::FileKind::Directory,
                 is_dir: true,
                 is_symlink: false,
                 is_sparse: false,
@@ -1335,8 +1501,10 @@ mod tests {
                 path: dir_b.join("file2.bin"),
                 logical_bytes: 5 * 1024 * 1024,
                 allocated_bytes: 5 * 1024 * 1024,
+                kernel_private_bytes: None,
                 inode: 5,
                 device_id: 1,
+                file_kind: vacua_core::fs::FileKind::Regular,
                 is_dir: false,
                 is_symlink: false,
                 is_sparse: false,
@@ -1439,5 +1607,125 @@ mod tests {
             db_rows, fresh_paths,
             "Incremental DB entries must match fresh full scan"
         );
+    }
+
+    #[test]
+    fn test_fingerprint_cache_merge_and_invalidation() {
+        let db = IndexDatabase::open_in_memory().unwrap();
+        let path = PathBuf::from("/test/file.dat");
+
+        // 1. Put sample hash first
+        let rec_sample = ContentFingerprintRecord {
+            device_id: 1,
+            inode: 10,
+            canonical_path: path.clone(),
+            logical_size: 1024,
+            mtime_sec: 100,
+            mtime_nsec: 200,
+            ctime_sec: 300,
+            ctime_nsec: 400,
+            sample_hash: Some("sample_abc".to_string()),
+            sample_version: Some("vacua-sample-v1".to_string()),
+            full_hash: None,
+            full_version: None,
+            hash_algorithm: "BLAKE3".to_string(),
+            observed_at: 1000,
+        };
+        db.upsert_content_fingerprint(&rec_sample).unwrap();
+
+        // 2. Put full hash next with same identity
+        let rec_full = ContentFingerprintRecord {
+            device_id: 1,
+            inode: 10,
+            canonical_path: path.clone(),
+            logical_size: 1024,
+            mtime_sec: 100,
+            mtime_nsec: 200,
+            ctime_sec: 300,
+            ctime_nsec: 400,
+            sample_hash: None,
+            sample_version: None,
+            full_hash: Some("full_xyz".to_string()),
+            full_version: Some("blake3-full-v1".to_string()),
+            hash_algorithm: "BLAKE3".to_string(),
+            observed_at: 1001,
+        };
+        db.upsert_content_fingerprint(&rec_full).unwrap();
+
+        // Query: Both sample and full MUST be preserved!
+        let cached = db
+            .get_content_fingerprint(
+                1,
+                10,
+                &path,
+                1024,
+                100,
+                200,
+                300,
+                400,
+                Some("vacua-sample-v1"),
+                Some("blake3-full-v1"),
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(cached.sample_hash.as_deref(), Some("sample_abc"));
+        assert_eq!(cached.full_hash.as_deref(), Some("full_xyz"));
+
+        // 3. Test version mismatch yields miss
+        let cached_mismatch = db
+            .get_content_fingerprint(
+                1,
+                10,
+                &path,
+                1024,
+                100,
+                200,
+                300,
+                400,
+                Some("vacua-sample-v2"), // Mismatched sample version!
+                Some("blake3-full-v1"),
+            )
+            .unwrap()
+            .unwrap();
+        assert!(cached_mismatch.sample_hash.is_none());
+        assert_eq!(cached_mismatch.full_hash.as_deref(), Some("full_xyz"));
+
+        // 4. File identity changes (mtime modifies) -> Both hashes must become stale!
+        let rec_modified = ContentFingerprintRecord {
+            device_id: 1,
+            inode: 10,
+            canonical_path: path.clone(),
+            logical_size: 1024,
+            mtime_sec: 101, // Changed!
+            mtime_nsec: 200,
+            ctime_sec: 300,
+            ctime_nsec: 400,
+            sample_hash: Some("new_sample".to_string()),
+            sample_version: Some("vacua-sample-v1".to_string()),
+            full_hash: None,
+            full_version: None,
+            hash_algorithm: "BLAKE3".to_string(),
+            observed_at: 1002,
+        };
+        db.upsert_content_fingerprint(&rec_modified).unwrap();
+
+        // Old full hash must be gone because identity changed!
+        let cached_new = db
+            .get_content_fingerprint(
+                1,
+                10,
+                &path,
+                1024,
+                101,
+                200,
+                300,
+                400,
+                Some("vacua-sample-v1"),
+                Some("blake3-full-v1"),
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(cached_new.sample_hash.as_deref(), Some("new_sample"));
+        assert!(cached_new.full_hash.is_none());
     }
 }

@@ -34,6 +34,8 @@ impl<'a> FingerprintCache<'a> {
             mtime_nsec,
             ctime_sec,
             ctime_nsec,
+            Some(FINGERPRINT_VERSION_SAMPLE),
+            Some(FINGERPRINT_VERSION_FULL),
         )?;
         Ok(res)
     }
@@ -62,9 +64,10 @@ impl<'a> FingerprintCache<'a> {
             ctime_sec,
             ctime_nsec,
             sample_hash: Some(sample_hash.to_string()),
+            sample_version: Some(FINGERPRINT_VERSION_SAMPLE.to_string()),
             full_hash: None,
+            full_version: None,
             hash_algorithm: "BLAKE3".to_string(),
-            fingerprint_version: FINGERPRINT_VERSION_SAMPLE.to_string(),
             observed_at: now,
         };
         self.db.upsert_content_fingerprint(&record)?;
@@ -96,9 +99,10 @@ impl<'a> FingerprintCache<'a> {
             ctime_sec,
             ctime_nsec,
             sample_hash: sample_hash.map(|s| s.to_string()),
+            sample_version: sample_hash.map(|_| FINGERPRINT_VERSION_SAMPLE.to_string()),
             full_hash: Some(full_hash.to_string()),
+            full_version: Some(FINGERPRINT_VERSION_FULL.to_string()),
             hash_algorithm: "BLAKE3".to_string(),
-            fingerprint_version: FINGERPRINT_VERSION_FULL.to_string(),
             observed_at: now,
         };
         self.db.upsert_content_fingerprint(&record)?;
