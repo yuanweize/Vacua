@@ -36,6 +36,10 @@ pub struct AllocationInfo {
 
     /// Mathematical confidence in reclaiming physical bytes (0.0 to 1.0).
     pub reclaim_confidence: f32,
+
+    /// Exact private bytes uniquely attributable to this file queried directly from
+    /// Darwin kernel via ATTR_CMNEXT_PRIVATESIZE on APFS, if available.
+    pub kernel_private_bytes: Option<u64>,
 }
 
 impl AllocationInfo {
@@ -56,6 +60,7 @@ impl AllocationInfo {
             clone_refcnt: 1,
             extent_uncertainty,
             reclaim_confidence: if extent_uncertainty { 0.5 } else { 1.0 },
+            kernel_private_bytes: None,
         }
     }
 
@@ -87,7 +92,21 @@ impl AllocationInfo {
             clone_refcnt,
             extent_uncertainty,
             reclaim_confidence,
+            kernel_private_bytes: None,
         }
+    }
+
+    pub fn with_kernel_private_bytes(mut self, private_bytes: Option<u64>) -> Self {
+        self.kernel_private_bytes = private_bytes;
+        if let Some(priv_bytes) = private_bytes {
+            self.exclusive_bytes = priv_bytes;
+            self.potentially_reclaimable_bytes = priv_bytes;
+            self.shared_bytes = self.allocated_bytes.saturating_sub(priv_bytes);
+            if self.is_clone {
+                self.reclaim_confidence = if priv_bytes > 0 { 0.9 } else { 0.1 };
+            }
+        }
+        self
     }
 
     pub fn zero() -> Self {
@@ -103,6 +122,7 @@ impl AllocationInfo {
             clone_refcnt: 1,
             extent_uncertainty: false,
             reclaim_confidence: 1.0,
+            kernel_private_bytes: None,
         }
     }
 
@@ -117,6 +137,11 @@ impl AllocationInfo {
         self.is_sparse = self.is_sparse || other.is_sparse;
         self.is_clone = self.is_clone || other.is_clone;
         self.extent_uncertainty = self.extent_uncertainty || other.extent_uncertainty;
+        if let (Some(a), Some(b)) = (self.kernel_private_bytes, other.kernel_private_bytes) {
+            self.kernel_private_bytes = Some(a.saturating_add(b));
+        } else if other.kernel_private_bytes.is_some() {
+            self.kernel_private_bytes = other.kernel_private_bytes;
+        }
     }
 
     /// Confirmed physical bytes guaranteed to be freed immediately upon deletion (exclusive blocks).

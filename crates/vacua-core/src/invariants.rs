@@ -134,6 +134,9 @@ mod tests {
             inode: 1,
             device_id: 1,
             mtime_sec: 0,
+            mtime_nsec: 0,
+            ctime_sec: 0,
+            ctime_nsec: 0,
         };
 
         assert!(enforce_safety_invariants(&candidate).is_err());
@@ -155,6 +158,9 @@ mod tests {
             inode: 2,
             device_id: 1,
             mtime_sec: 0,
+            mtime_nsec: 0,
+            ctime_sec: 0,
+            ctime_nsec: 0,
         };
 
         assert!(enforce_safety_invariants(&candidate).is_err());

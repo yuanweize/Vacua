@@ -27,6 +27,33 @@ impl<'a> CandidateEvaluator<'a> {
         mtime_sec: i64,
         is_dir: bool,
     ) -> Candidate {
+        let (mtime_nsec, ctime_sec, ctime_nsec) = if let Ok(meta) = std::fs::symlink_metadata(path)
+        {
+            use std::os::unix::fs::MetadataExt;
+            (meta.mtime_nsec(), meta.ctime(), meta.ctime_nsec())
+        } else {
+            (0, mtime_sec, 0)
+        };
+
+        self.evaluate_with_timestamps(
+            path, allocation, inode, device_id, mtime_sec, mtime_nsec, ctime_sec, ctime_nsec,
+            is_dir,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn evaluate_with_timestamps(
+        &mut self,
+        path: &Path,
+        allocation: AllocationInfo,
+        inode: u64,
+        device_id: u64,
+        mtime_sec: i64,
+        mtime_nsec: i64,
+        ctime_sec: i64,
+        ctime_nsec: i64,
+        is_dir: bool,
+    ) -> Candidate {
         let mut evidence = Vec::new();
         let canonical_str = path.to_string_lossy().to_string();
 
@@ -54,6 +81,9 @@ impl<'a> CandidateEvaluator<'a> {
                 inode,
                 device_id,
                 mtime_sec,
+                mtime_nsec,
+                ctime_sec,
+                ctime_nsec,
             };
         }
 
@@ -130,6 +160,9 @@ impl<'a> CandidateEvaluator<'a> {
             inode,
             device_id,
             mtime_sec,
+            mtime_nsec,
+            ctime_sec,
+            ctime_nsec,
         };
 
         // Enforce invariants on the constructed candidate
