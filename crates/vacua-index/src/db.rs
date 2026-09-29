@@ -62,6 +62,38 @@ pub struct WatchedRootRecord {
     pub status: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SnapshotSubtreeStats {
+    #[serde(default)]
+    pub logical_bytes: u64,
+    pub allocated_bytes: u64,
+    #[serde(default)]
+    pub file_count: u64,
+    #[serde(default)]
+    pub dir_count: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SubtreeEntry {
+    Detailed(SnapshotSubtreeStats),
+    LegacyBytes(u64),
+}
+
+impl SubtreeEntry {
+    pub fn to_stats(&self) -> SnapshotSubtreeStats {
+        match self {
+            SubtreeEntry::Detailed(s) => s.clone(),
+            SubtreeEntry::LegacyBytes(b) => SnapshotSubtreeStats {
+                logical_bytes: *b,
+                allocated_bytes: *b,
+                file_count: 0,
+                dir_count: 0,
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StorageSnapshot {
     pub snapshot_id: String,
@@ -72,7 +104,7 @@ pub struct StorageSnapshot {
     pub total_dirs: u64,
     pub logical_bytes: u64,
     pub allocated_bytes: u64,
-    pub subtrees: HashMap<String, u64>,
+    pub subtrees: HashMap<String, SnapshotSubtreeStats>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -89,6 +121,9 @@ pub struct StorageSnapshotSummary {
 pub struct SubtreeDelta {
     pub path: String,
     pub delta_bytes: i64,
+    pub allocated_delta_bytes: i64,
+    pub logical_delta_bytes: i64,
+    pub file_count_delta: i64,
     pub change_type: String,
 }
 
@@ -438,11 +473,36 @@ impl IndexDatabase {
             }
             Some(cur) => {
                 let prev_event_id = cur.last_event_id;
-                // Replay native FSEvents since cursor
+
+                // 1. Volume ID check: volume changed forces full rescan
+                if cur.volume_id != volume_id {
+                    let report = scanner.scan(&canonical)?;
+                    self.record_session(&canonical, &report)?;
+                    let count = self.upsert_entries(&report.entries)?;
+                    let new_id = current_event_id;
+                    self.upsert_watched_root(
+                        &canonical,
+                        volume_id,
+                        new_id,
+                        "volume_changed_full_rescan",
+                    )?;
+                    return Ok(IncrementalRefreshResult {
+                        root_path: canonical,
+                        full_rescan_performed: true,
+                        dirty_subtrees_count: 0,
+                        rescanned_subtrees: vec![],
+                        updated_entries_count: count,
+                        previous_event_id: prev_event_id,
+                        new_event_id: new_id,
+                        status: "volume_changed_full_rescan".into(),
+                    });
+                }
+
+                // 2. Replay native FSEvents since cursor
                 let tracker = replay_fsevents_since(&canonical, prev_event_id)?;
 
                 if tracker.is_full_rescan_required() {
-                    // Fallback to full rescan if events dropped
+                    // Fallback to full rescan if events dropped or wrapped
                     let report = scanner.scan(&canonical)?;
                     self.record_session(&canonical, &report)?;
                     let count = self.upsert_entries(&report.entries)?;
@@ -467,7 +527,7 @@ impl IndexDatabase {
                 } else {
                     let subtrees = tracker.get_subtrees_to_rescan().unwrap_or_default();
                     if subtrees.is_empty() {
-                        // Nothing changed
+                        // Clean: no events logged
                         let new_id = tracker.last_event_id().max(prev_event_id);
                         self.upsert_watched_root(&canonical, volume_id, new_id, "clean")?;
 
@@ -482,20 +542,8 @@ impl IndexDatabase {
                             status: "clean_up_to_date".into(),
                         })
                     } else {
-                        // Surgical rescan of only dirty subtrees
-                        let mut total_updated = 0;
-                        for dirty_dir in &subtrees {
-                            if dirty_dir.exists() {
-                                let sub_scanner = FilesystemScanner::new(ScanOptions {
-                                    cross_mounts: false,
-                                    max_depth: None,
-                                    jobs: Some(2),
-                                });
-                                if let Ok(sub_report) = sub_scanner.scan(dirty_dir) {
-                                    total_updated += self.upsert_entries(&sub_report.entries)?;
-                                }
-                            }
-                        }
+                        // Surgical reconciliation of dirty subtrees
+                        let total_updated = self.reconcile_subtrees(&canonical, &subtrees)?;
 
                         let new_id = tracker.last_event_id().max(current_event_id);
                         self.upsert_watched_root(&canonical, volume_id, new_id, "incremental")?;
@@ -514,6 +562,67 @@ impl IndexDatabase {
                 }
             }
         }
+    }
+
+    /// Reconciles the SQLite index under specific subtrees against the current filesystem state.
+    /// Safely cleans up deleted and renamed records while upserting newly added or modified entries.
+    pub fn reconcile_subtrees(
+        &mut self,
+        _watched_root: &Path,
+        subtrees: &[PathBuf],
+    ) -> Result<usize, IndexError> {
+        let mut total_updated = 0;
+        for dirty_dir in subtrees {
+            let dirty_str = dirty_dir.to_string_lossy().to_string();
+
+            if !dirty_dir.exists() {
+                // Subtree was deleted: delete all indexed entries under dirty_dir
+                self.conn.execute(
+                    "DELETE FROM entries WHERE canonical_path = ?1 OR canonical_path LIKE ?1 || '/%'",
+                    params![dirty_str],
+                )?;
+            } else {
+                // Subtree exists: reconcile added, modified, renamed, and deleted paths
+                let mut existing_paths = HashSet::new();
+                {
+                    let mut stmt = self.conn.prepare(
+                        "SELECT canonical_path FROM entries WHERE canonical_path = ?1 OR canonical_path LIKE ?1 || '/%'",
+                    )?;
+                    let existing_rows =
+                        stmt.query_map(params![dirty_str], |r| r.get::<_, String>(0))?;
+                    for p in existing_rows {
+                        existing_paths.insert(p?);
+                    }
+                }
+
+                let sub_scanner = FilesystemScanner::new(ScanOptions {
+                    cross_mounts: false,
+                    max_depth: None,
+                    jobs: Some(2),
+                });
+
+                if let Ok(sub_report) = sub_scanner.scan(dirty_dir) {
+                    let mut new_paths = HashSet::new();
+                    for entry in &sub_report.entries {
+                        new_paths.insert(entry.path.to_string_lossy().to_string());
+                    }
+
+                    // Delete stale entries that no longer exist
+                    for old_p in &existing_paths {
+                        if !new_paths.contains(old_p) {
+                            self.conn.execute(
+                                "DELETE FROM entries WHERE canonical_path = ?1",
+                                params![old_p],
+                            )?;
+                        }
+                    }
+
+                    // Upsert current entries
+                    total_updated += self.upsert_entries(&sub_report.entries)?;
+                }
+            }
+        }
+        Ok(total_updated)
     }
 
     // -----------------------------------------------------------------------
@@ -581,7 +690,11 @@ impl IndexDatabase {
         if let Some(row) = rows.next()? {
             let root_s: String = row.get(2)?;
             let raw_data: String = row.get(8)?;
-            let subtrees: HashMap<String, u64> = serde_json::from_str(&raw_data)?;
+            let raw_subtrees: HashMap<String, SubtreeEntry> = serde_json::from_str(&raw_data)?;
+            let subtrees = raw_subtrees
+                .into_iter()
+                .map(|(k, v)| (k, v.to_stats()))
+                .collect();
             Ok(Some(StorageSnapshot {
                 snapshot_id: row.get(0)?,
                 name: row.get(1)?,
@@ -615,15 +728,7 @@ impl IndexDatabase {
                 ..Default::default()
             });
             let report = scanner.scan(&base.root_path)?;
-            let mut subtrees = HashMap::new();
-            for entry in &report.entries {
-                if entry.is_dir {
-                    subtrees.insert(
-                        entry.path.to_string_lossy().to_string(),
-                        entry.allocated_bytes,
-                    );
-                }
-            }
+            let subtrees = build_recursive_subtrees(&base.root_path, &report.entries);
             StorageSnapshot {
                 snapshot_id: "current".into(),
                 name: "current".into(),
@@ -649,31 +754,57 @@ impl IndexDatabase {
 
         let mut subtree_deltas = Vec::new();
         for p in all_paths {
-            let base_bytes = base.subtrees.get(&p).copied().unwrap_or(0);
-            let target_bytes = target.subtrees.get(&p).copied().unwrap_or(0);
-            let delta = target_bytes as i64 - base_bytes as i64;
+            let base_stat = base
+                .subtrees
+                .get(&p)
+                .cloned()
+                .unwrap_or(SnapshotSubtreeStats {
+                    logical_bytes: 0,
+                    allocated_bytes: 0,
+                    file_count: 0,
+                    dir_count: 0,
+                });
+            let target_stat = target
+                .subtrees
+                .get(&p)
+                .cloned()
+                .unwrap_or(SnapshotSubtreeStats {
+                    logical_bytes: 0,
+                    allocated_bytes: 0,
+                    file_count: 0,
+                    dir_count: 0,
+                });
 
-            if delta != 0 {
-                let change_type = if base_bytes == 0 {
+            let alloc_delta = target_stat.allocated_bytes as i64 - base_stat.allocated_bytes as i64;
+            let log_delta = target_stat.logical_bytes as i64 - base_stat.logical_bytes as i64;
+            let f_delta = target_stat.file_count as i64 - base_stat.file_count as i64;
+
+            if alloc_delta != 0 || log_delta != 0 || f_delta != 0 {
+                let change_type = if base_stat.allocated_bytes == 0 && base_stat.file_count == 0 {
                     "created".to_string()
-                } else if target_bytes == 0 {
+                } else if target_stat.allocated_bytes == 0 && target_stat.file_count == 0 {
                     "removed".to_string()
-                } else if delta > 0 {
+                } else if alloc_delta > 0 {
                     "grown".to_string()
-                } else {
+                } else if alloc_delta < 0 {
                     "shrunk".to_string()
+                } else {
+                    "unchanged".to_string()
                 };
 
                 subtree_deltas.push(SubtreeDelta {
                     path: p,
-                    delta_bytes: delta,
+                    delta_bytes: alloc_delta,
+                    allocated_delta_bytes: alloc_delta,
+                    logical_delta_bytes: log_delta,
+                    file_count_delta: f_delta,
                     change_type,
                 });
             }
         }
 
-        // Sort largest growth first
-        subtree_deltas.sort_by_key(|b| std::cmp::Reverse(b.delta_bytes));
+        // Sort largest allocated growth first
+        subtree_deltas.sort_by_key(|b| std::cmp::Reverse(b.allocated_delta_bytes.abs()));
 
         Ok(SnapshotDiff {
             base_name: base.name,
@@ -696,6 +827,88 @@ impl IndexDatabase {
         self.conn.execute("VACUUM", [])?;
         Ok(())
     }
+}
+
+/// Aggregates recursive physical allocated bytes, logical bytes, and file/dir counts for each directory in a scan.
+pub fn build_recursive_subtrees(
+    root: &Path,
+    entries: &[ScannedEntry],
+) -> HashMap<String, SnapshotSubtreeStats> {
+    let mut dir_stats: HashMap<PathBuf, SnapshotSubtreeStats> = HashMap::new();
+
+    dir_stats.insert(
+        root.to_path_buf(),
+        SnapshotSubtreeStats {
+            logical_bytes: 0,
+            allocated_bytes: 0,
+            file_count: 0,
+            dir_count: 0,
+        },
+    );
+
+    // 1. Register all directories
+    for entry in entries {
+        if entry.is_dir {
+            dir_stats
+                .entry(entry.path.clone())
+                .or_insert_with(|| SnapshotSubtreeStats {
+                    logical_bytes: 0,
+                    allocated_bytes: 0,
+                    file_count: 0,
+                    dir_count: 0,
+                });
+        }
+    }
+
+    // 2. Direct assignment of non-directories and immediate child dirs
+    for entry in entries {
+        if !entry.is_dir {
+            if let Some(parent) = entry.path.parent() {
+                if let Some(p_stats) = dir_stats.get_mut(parent) {
+                    p_stats.allocated_bytes = p_stats
+                        .allocated_bytes
+                        .saturating_add(entry.allocated_bytes);
+                    p_stats.logical_bytes =
+                        p_stats.logical_bytes.saturating_add(entry.logical_bytes);
+                    p_stats.file_count = p_stats.file_count.saturating_add(1);
+                }
+            }
+        } else if entry.path != root {
+            if let Some(parent) = entry.path.parent() {
+                if let Some(p_stats) = dir_stats.get_mut(parent) {
+                    p_stats.dir_count = p_stats.dir_count.saturating_add(1);
+                }
+            }
+        }
+    }
+
+    // 3. Roll up bottom-up (deepest directory paths first)
+    let mut dirs_by_depth: Vec<PathBuf> = dir_stats.keys().cloned().collect();
+    dirs_by_depth.sort_by_key(|p| std::cmp::Reverse(p.components().count()));
+
+    for d in dirs_by_depth {
+        if d == root {
+            continue;
+        }
+        let child_stats = dir_stats.get(&d).cloned().unwrap();
+        if let Some(parent) = d.parent() {
+            if let Some(p_stats) = dir_stats.get_mut(parent) {
+                p_stats.allocated_bytes = p_stats
+                    .allocated_bytes
+                    .saturating_add(child_stats.allocated_bytes);
+                p_stats.logical_bytes = p_stats
+                    .logical_bytes
+                    .saturating_add(child_stats.logical_bytes);
+                p_stats.file_count = p_stats.file_count.saturating_add(child_stats.file_count);
+                p_stats.dir_count = p_stats.dir_count.saturating_add(child_stats.dir_count);
+            }
+        }
+    }
+
+    dir_stats
+        .into_iter()
+        .map(|(p, s)| (p.to_string_lossy().to_string(), s))
+        .collect()
 }
 
 #[cfg(test)]
@@ -752,8 +965,24 @@ mod tests {
         let mut db = IndexDatabase::open_in_memory().unwrap();
 
         let mut sub1 = HashMap::new();
-        sub1.insert("~/Library/Developer".to_string(), 10 * 1024 * 1024);
-        sub1.insert("~/Library/Caches".to_string(), 5 * 1024 * 1024);
+        sub1.insert(
+            "~/Library/Developer".to_string(),
+            SnapshotSubtreeStats {
+                logical_bytes: 8 * 1024 * 1024,
+                allocated_bytes: 10 * 1024 * 1024,
+                file_count: 50,
+                dir_count: 5,
+            },
+        );
+        sub1.insert(
+            "~/Library/Caches".to_string(),
+            SnapshotSubtreeStats {
+                logical_bytes: 4 * 1024 * 1024,
+                allocated_bytes: 5 * 1024 * 1024,
+                file_count: 20,
+                dir_count: 2,
+            },
+        );
 
         let s1 = StorageSnapshot {
             snapshot_id: "snap-1".into(),
@@ -769,9 +998,33 @@ mod tests {
         db.save_snapshot(&s1).unwrap();
 
         let mut sub2 = HashMap::new();
-        sub2.insert("~/Library/Developer".to_string(), 18 * 1024 * 1024); // +8 MB
-        sub2.insert("~/Library/Caches".to_string(), 2 * 1024 * 1024); // -3 MB
-        sub2.insert("~/Docker".to_string(), 4 * 1024 * 1024); // +4 MB (created)
+        sub2.insert(
+            "~/Library/Developer".to_string(),
+            SnapshotSubtreeStats {
+                logical_bytes: 15 * 1024 * 1024,
+                allocated_bytes: 18 * 1024 * 1024, // +8 MB
+                file_count: 90,
+                dir_count: 6,
+            },
+        );
+        sub2.insert(
+            "~/Library/Caches".to_string(),
+            SnapshotSubtreeStats {
+                logical_bytes: 1024 * 1024,
+                allocated_bytes: 2 * 1024 * 1024, // -3 MB
+                file_count: 10,
+                dir_count: 2,
+            },
+        );
+        sub2.insert(
+            "~/Docker".to_string(),
+            SnapshotSubtreeStats {
+                logical_bytes: 3 * 1024 * 1024,
+                allocated_bytes: 4 * 1024 * 1024, // +4 MB (created)
+                file_count: 25,
+                dir_count: 3,
+            },
+        );
 
         let s2 = StorageSnapshot {
             snapshot_id: "snap-2".into(),
@@ -805,5 +1058,185 @@ mod tests {
             .unwrap();
         assert_eq!(docker_delta.delta_bytes, 4 * 1024 * 1024);
         assert_eq!(docker_delta.change_type, "created");
+    }
+
+    #[test]
+    fn test_recursive_subtree_aggregation() {
+        let root = PathBuf::from("/test_root");
+        let dir_a = root.join("A");
+        let dir_b = root.join("B");
+        let dir_a_sub = dir_a.join("sub");
+
+        let entries = vec![
+            ScannedEntry {
+                path: dir_a.clone(),
+                logical_bytes: 0,
+                allocated_bytes: 4096,
+                inode: 1,
+                device_id: 1,
+                is_dir: true,
+                is_symlink: false,
+                is_sparse: false,
+                is_clone: false,
+                clone_id: None,
+                clone_refcnt: 1,
+                nlink: 2,
+                mtime_sec: 100,
+                ctime_sec: 100,
+            },
+            ScannedEntry {
+                path: dir_a_sub.clone(),
+                logical_bytes: 0,
+                allocated_bytes: 4096,
+                inode: 2,
+                device_id: 1,
+                is_dir: true,
+                is_symlink: false,
+                is_sparse: false,
+                is_clone: false,
+                clone_id: None,
+                clone_refcnt: 1,
+                nlink: 2,
+                mtime_sec: 100,
+                ctime_sec: 100,
+            },
+            ScannedEntry {
+                path: dir_a_sub.join("file1.bin"),
+                logical_bytes: 10 * 1024 * 1024,
+                allocated_bytes: 10 * 1024 * 1024,
+                inode: 3,
+                device_id: 1,
+                is_dir: false,
+                is_symlink: false,
+                is_sparse: false,
+                is_clone: false,
+                clone_id: None,
+                clone_refcnt: 1,
+                nlink: 1,
+                mtime_sec: 100,
+                ctime_sec: 100,
+            },
+            ScannedEntry {
+                path: dir_b.clone(),
+                logical_bytes: 0,
+                allocated_bytes: 4096,
+                inode: 4,
+                device_id: 1,
+                is_dir: true,
+                is_symlink: false,
+                is_sparse: false,
+                is_clone: false,
+                clone_id: None,
+                clone_refcnt: 1,
+                nlink: 2,
+                mtime_sec: 100,
+                ctime_sec: 100,
+            },
+            ScannedEntry {
+                path: dir_b.join("file2.bin"),
+                logical_bytes: 5 * 1024 * 1024,
+                allocated_bytes: 5 * 1024 * 1024,
+                inode: 5,
+                device_id: 1,
+                is_dir: false,
+                is_symlink: false,
+                is_sparse: false,
+                is_clone: false,
+                clone_id: None,
+                clone_refcnt: 1,
+                nlink: 1,
+                mtime_sec: 100,
+                ctime_sec: 100,
+            },
+        ];
+
+        let subtrees = build_recursive_subtrees(&root, &entries);
+
+        let a_sub_stat = subtrees
+            .get(&dir_a_sub.to_string_lossy().to_string())
+            .unwrap();
+        assert_eq!(a_sub_stat.file_count, 1);
+        assert_eq!(a_sub_stat.allocated_bytes, 10 * 1024 * 1024);
+
+        let a_stat = subtrees.get(&dir_a.to_string_lossy().to_string()).unwrap();
+        assert_eq!(a_stat.file_count, 1);
+        assert_eq!(a_stat.dir_count, 1);
+        assert_eq!(a_stat.allocated_bytes, 10 * 1024 * 1024);
+
+        let b_stat = subtrees.get(&dir_b.to_string_lossy().to_string()).unwrap();
+        assert_eq!(b_stat.file_count, 1);
+        assert_eq!(b_stat.allocated_bytes, 5 * 1024 * 1024);
+
+        let root_stat = subtrees.get(&root.to_string_lossy().to_string()).unwrap();
+        assert_eq!(root_stat.file_count, 2);
+        assert_eq!(root_stat.allocated_bytes, 15 * 1024 * 1024);
+    }
+
+    #[test]
+    fn test_fsevents_reconciliation_exact_equivalence() {
+        use tempfile::tempdir;
+        let tmp = tempdir().unwrap();
+        let root = tmp.path().canonicalize().unwrap();
+
+        // 1. Initial directory structure
+        let dir_a = root.join("alpha");
+        let dir_b = root.join("beta");
+        std::fs::create_dir_all(&dir_a).unwrap();
+        std::fs::create_dir_all(&dir_b).unwrap();
+
+        let f1 = dir_a.join("one.txt");
+        let f2 = dir_b.join("two.txt");
+        std::fs::write(&f1, b"hello world").unwrap();
+        std::fs::write(&f2, b"beta file content").unwrap();
+
+        let mut db = IndexDatabase::open_in_memory().unwrap();
+        let scanner = vacua_scan::FilesystemScanner::new(vacua_scan::ScanOptions::default());
+
+        // Full initial scan & index
+        let initial_report = scanner.scan(&root).unwrap();
+        db.upsert_entries(&initial_report.entries).unwrap();
+        let dev_id = initial_report
+            .entries
+            .first()
+            .map(|e| e.device_id)
+            .unwrap_or(1);
+        db.upsert_watched_root(&root, dev_id, 100, "active")
+            .unwrap();
+
+        // 2. Perform filesystem mutations: delete f1, rename f2 to f3, add f4
+        std::fs::remove_file(&f1).unwrap();
+        let f3 = dir_b.join("three.txt");
+        std::fs::rename(&f2, &f3).unwrap();
+        let f4 = dir_a.join("four.txt");
+        std::fs::write(&f4, b"new file in alpha").unwrap();
+
+        // 3. Incremental refresh using dirty roots
+        let dirty_paths = vec![dir_a.clone(), dir_b.clone()];
+        db.reconcile_subtrees(&root, &dirty_paths).unwrap();
+
+        // 4. Verify incremental DB rows == fresh full scan entries
+        let fresh_report = scanner.scan(&root).unwrap();
+        let mut fresh_paths: Vec<String> = fresh_report
+            .entries
+            .iter()
+            .map(|e| e.path.to_string_lossy().to_string())
+            .collect();
+        fresh_paths.sort();
+
+        let mut db_stmt = db
+            .conn
+            .prepare("SELECT canonical_path FROM entries WHERE canonical_path LIKE ?1 ORDER BY canonical_path ASC")
+            .unwrap();
+        let pattern = format!("{}%", root.to_string_lossy());
+        let db_rows: Vec<String> = db_stmt
+            .query_map(params![pattern], |row| row.get(0))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
+
+        assert_eq!(
+            db_rows, fresh_paths,
+            "Incremental DB entries must match fresh full scan"
+        );
     }
 }

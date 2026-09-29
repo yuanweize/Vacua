@@ -118,4 +118,19 @@ impl AllocationInfo {
         self.is_clone = self.is_clone || other.is_clone;
         self.extent_uncertainty = self.extent_uncertainty || other.extent_uncertainty;
     }
+
+    /// Confirmed physical bytes guaranteed to be freed immediately upon deletion (exclusive blocks).
+    pub fn confirmed_freeable_bytes(&self) -> u64 {
+        self.exclusive_bytes
+    }
+
+    /// Estimated physical bytes accounting for probabilistic reclaim confidence.
+    pub fn estimated_freeable_bytes(&self) -> u64 {
+        (self.allocated_bytes as f32 * self.reclaim_confidence) as u64
+    }
+
+    /// Theoretical upper bound of space freed if all shared clone family references are cleaned.
+    pub fn upper_bound_freeable_bytes(&self) -> u64 {
+        self.allocated_bytes
+    }
 }

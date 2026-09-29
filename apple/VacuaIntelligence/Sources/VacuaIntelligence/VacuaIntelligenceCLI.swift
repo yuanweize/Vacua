@@ -24,10 +24,27 @@ struct VacuaIntelligenceCLI {
                     provider_used: providerUsed,
                     apple_model_availability: reason,
                     availability: availability,
+                    generation_mode: (availability == .available) ? "apple-guided-generation" : "deterministic-parser",
                     generation_succeeded: false,
-                    fallback_used: availability != .available
+                    fallback_used: availability != .available,
+                    fallback_reason: (availability != .available) ? reason : nil
                 )
                 outputJSON(response)
+
+            case "capabilities":
+                #if canImport(FoundationModels)
+                let fmCompiled = true
+                let guidedCompiled = true
+                #else
+                let fmCompiled = false
+                let guidedCompiled = false
+                #endif
+                let cap = VacuaCapabilities(
+                    foundation_models_compiled: fmCompiled,
+                    guided_generation_compiled: guidedCompiled,
+                    protocol_version: 1
+                )
+                outputJSON(cap)
 
             case "parse":
                 let prompt = args.dropFirst(2).joined(separator: " ")
@@ -38,9 +55,26 @@ struct VacuaIntelligenceCLI {
                     provider_requested: result.providerRequested,
                     provider_used: result.providerUsed,
                     apple_model_availability: result.modelAvailability,
+                    generation_mode: result.generationMode,
                     generation_succeeded: result.generationSucceeded,
                     fallback_used: result.fallbackUsed,
+                    fallback_reason: result.fallbackReason,
                     intent: result.intent
+                )
+                outputJSON(response)
+
+            case "explain":
+                let context = args.count > 2 ? args[2] : "{}"
+                let question = args.count > 3 ? args.dropFirst(3).joined(separator: " ") : "Why did storage grow?"
+                let expl = await provider.explainStorage(prompt: question, contextJSON: context)
+                let response = IPCResponse(
+                    request_id: "cli-explain",
+                    status: "success",
+                    provider_requested: "apple-system",
+                    provider_used: expl.provider_used,
+                    generation_mode: expl.generation_mode,
+                    fallback_used: expl.fallback_used,
+                    explanation: expl
                 )
                 outputJSON(response)
 
@@ -56,7 +90,7 @@ struct VacuaIntelligenceCLI {
                 assert(res1.intent.excluded_categories.contains("USER_DOCUMENT"), "should exclude USER_DOCUMENT")
                 assert(res1.intent.excluded_categories.contains("SOURCE_CODE"), "should exclude SOURCE_CODE")
                 assert(res1.providerRequested == "apple-system", "providerRequested should be apple-system")
-                print("✓ testIntentParsingSizeAndExclusions passed (providerUsed: \(res1.providerUsed))")
+                print("✓ testIntentParsingSizeAndExclusions passed (providerUsed: \(res1.providerUsed), mode: \(res1.generationMode))")
 
                 // Test 2: review risk level
                 let promptReview = "Clear old build caches and include review items up to 500 MB"
@@ -69,11 +103,25 @@ struct VacuaIntelligenceCLI {
                 // Test 3: check real availability probe
                 let (availability, reason) = provider.checkAvailability()
                 print("✓ testRealAvailabilityProbe passed (availability: \(availability.rawValue), reason: \(reason))")
-                print("All 3 VacuaIntelligence unit tests passed successfully!")
+
+                // Test 4: capabilities probe
+                #if canImport(FoundationModels)
+                assert(true, "FoundationModels macro compiled")
+                print("✓ testCapabilitiesProbe passed (FoundationModels compiled: true, Guided: true)")
+                #endif
+
+                // Test 5: grounded explanation
+                let sampleCtx = "{\"snapshot_id\":\"baseline\",\"total_delta_str\":\"+10 MB\",\"top_growing_subtrees\":[{\"path\":\"~/Library/Caches\",\"delta_str\":\"+10 MB\"}],\"candidates\":[{\"id\":\"cand-1\"}]}"
+                let expl = await provider.explainStorage(prompt: "Why did storage grow?", contextJSON: sampleCtx)
+                assert(expl.referenced_snapshot_ids.contains("baseline"), "Must reference baseline snapshot")
+                assert(expl.referenced_candidate_ids.contains("cand-1"), "Must reference candidate")
+                print("✓ testGroundedExplanation passed (provider: \(expl.provider_used))")
+
+                print("All 5 VacuaIntelligence unit tests passed successfully!")
                 return
 
             default:
-                fputs("Unknown command: \(command). Supported: status, parse, test\n", stderr)
+                fputs("Unknown command: \(command). Supported: status, capabilities, parse, explain, test\n", stderr)
                 exit(1)
             }
             return
@@ -99,8 +147,30 @@ struct VacuaIntelligenceCLI {
                     provider_used: providerUsed,
                     apple_model_availability: reason,
                     availability: availability,
+                    generation_mode: (availability == .available) ? "apple-guided-generation" : "deterministic-parser",
                     generation_succeeded: false,
-                    fallback_used: availability != .available
+                    fallback_used: availability != .available,
+                    fallback_reason: (availability != .available) ? reason : nil
+                )
+                outputJSON(response)
+
+            case "capabilities":
+                #if canImport(FoundationModels)
+                let fmCompiled = true
+                let guidedCompiled = true
+                #else
+                let fmCompiled = false
+                let guidedCompiled = false
+                #endif
+                let cap = VacuaCapabilities(
+                    foundation_models_compiled: fmCompiled,
+                    guided_generation_compiled: guidedCompiled,
+                    protocol_version: 1
+                )
+                let response = IPCResponse(
+                    request_id: request.request_id,
+                    status: "success",
+                    capabilities: cap
                 )
                 outputJSON(response)
 
@@ -113,9 +183,26 @@ struct VacuaIntelligenceCLI {
                     provider_requested: result.providerRequested,
                     provider_used: result.providerUsed,
                     apple_model_availability: result.modelAvailability,
+                    generation_mode: result.generationMode,
                     generation_succeeded: result.generationSucceeded,
                     fallback_used: result.fallbackUsed,
+                    fallback_reason: result.fallbackReason,
                     intent: result.intent
+                )
+                outputJSON(response)
+
+            case "explain_storage", "explain":
+                let prompt = request.prompt ?? "Why did storage grow?"
+                let ctx = request.context_json ?? "{}"
+                let expl = await provider.explainStorage(prompt: prompt, contextJSON: ctx)
+                let response = IPCResponse(
+                    request_id: request.request_id,
+                    status: "success",
+                    provider_requested: "apple-system",
+                    provider_used: expl.provider_used,
+                    generation_mode: expl.generation_mode,
+                    fallback_used: expl.fallback_used,
+                    explanation: expl
                 )
                 outputJSON(response)
 

@@ -16,15 +16,16 @@ jobs:
       - name: Checkout Tag
         uses: actions/checkout@v4
 
-      - name: Select Xcode
+      - name: Inspect Toolchain
         run: |
-          if [ -d "/Applications/Xcode_16.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer
-          elif [ -d "/Applications/Xcode_16.0.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_16.0.app/Contents/Developer
-          fi
-          xcodebuild -version
+          xcodebuild -version 2>/dev/null || true
           swift --version
+
+      - name: FoundationModels Compile Proof (Hard Requirement)
+        run: |
+          cd apple/VacuaIntelligence
+          swift build --target FoundationModelsProof
+          .build/debug/foundation-models-proof
 
       - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -45,8 +46,15 @@ jobs:
           "${SMOKE_DIR}/bin/vacua" --version
           "${SMOKE_DIR}/bin/vacua" doctor
           "${SMOKE_DIR}/bin/vacua" intelligence status
+          CAP_JSON=$("${SMOKE_DIR}/bin/vacua-intelligence" capabilities)
+          echo "Capabilities: ${CAP_JSON}"
+          echo "${CAP_JSON}" | grep '"foundation_models_compiled" : true' || {
+            echo "Error: FoundationModels not compiled into packaged vacua-intelligence binary!"
+            exit 1
+          }
 
       - name: Create GitHub Release
+        id: create_release
         uses: softprops/action-gh-release@v2
         with:
           files: |
@@ -56,3 +64,19 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
+
+      - name: Update Homebrew Tap Formula (Automated)
+        if: env.HOMEBREW_TAP_TOKEN != ''
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          FINAL_SHA=$(cat dist/SHA256SUMS | awk '{print $1}')
+          echo "Updating Homebrew tap with Version=${VERSION}, SHA=${FINAL_SHA}"
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/yuanweize/homebrew-tap.git" /tmp/homebrew-tap
+          sed -i '' -E "s|url \".*\"|url \"https://github.com/yuanweize/vacua/releases/download/v${VERSION}/vacua-v${VERSION}-aarch64-apple-darwin.tar.gz\"|" /tmp/homebrew-tap/Formula/vacua.rb
+          sed -i '' -E "s|sha256 \".*\"|sha256 \"${FINAL_SHA}\"|" /tmp/homebrew-tap/Formula/vacua.rb
+          git -C /tmp/homebrew-tap config user.name "github-actions[bot]"
+          git -C /tmp/homebrew-tap config user.email "github-actions[bot]@users.noreply.github.com"
+          git -C /tmp/homebrew-tap commit -am "chore(vacua): release v${VERSION}"
+          git -C /tmp/homebrew-tap push origin main

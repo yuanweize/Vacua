@@ -31,7 +31,8 @@ echo "--- Compiling vacua-intelligence (release) ---"
   cd "${REPO_ROOT}/apple/VacuaIntelligence"
   swift build -c release
 )
-cp "${REPO_ROOT}/apple/VacuaIntelligence/.build/release/vacua-intelligence" "${PKG_DIR}/bin/"
+SWIFT_BIN_DIR=$(cd "${REPO_ROOT}/apple/VacuaIntelligence" && swift build -c release --show-bin-path)
+cp "${SWIFT_BIN_DIR}/vacua-intelligence" "${PKG_DIR}/bin/"
 
 # 4. Generate Shell Completions
 echo "--- Generating shell completions ---"

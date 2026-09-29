@@ -199,7 +199,7 @@ def run_benchmarks():
 
 ## 2. Full Traversal: Sequential vs. Bounded Concurrent
 
-Synthetic trees consisting of uniform files (512B – 4KB) across balanced directory fan-outs evaluated under APFS. Peak Resident Set Size (RSS) measured via Darwin `getrusage(RUSAGE_CHILDREN)`.
+Synthetic trees consisting of uniform files (512B – 4KB) across balanced directory fan-outs evaluated under APFS. Peak Resident Set Size (RSS) measured via Darwin `/usr/bin/time -l` (maximum resident set size).
 
 | Workload | Sequential (`-j 1`) | Bounded Concurrent (`-j 8`) | Throughput Delta | Peak RSS (Concurrent) |
 | :--- | :--- | :--- | :--- | :--- |
@@ -207,14 +207,14 @@ Synthetic trees consisting of uniform files (512B – 4KB) across balanced direc
 | **100,000 files** | {results['100k']['seq']['time']} ({results['100k']['seq']['throughput']}) | **{results['100k']['conc']['time']}** (**{results['100k']['conc']['throughput']}**) | **{float(results['100k']['conc']['throughput'].split()[0].replace(',', '')) / float(results['100k']['seq']['throughput'].split()[0].replace(',', '')):.2f}x** | {results['100k']['conc']['rss']} |
 
 ### Key Architectural Takeaways
-1. **Bounded Backpressure**: Memory consumption remains strictly bounded (< 32 MB RSS even on 100k nodes) through bounded `sync_channel(2048)` metadata worker queue.
+1. **Bounded Backpressure**: Memory consumption remains strictly bounded ({results['100k']['conc']['rss']} peak RSS on 100k nodes, {results['10k']['conc']['rss']} on 10k nodes) through bounded `sync_channel(2048)` metadata worker queues.
 2. **Deterministic Output**: Concurrent parallel traversal collects entries into indexed partitions and deterministically sorts them by path prior to reporting or plan generation.
 
 ---
 
 ## 3. Incremental Index Refresh: Native macOS FSEvents
 
-Evaluates the performance advantage of surgical dirty-subtree rescan via native `FSEventStream` replay versus traversing the entire filesystem root.
+Evaluates the performance behavior of surgical dirty-subtree rescan via native `FSEventStream` replay versus traversing the entire filesystem root.
 
 | Workload | Full Rescan Time | Incremental (No Change) | Incremental (1% Dirty) | Incremental (10% Dirty) | Speedup (Clean vs Full) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -224,6 +224,10 @@ Evaluates the performance advantage of surgical dirty-subtree rescan via native 
 ### Incremental Invariants
 - **Zero Full Traversal on Clean Roots**: When FSEventStream indicates no subtree modifications, `vacua index refresh` advances the persistent SQLite event cursor without touching any filesystem nodes.
 - **Fail-Safe Dropped Event Recovery**: If `kFSEventStreamEventFlagMustScanSubDirs` or buffer overflow occurs, the engine automatically flags the watched root for a full fallback rescan.
+
+> [!NOTE]
+> **Warm-Cache FSEvents Dispatch Latency & Trade-offs**:
+> On small synthetic trees with warm in-memory page caches where full concurrent traversal completes in sub-second time (0.04s - 0.33s), initializing the native Darwin `FSEventStreamCreate` dispatch queue, flushing the stream, and committing SQLite transactions introduces a baseline overhead of ~150–200ms. Consequently, full scan can be faster on small, hot caches. On large, cold real-world directory trees (where full scan takes seconds or minutes due to disk I/O), targeted dirty subtree reconciliation provides significant architectural advantages.
 """
 
     bench_md = REPO_ROOT / "BENCHMARKS.md"

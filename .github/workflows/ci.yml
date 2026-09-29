@@ -31,17 +31,27 @@ jobs:
         run: cargo build --release --bin vacua
 
   swift-check:
-    name: Swift Intelligence Module
+    name: Swift Intelligence Module & FoundationModels Compile Proof
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Build FoundationModels Compile Proof (Fails if SDK Lacks API)
+        run: |
+          cd apple/VacuaIntelligence
+          swift run foundation-models-proof
 
       - name: Build Swift Module
         run: |
           cd apple/VacuaIntelligence
           swift build
 
+      - name: Verify Capabilities
+        run: |
+          cd apple/VacuaIntelligence
+          swift run vacua-intelligence capabilities
+
       - name: Run Swift Self-Tests
         run: |
           cd apple/VacuaIntelligence
-          .build/debug/vacua-intelligence test
+          swift run vacua-intelligence test

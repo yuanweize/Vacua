@@ -3,6 +3,7 @@ set -euo pipefail
 
 VERSION="${1:-0.2.0}"
 TARBALL="${2:-dist/vacua-v${VERSION}-aarch64-apple-darwin.tar.gz}"
+TARGET_FORMULA="${3:-packaging/homebrew/vacua.rb.template}"
 
 if [ ! -f "${TARBALL}" ]; then
   echo "Error: Release tarball not found at ${TARBALL}"
@@ -13,15 +14,15 @@ fi
 SHA256=$(shasum -a 256 "${TARBALL}" | awk '{print $1}')
 URL="https://github.com/yuanweize/vacua/releases/download/v${VERSION}/vacua-v${VERSION}-aarch64-apple-darwin.tar.gz"
 
-echo "=== Updating Homebrew Formula ==="
+echo "=== Updating Homebrew Formula Template ==="
 echo "Version: ${VERSION}"
 echo "URL:     ${URL}"
 echo "SHA256:  ${SHA256}"
+echo "Target:  ${TARGET_FORMULA}"
 
-FORMULA_DIR="Formula"
-mkdir -p "${FORMULA_DIR}"
+mkdir -p "$(dirname "${TARGET_FORMULA}")"
 
-cat <<EOF > "${FORMULA_DIR}/vacua.rb"
+cat <<EOF > "${TARGET_FORMULA}"
 class Vacua < Formula
   desc "Explainable, safety-first storage intelligence for macOS"
   homepage "https://github.com/yuanweize/vacua"
@@ -49,5 +50,5 @@ class Vacua < Formula
 end
 EOF
 
-echo "Generated ${FORMULA_DIR}/vacua.rb successfully."
-cat "${FORMULA_DIR}/vacua.rb"
+echo "Generated ${TARGET_FORMULA} successfully."
+cat "${TARGET_FORMULA}"

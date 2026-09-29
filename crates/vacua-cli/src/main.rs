@@ -1,6 +1,6 @@
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use clap_complete::Shell;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -225,6 +225,8 @@ enum HistoryAction {
 enum IntelligenceAction {
     #[command(about = "Display the status and availability of local intelligence providers")]
     Status,
+    #[command(about = "Display compiled capabilities and build-time feature gates")]
+    Capabilities,
     #[command(about = "Translate natural language cleanup intent into typed StructuredIntent")]
     Parse {
         #[arg(help = "Natural language cleanup intent")]
@@ -289,6 +291,7 @@ fn main() {
         Commands::Ask { query } => handle_ask(&query, cli.json),
         Commands::Intelligence { action } => match action {
             IntelligenceAction::Status => handle_intelligence_status(cli.json),
+            IntelligenceAction::Capabilities => handle_intelligence_capabilities(cli.json),
             IntelligenceAction::Parse { prompt } => handle_intelligence_parse(&prompt, cli.json),
         },
         Commands::Candidates { path, risk } => handle_candidates(&path, risk, cli.json),
@@ -519,28 +522,34 @@ fn find_intelligence_binary() -> Option<PathBuf> {
         }
     }
 
+    // 3. Development paths in debug mode (prioritize local builds over ambient PATH)
+    #[cfg(debug_assertions)]
+    {
+        let dev_candidates = [
+            PathBuf::from("apple/VacuaIntelligence/.build/debug/vacua-intelligence"),
+            PathBuf::from("apple/VacuaIntelligence/.build/release/vacua-intelligence"),
+            PathBuf::from(
+                "apple/VacuaIntelligence/.build/arm64-apple-macosx/debug/vacua-intelligence",
+            ),
+            PathBuf::from(
+                "apple/VacuaIntelligence/.build/arm64-apple-macosx/release/vacua-intelligence",
+            ),
+            PathBuf::from("../apple/VacuaIntelligence/.build/debug/vacua-intelligence"),
+            PathBuf::from("../apple/VacuaIntelligence/.build/release/vacua-intelligence"),
+        ];
+        for cand in &dev_candidates {
+            if cand.exists() {
+                return Some(cand.clone());
+            }
+        }
+    }
+
     // 4. In PATH
     if let Ok(path_var) = std::env::var("PATH") {
         for p in std::env::split_paths(&path_var) {
             let candidate = p.join("vacua-intelligence");
             if candidate.exists() {
                 return Some(candidate);
-            }
-        }
-    }
-
-    // 5. Development paths (debug builds only)
-    #[cfg(debug_assertions)]
-    {
-        let dev_candidates = [
-            PathBuf::from("apple/VacuaIntelligence/.build/release/vacua-intelligence"),
-            PathBuf::from("apple/VacuaIntelligence/.build/debug/vacua-intelligence"),
-            PathBuf::from("../apple/VacuaIntelligence/.build/release/vacua-intelligence"),
-            PathBuf::from("../apple/VacuaIntelligence/.build/debug/vacua-intelligence"),
-        ];
-        for cand in &dev_candidates {
-            if cand.exists() {
-                return Some(cand.clone());
             }
         }
     }
@@ -615,6 +624,65 @@ fn handle_intelligence_status(json_mode: bool) {
                 binary.display(),
                 e
             );
+            std::process::exit(1);
+        }
+    }
+}
+
+fn handle_intelligence_capabilities(json_mode: bool) {
+    let binary = match find_intelligence_binary() {
+        Some(b) => b,
+        None => {
+            if json_mode {
+                println!(
+                    "{{\"status\":\"unavailable\",\"foundation_models_compiled\":false,\"guided_generation_compiled\":false,\"reason\":\"vacua-intelligence helper binary not found\"}}"
+                );
+            } else {
+                println!("\nVacua Intelligence Capabilities");
+                println!("──────────────────────────────────────────────────");
+                println!("Helper Binary:              Not found");
+                println!("Foundation Models Compiled: false");
+                println!("Guided Generation Compiled: false");
+                println!("──────────────────────────────────────────────────\n");
+            }
+            return;
+        }
+    };
+
+    match Command::new(&binary).arg("capabilities").output() {
+        Ok(output) => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            if json_mode {
+                print!("{}", stdout);
+            } else if let Ok(val) = serde_json::from_str::<serde_json::Value>(&stdout) {
+                println!("\nVacua Intelligence Capabilities");
+                println!("──────────────────────────────────────────────────");
+                println!("Helper Location:            {}", binary.display());
+                println!(
+                    "Foundation Models Compiled: {}",
+                    val.get("foundation_models_compiled")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false)
+                );
+                println!(
+                    "Guided Generation Compiled: {}",
+                    val.get("guided_generation_compiled")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false)
+                );
+                println!(
+                    "SDK Version:                {}",
+                    val.get("sdk_version")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown")
+                );
+                println!("──────────────────────────────────────────────────\n");
+            } else {
+                print!("{}", stdout);
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to invoke intelligence capabilities: {}", e);
             std::process::exit(1);
         }
     }
@@ -741,7 +809,7 @@ fn handle_candidates(path: &Path, risk_filter: RiskFilter, json_mode: bool) {
 
     let mut candidates = Vec::new();
     for entry in report.entries {
-        let alloc = AllocationInfo::new(entry.logical_bytes, entry.allocated_bytes, false);
+        let alloc = entry.to_allocation();
         let cand = evaluator.evaluate(
             &entry.path,
             alloc,
@@ -804,7 +872,7 @@ fn handle_explain(candidate_id: &str, path: &Path, json_mode: bool) {
 
     let mut found_candidate: Option<Candidate> = None;
     for entry in report.entries {
-        let alloc = AllocationInfo::new(entry.logical_bytes, entry.allocated_bytes, false);
+        let alloc = entry.to_allocation();
         let cand = evaluator.evaluate(
             &entry.path,
             alloc,
@@ -888,7 +956,7 @@ fn handle_plan(
 
     let mut candidates = Vec::new();
     for entry in report.entries {
-        let alloc = AllocationInfo::new(entry.logical_bytes, entry.allocated_bytes, false);
+        let alloc = entry.to_allocation();
         let cand = evaluator.evaluate(
             &entry.path,
             alloc,
@@ -1484,15 +1552,7 @@ fn handle_snapshot_create(path: &Path, name: &str, json_mode: bool) {
     };
 
     let snap_id = format!("snap-{}", chrono::Utc::now().timestamp_millis());
-    let mut subtrees = std::collections::HashMap::new();
-    for entry in &report.entries {
-        if entry.is_dir {
-            subtrees.insert(
-                entry.path.to_string_lossy().to_string(),
-                entry.allocated_bytes,
-            );
-        }
-    }
+    let subtrees = vacua_index::build_recursive_subtrees(&canonical, &report.entries);
 
     let snapshot = StorageSnapshot {
         snapshot_id: snap_id.clone(),
@@ -1811,42 +1871,121 @@ fn handle_leftovers(json_mode: bool) {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct StorageReasoningCandidate {
+    candidate_id: String,
+    path: String,
+    category: String,
+    risk: String,
+    allocated_bytes: u64,
+    confirmed_freeable_bytes: u64,
+    rebuild_tier: String,
+    evidence_summary: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct StorageReasoningSubtree {
+    path: String,
+    allocated_delta_bytes: i64,
+    change_type: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct StorageReasoningSnapshotDiff {
+    base_snapshot: String,
+    target_snapshot: String,
+    allocated_delta_bytes: i64,
+    top_growing_subtrees: Vec<StorageReasoningSubtree>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct StorageReasoningContext {
+    query: String,
+    storage_root: String,
+    snapshot_diff: Option<StorageReasoningSnapshotDiff>,
+    top_candidates: Vec<StorageReasoningCandidate>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct StorageCause {
+    title: String,
+    explanation: String,
+    candidate_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct StorageExplanation {
+    summary: String,
+    causes: Vec<StorageCause>,
+    referenced_candidate_ids: Vec<String>,
+    referenced_snapshot_ids: Vec<String>,
+    caution: Option<String>,
+}
+
 fn handle_ask(query: &str, json_mode: bool) {
     let db_path = default_index_path();
     let home = std::env::var_os("HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("."));
 
-    let helper_bin = find_intelligence_binary();
-    let mut helper_used = false;
-    let mut model_provider = "grounded-evidence-engine".to_string();
-
-    if let Some(ref bin) = helper_bin {
-        if let Ok(output) = Command::new(bin).args(["parse", query]).output() {
-            if output.status.success() {
-                if let Ok(val) = serde_json::from_slice::<serde_json::Value>(&output.stdout) {
-                    if let Some(p) = val.get("provider_used").and_then(|v| v.as_str()) {
-                        model_provider = p.to_string();
-                        helper_used = true;
-                    }
-                }
-            }
-        }
-    }
-
+    // 1. Snapshot Diff Evidence
     let mut diff_summary = None;
+    let mut reasoning_diff = None;
+    let mut valid_snapshot_ids: std::collections::HashSet<String> =
+        std::collections::HashSet::new();
+
     if db_path.exists() {
         if let Ok(db) = IndexDatabase::open(&db_path) {
             if let Ok(snapshots) = db.list_snapshots() {
                 if snapshots.len() >= 2 {
                     let base = &snapshots[snapshots.len() - 2].name;
                     let target = &snapshots[snapshots.len() - 1].name;
+                    valid_snapshot_ids.insert(base.clone());
+                    valid_snapshot_ids.insert(target.clone());
                     if let Ok(d) = db.diff_snapshots(base, target) {
+                        let growing: Vec<StorageReasoningSubtree> = d
+                            .subtree_deltas
+                            .iter()
+                            .filter(|sd| sd.delta_bytes > 0)
+                            .take(5)
+                            .map(|sd| StorageReasoningSubtree {
+                                path: sd.path.clone(),
+                                allocated_delta_bytes: sd.delta_bytes,
+                                change_type: sd.change_type.clone(),
+                            })
+                            .collect();
+
+                        reasoning_diff = Some(StorageReasoningSnapshotDiff {
+                            base_snapshot: base.clone(),
+                            target_snapshot: target.clone(),
+                            allocated_delta_bytes: d.allocated_delta_bytes,
+                            top_growing_subtrees: growing,
+                        });
                         diff_summary = Some((base.clone(), target.clone(), d));
                     }
                 } else if snapshots.len() == 1 {
                     let base = &snapshots[0].name;
+                    valid_snapshot_ids.insert(base.clone());
+                    valid_snapshot_ids.insert("current".to_string());
                     if let Ok(d) = db.diff_snapshots(base, "current") {
+                        let growing: Vec<StorageReasoningSubtree> = d
+                            .subtree_deltas
+                            .iter()
+                            .filter(|sd| sd.delta_bytes > 0)
+                            .take(5)
+                            .map(|sd| StorageReasoningSubtree {
+                                path: sd.path.clone(),
+                                allocated_delta_bytes: sd.delta_bytes,
+                                change_type: sd.change_type.clone(),
+                            })
+                            .collect();
+
+                        reasoning_diff = Some(StorageReasoningSnapshotDiff {
+                            base_snapshot: base.clone(),
+                            target_snapshot: "current".to_string(),
+                            allocated_delta_bytes: d.allocated_delta_bytes,
+                            top_growing_subtrees: growing,
+                        });
                         diff_summary = Some((base.clone(), "current".to_string(), d));
                     }
                 }
@@ -1854,6 +1993,7 @@ fn handle_ask(query: &str, json_mode: bool) {
         }
     }
 
+    // 2. Scan & Grounded Candidates Evidence
     let scanner = FilesystemScanner::new(ScanOptions {
         cross_mounts: false,
         max_depth: Some(5),
@@ -1862,12 +2002,14 @@ fn handle_ask(query: &str, json_mode: bool) {
 
     let mut rules_engine = RulesEngine::new();
     let mut evaluator = CandidateEvaluator::new(&mut rules_engine);
-    let mut top_findings = Vec::new();
+    let mut top_candidates_for_context = Vec::new();
+    let mut valid_candidate_ids: std::collections::HashSet<String> =
+        std::collections::HashSet::new();
 
     if let Ok(report) = scanner.scan(&home) {
         let mut candidates = Vec::new();
         for entry in report.entries {
-            let alloc = AllocationInfo::new(entry.logical_bytes, entry.allocated_bytes, false);
+            let alloc = entry.to_allocation();
             let cand = evaluator.evaluate(
                 &entry.path,
                 alloc,
@@ -1887,47 +2029,189 @@ fn handle_ask(query: &str, json_mode: bool) {
                 .cmp(&a.allocation.allocated_bytes)
         });
 
-        for c in candidates.into_iter().take(4) {
+        for c in candidates.into_iter().take(5) {
             let cost = ReclaimCost::from_candidate(&c);
-            top_findings.push((c, cost));
+            let ev_summary = c
+                .evidence
+                .first()
+                .map(|e| e.explanation.clone())
+                .unwrap_or_else(|| "Filesystem pattern match".to_string());
+
+            valid_candidate_ids.insert(c.id.clone());
+            top_candidates_for_context.push(StorageReasoningCandidate {
+                candidate_id: c.id.clone(),
+                path: c.path.to_string_lossy().to_string(),
+                category: c.category.to_string(),
+                risk: c.risk.to_string(),
+                allocated_bytes: c.allocation.allocated_bytes,
+                confirmed_freeable_bytes: c.allocation.confirmed_freeable_bytes(),
+                rebuild_tier: format!("{:?}", cost.tier),
+                evidence_summary: ev_summary,
+            });
         }
     }
 
-    if json_mode {
-        let findings_json: Vec<serde_json::Value> = top_findings
-            .iter()
-            .map(|(c, cost)| {
-                serde_json::json!({
-                    "candidate_id": c.id,
-                    "path": c.path.to_string_lossy(),
-                    "category": c.category.to_string(),
-                    "risk": c.risk.to_string(),
-                    "allocated_bytes": c.allocation.allocated_bytes,
-                    "reclaim_cost": cost,
-                })
-            })
-            .collect();
+    // 3. Assemble Grounded Context
+    let reasoning_context = StorageReasoningContext {
+        query: query.to_string(),
+        storage_root: home.to_string_lossy().to_string(),
+        snapshot_diff: reasoning_diff,
+        top_candidates: top_candidates_for_context,
+    };
+    let context_json =
+        serde_json::to_string(&reasoning_context).unwrap_or_else(|_| "{}".to_string());
 
+    // 4. Invoke Intelligence Helper (Explain Action)
+    let helper_bin = find_intelligence_binary();
+    let mut provider_used = "deterministic-fallback".to_string();
+    let mut generation_mode = "deterministic-parser".to_string();
+    let mut fallback_used = true;
+    let mut raw_explanation: Option<StorageExplanation> = None;
+
+    if let Some(ref bin) = helper_bin {
+        if let Ok(output) = Command::new(bin)
+            .args(["explain", query, &context_json])
+            .output()
+        {
+            if output.status.success() {
+                if let Ok(val) = serde_json::from_slice::<serde_json::Value>(&output.stdout) {
+                    if let Some(p) = val.get("provider_used").and_then(|v| v.as_str()) {
+                        provider_used = p.to_string();
+                    }
+                    if let Some(m) = val.get("generation_mode").and_then(|v| v.as_str()) {
+                        generation_mode = m.to_string();
+                    }
+                    if let Some(f) = val.get("fallback_used").and_then(|v| v.as_bool()) {
+                        fallback_used = f;
+                    }
+                    if let Some(exp_val) = val.get("explanation") {
+                        if let Ok(parsed_exp) =
+                            serde_json::from_value::<StorageExplanation>(exp_val.clone())
+                        {
+                            raw_explanation = Some(parsed_exp);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 5. Fallback if model failed or unavailable
+    let explanation = match raw_explanation {
+        Some(exp) => exp,
+        None => {
+            provider_used = "deterministic-fallback".to_string();
+            generation_mode = "deterministic-parser".to_string();
+            fallback_used = true;
+
+            let mut causes = Vec::new();
+            let mut referenced_candidates = Vec::new();
+
+            if let Some(ref diff) = reasoning_context.snapshot_diff {
+                for g in &diff.top_growing_subtrees {
+                    causes.push(StorageCause {
+                        title: format!("Recent directory growth in {}", g.path),
+                        explanation: format!(
+                            "Allocated space increased by {} (change: {}).",
+                            format_bytes(g.allocated_delta_bytes.unsigned_abs()),
+                            g.change_type
+                        ),
+                        candidate_id: None,
+                    });
+                }
+            }
+
+            for c in &reasoning_context.top_candidates {
+                causes.push(StorageCause {
+                    title: format!("Accumulated {} data in {}", c.category, c.path),
+                    explanation: format!(
+                        "Consuming {} allocated space (rebuild tier: {}, confirmed freeable: {}). Evidence: {}",
+                        format_bytes(c.allocated_bytes),
+                        c.rebuild_tier,
+                        format_bytes(c.confirmed_freeable_bytes),
+                        c.evidence_summary
+                    ),
+                    candidate_id: Some(c.candidate_id.clone()),
+                });
+                referenced_candidates.push(c.candidate_id.clone());
+            }
+
+            let summary = if causes.is_empty() {
+                "No significant disk growth or cleanup candidates were detected in the inspected hierarchy.".to_string()
+            } else {
+                format!(
+                    "Analyzed storage pressure based on {} candidates and snapshot telemetry. Largest consumers include {} locations.",
+                    reasoning_context.top_candidates.len(),
+                    causes.len()
+                )
+            };
+
+            StorageExplanation {
+                summary,
+                causes,
+                referenced_candidate_ids: referenced_candidates,
+                referenced_snapshot_ids: valid_snapshot_ids.iter().cloned().collect(),
+                caution: Some(
+                    "Review candidate impact and rebuild costs before taking destructive action."
+                        .to_string(),
+                ),
+            }
+        }
+    };
+
+    // 6. Grounded Reference Validation (Drop Hallucinated IDs)
+    let mut validated_candidate_ids = Vec::new();
+    let mut dropped_hallucinations = Vec::new();
+    for id in &explanation.referenced_candidate_ids {
+        if valid_candidate_ids.contains(id) {
+            validated_candidate_ids.push(id.clone());
+        } else {
+            dropped_hallucinations.push(id.clone());
+        }
+    }
+
+    let mut validated_snapshot_ids = Vec::new();
+    for id in &explanation.referenced_snapshot_ids {
+        if valid_snapshot_ids.contains(id) {
+            validated_snapshot_ids.push(id.clone());
+        }
+    }
+
+    // 7. Render Output
+    if json_mode {
         let out = serde_json::json!({
             "query": query,
-            "provider_used": model_provider,
-            "helper_available": helper_used,
-            "has_snapshot_grounding": diff_summary.is_some(),
-            "findings": findings_json,
+            "provider_used": provider_used,
+            "generation_mode": generation_mode,
+            "fallback_used": fallback_used,
+            "execution_authority": "forbidden_zero_mutation_authority",
+            "grounding_provenance": {
+                "snapshot_grounding_present": diff_summary.is_some(),
+                "validated_candidate_references": validated_candidate_ids,
+                "validated_snapshot_references": validated_snapshot_ids,
+                "dropped_hallucinations": dropped_hallucinations,
+            },
+            "explanation": {
+                "summary": explanation.summary,
+                "causes": explanation.causes,
+                "caution": explanation.caution,
+            }
         });
         println!("{}", serde_json::to_string_pretty(&out).unwrap());
     } else {
-        println!("\nVacua Storage Intelligence Query Engine");
+        println!("\nVacua Grounded Storage Intelligence Query Engine");
         println!("==================================================");
         println!("Query: \"{}\"", query);
         println!(
             "Explanation Grounding: {}",
-            if model_provider == "apple-system" {
-                "Apple System Model (On-Device Neural Inference)"
+            if provider_used == "apple-system" {
+                "Apple Foundation Models (On-Device Neural Guided Generation)"
             } else {
                 "Deterministic Grounded Evidence Engine"
             }
         );
+        println!("Generation Mode:       {}", generation_mode);
+        println!("Execution Authority:   FORBIDDEN (Read-only analysis; zero mutation authority)");
         println!("──────────────────────────────────────────────────");
 
         if let Some((base, target, diff)) = diff_summary {
@@ -1956,41 +2240,35 @@ fn handle_ask(query: &str, json_mode: bool) {
             println!("──────────────────────────────────────────────────");
         }
 
-        if top_findings.is_empty() {
-            println!("No high-impact cleanup candidates detected under home directory.");
-        } else {
-            println!("Grounded Storage Analysis:");
-            for (idx, (c, cost)) in top_findings.iter().enumerate() {
-                println!(
-                    "\n{}. {} ({})",
-                    idx + 1,
-                    c.path.file_name().unwrap_or_default().to_string_lossy(),
-                    c.category
-                );
-                println!("   Path:            {}", c.path.display());
-                println!(
-                    "   Allocated:       {}",
-                    format_bytes(c.allocation.allocated_bytes)
-                );
-                let ev_summary = c
-                    .evidence
-                    .first()
-                    .map(|e| e.explanation.as_str())
-                    .unwrap_or("Filesystem pattern match");
-                println!("   Evidence:        {}", ev_summary);
-                println!(
-                    "   Reclaim Cost:    {:?} (Rebuild: {:?})",
-                    cost.tier, cost.rebuild_cost
-                );
-                if cost.network_redownload_bytes > 0 {
-                    println!(
-                        "   Network Cost:    ~{} download",
-                        format_bytes(cost.network_redownload_bytes)
-                    );
+        println!("Summary:\n  {}\n", explanation.summary);
+
+        if !explanation.causes.is_empty() {
+            println!("Key Storage Causes:");
+            for (idx, cause) in explanation.causes.iter().enumerate() {
+                println!("  {}. {}", idx + 1, cause.title);
+                println!("     {}", cause.explanation);
+                if let Some(ref cid) = cause.candidate_id {
+                    if valid_candidate_ids.contains(cid) {
+                        println!("     [Grounding ID: {} (verified)]", cid);
+                    } else {
+                        println!("     [Grounding ID: {} (unverified/dropped)]", cid);
+                    }
                 }
-                println!("   Risk:            {}", c.risk);
             }
         }
+
+        if let Some(ref caution) = explanation.caution {
+            println!("\nCaution:\n  {}", caution);
+        }
+
+        if !dropped_hallucinations.is_empty() {
+            println!("\nSafety Notice:");
+            println!(
+                "  Dropped unverified model references: {:?}",
+                dropped_hallucinations
+            );
+        }
+
         println!("\n==================================================\n");
     }
 }
