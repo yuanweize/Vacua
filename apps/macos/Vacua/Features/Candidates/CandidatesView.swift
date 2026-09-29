@@ -61,6 +61,13 @@ public struct CandidatesView: View {
                             Task { await model.selectCandidate(cand) }
                         }
                     }
+                    .onChange(of: model.candidates) { _, newCandidates in
+                        if let selId = selectedCandidateId, !newCandidates.contains(where: { $0.id == selId }) {
+                            selectedCandidateId = nil
+                            model.selectedCandidate = nil
+                            model.selectedCandidateDetail = nil
+                        }
+                    }
                 }
             }
             .frame(minWidth: 400)

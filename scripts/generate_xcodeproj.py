@@ -462,7 +462,6 @@ def main():
 \t\t{vacua_cfg_debug_id} /* Debug */ = {{
 \t\t\tisa = XCBuildConfiguration;
 \t\t\tbuildSettings = {{
-\t\t\t\tASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 \t\t\t\tCODE_SIGN_STYLE = Manual;
 \t\t\t\tCOMBINE_HIDPI_IMAGES = YES;
 \t\t\t\tCURRENT_PROJECT_VERSION = 1;
@@ -484,7 +483,6 @@ def main():
 \t\t{vacua_cfg_release_id} /* Release */ = {{
 \t\t\tisa = XCBuildConfiguration;
 \t\t\tbuildSettings = {{
-\t\t\t\tASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 \t\t\t\tCODE_SIGN_STYLE = Manual;
 \t\t\t\tCOMBINE_HIDPI_IMAGES = YES;
 \t\t\t\tCURRENT_PROJECT_VERSION = 1;

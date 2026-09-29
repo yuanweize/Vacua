@@ -26,6 +26,7 @@ xcodebuild -project "${REPO_ROOT}/apps/macos/Vacua.xcodeproj" \
   -scheme Vacua \
   -configuration Release \
   -derivedDataPath "${BUILD_DIR}/DerivedData" \
+  ARCHS="arm64" ONLY_ACTIVE_ARCH=NO \
   build CODE_SIGNING_ALLOWED=NO
 
 BUILT_APP="${BUILD_DIR}/DerivedData/Build/Products/Release/Vacua.app"

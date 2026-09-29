@@ -10,10 +10,10 @@ Vacua follows a strict architectural boundary:
 ┌────────────────────────────────────────────────────────┐
 │               Vacua Native App (SwiftUI)               │
 │  - NavigationSplitView & Modern macOS UI               │
-│  - Storage Pressure Overview & Swift Charts            │
+│  - Storage Pressure Overview & Allocation Progress Bar │
 │  - Candidate Table & Evidence Vector Inspector         │
 │  - Duplicate Inspector & APFS Physical Truth Display   │
-│  - Application Residue & Snapshot Differential Views   │
+│  - Application Residue & Storage Snapshot Views        │
 │  - Proposal & Simulation Inspection Sheets             │
 └───────────────────────────▲────────────────────────────┘
                             │ JSON-RPC 2.0 over stdio
