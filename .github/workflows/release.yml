@@ -64,25 +64,21 @@ jobs:
           prerelease: false
           generate_release_notes: true
 
-      - name: Update Homebrew Tap Formula (Automated)
-        if: secrets.HOMEBREW_TAP_TOKEN != ''
+      - name: Update Homebrew Tap Formula (Automated or Manual Notice)
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
           FINAL_SHA=$(cat dist/SHA256SUMS | awk '{print $1}')
-          echo "Updating Homebrew tap with Version=${VERSION}, SHA=${FINAL_SHA}"
-          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/yuanweize/homebrew-tap.git" /tmp/homebrew-tap
-          sed -i '' -E "s|url \".*\"|url \"https://github.com/yuanweize/vacua/releases/download/v${VERSION}/vacua-v${VERSION}-aarch64-apple-darwin.tar.gz\"|" /tmp/homebrew-tap/Formula/vacua.rb
-          sed -i '' -E "s|sha256 \".*\"|sha256 \"${FINAL_SHA}\"|" /tmp/homebrew-tap/Formula/vacua.rb
-          git -C /tmp/homebrew-tap config user.name "github-actions[bot]"
-          git -C /tmp/homebrew-tap config user.email "github-actions[bot]@users.noreply.github.com"
-          git -C /tmp/homebrew-tap commit -am "chore(vacua): release v${VERSION}"
-          git -C /tmp/homebrew-tap push origin main
-
-      - name: Log Homebrew Manual Instructions (If Token Missing)
-        if: secrets.HOMEBREW_TAP_TOKEN == ''
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          FINAL_SHA=$(cat dist/SHA256SUMS | awk '{print $1}')
-          echo "::notice title=Manual Homebrew Tap Update Required::HOMEBREW_TAP_TOKEN secret is not set. Please update yuanweize/homebrew-tap/Formula/vacua.rb with Version=${VERSION} and SHA=${FINAL_SHA}."
+          if [ -n "$HOMEBREW_TAP_TOKEN" ]; then
+            echo "Updating Homebrew tap with Version=${VERSION}, SHA=${FINAL_SHA}"
+            git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/yuanweize/homebrew-tap.git" /tmp/homebrew-tap
+            sed -i '' -E "s|url \".*\"|url \"https://github.com/yuanweize/vacua/releases/download/v${VERSION}/vacua-v${VERSION}-aarch64-apple-darwin.tar.gz\"|" /tmp/homebrew-tap/Formula/vacua.rb
+            sed -i '' -E "s|sha256 \".*\"|sha256 \"${FINAL_SHA}\"|" /tmp/homebrew-tap/Formula/vacua.rb
+            git -C /tmp/homebrew-tap config user.name "github-actions[bot]"
+            git -C /tmp/homebrew-tap config user.email "github-actions[bot]@users.noreply.github.com"
+            git -C /tmp/homebrew-tap commit -am "chore(vacua): release v${VERSION}"
+            git -C /tmp/homebrew-tap push origin main
+          else
+            echo "::notice title=Manual Homebrew Tap Update Required::HOMEBREW_TAP_TOKEN secret is not set. Please update yuanweize/homebrew-tap/Formula/vacua.rb with Version=${VERSION} and SHA=${FINAL_SHA}."
+          fi
