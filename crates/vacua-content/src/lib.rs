@@ -12,9 +12,11 @@ pub mod staged;
 pub mod stats;
 
 pub use cache::FingerprintCache;
-pub use cloud::{is_cloud_placeholder, is_cloud_placeholder_fd, SF_DATALESS, UF_DATALESS};
+pub use cloud::{
+    is_cloud_placeholder, is_cloud_placeholder_fd, is_dataless_flags, SF_DATALESS, UF_COMPRESSED,
+};
 pub use engine::DuplicateEngine;
-pub use group::{DuplicateGroup, DuplicateMember};
+pub use group::{DuplicateGroup, DuplicateMember, DuplicatePlanEstimate};
 pub use identity::{
     compute_full_fingerprint_toctou, compute_sample_fingerprint, ContentError, ContentIdentity,
     FingerprintState, PhysicalRelation, DIRECT_FULL_HASH_THRESHOLD, DOMAIN_SEPARATION_SAMPLE_V1,

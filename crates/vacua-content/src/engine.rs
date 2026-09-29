@@ -1,16 +1,16 @@
 use crate::cache::FingerprintCache;
-use crate::group::DuplicateGroup;
+use crate::group::{DuplicateGroup, DuplicatePlanEstimate};
 use crate::identity::ContentError;
 use crate::staged::{
     run_staged_duplicate_pipeline, verify_duplicate_pair_before_deletion, DuplicateScanOptions,
 };
 use crate::stats::DedupStats;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use vacua_core::candidate::{Candidate, CandidateCategory};
 use vacua_core::evidence::{Evidence, EvidenceSource};
 use vacua_core::risk::{RecommendationValue, RiskLevel};
 use vacua_index::IndexDatabase;
-use vacua_plan::CleanupPlan;
+use vacua_plan::{CleanupPlan, ContentGuard, PreservationGuard};
 use vacua_risk::CandidateEvaluator;
 use vacua_rules::engine::RulesEngine;
 use vacua_scan::{FilesystemScanner, ScanOptions, ScannedEntry};
@@ -71,8 +71,8 @@ impl DuplicateEngine {
         Ok((groups, stats))
     }
 
-    /// Generates an immutable, verified CleanupPlan to remove redundant duplicate members
-    /// while strictly keeping `keep_path`.
+    /// Generates an immutable, verified schema v2 CleanupPlan to remove redundant duplicate members
+    /// while strictly protecting `keep_path` with a PreservationGuard.
     pub fn build_cleanup_plan(
         group: &DuplicateGroup,
         keep_path: &Path,
@@ -110,7 +110,7 @@ impl DuplicateEngine {
                     .unwrap_or("000000000000")
             );
 
-            // Reconstruct candidate model
+            // Reconstruct candidate model with complete timestamps
             let candidate = Candidate {
                 id: cand_id,
                 path: member.path.clone(),
@@ -136,14 +136,48 @@ impl DuplicateEngine {
                 inode: member.inode,
                 device_id: member.device_id,
                 mtime_sec: member.mtime_sec,
+                mtime_nsec: member.mtime_nsec,
+                ctime_sec: member.ctime_sec,
+                ctime_nsec: member.ctime_nsec,
             };
 
             candidates.push(candidate);
         }
 
         // Build cleanup plan using vacua_plan
-        let plan = CleanupPlan::build(&candidates, RiskLevel::Review, "vacua-dedup-v1")
+        let mut plan = CleanupPlan::build(&candidates, RiskLevel::Review, "vacua-dedup-v2")
             .map_err(|e| ContentError::Group(e.to_string()))?;
+
+        // 1. Create PreservationGuard for the kept file
+        let keep_guard = PreservationGuard {
+            path: keep_member.path.clone(),
+            expected_device_id: keep_member.device_id,
+            expected_inode: keep_member.inode,
+            expected_size: group.logical_size,
+            expected_mtime_sec: keep_member.mtime_sec,
+            expected_mtime_nsec: keep_member.mtime_nsec,
+            expected_ctime_sec: keep_member.ctime_sec,
+            expected_ctime_nsec: keep_member.ctime_nsec,
+            content_algorithm: "BLAKE3".to_string(),
+            full_digest: group.full_digest.clone(),
+        };
+        plan.preservation_guards.push(keep_guard);
+
+        // 2. Attach ContentGuard to all duplicate deletion items
+        for item in &mut plan.items {
+            item.content_guard = Some(ContentGuard {
+                algorithm: "BLAKE3".to_string(),
+                full_digest: group.full_digest.clone(),
+            });
+        }
+
+        // 3. Dynamically calculate keep-dependent reclaim estimates
+        let remove_paths: Vec<PathBuf> = plan.items.iter().map(|i| i.path.clone()).collect();
+        let reclaim_estimate = DuplicatePlanEstimate::for_keep(group, keep_path, &remove_paths);
+        plan.estimated_eventual_reclaim_bytes = reclaim_estimate.estimated_reclaimable_bytes;
+
+        // 4. Recompute authoritative plan hash v2 covering all guards & items
+        plan.recompute_hash();
 
         Ok(plan)
     }
