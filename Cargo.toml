@@ -9,11 +9,13 @@ members = [
     "crates/vacua-index",
     "crates/vacua-executor",
     "crates/vacua-content",
+    "crates/vacua-api",
+    "crates/vacua-mcp",
 ]
 resolver = "2"
 
 [workspace.package]
-version = "0.4.1"
+version = "0.5.0"
 edition = "2021"
 authors = ["Weize Yuan <iyuanweize@gmail.com>", "Vacua Contributors"]
 license = "MIT OR Apache-2.0"
@@ -36,3 +38,4 @@ walkdir = "2.5"
 thiserror = "2.0"
 rusqlite = { version = "0.33", features = ["bundled"] }
 blake3 = "1.5"
+schemars = "1.0"

@@ -27,8 +27,19 @@ jobs:
       - name: Run Workspace Tests
         run: cargo test --workspace --all-features
 
-      - name: Build Release Binary
-        run: cargo build --release --bin vacua
+      - name: Dependency Boundary Check (vacua-mcp MUST NOT link vacua-executor)
+        run: |
+          if cargo tree -p vacua-mcp | grep -q "vacua-executor"; then
+            echo "ERROR: vacua-mcp links vacua-executor! Capability isolation invariant violated."
+            exit 1
+          fi
+          echo "Dependency boundary verified: vacua-mcp has no linkage to vacua-executor."
+
+      - name: Build Release Binaries
+        run: cargo build --release --bin vacua --bin vacua-mcp
+
+      - name: MCP Server Self-Test
+        run: ./target/release/vacua-mcp --self-test
 
   swift-check:
     name: Swift Intelligence Module & FoundationModels Compile Proof

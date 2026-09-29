@@ -1,0 +1,37 @@
+[package]
+name = "vacua-mcp"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Agent-native Model Context Protocol (MCP) server for Vacua storage intelligence"
+
+[[bin]]
+name = "vacua-mcp"
+path = "src/main.rs"
+
+[dependencies]
+vacua-core = { path = "../vacua-core" }
+vacua-api = { path = "../vacua-api" }
+vacua-index = { path = "../vacua-index" }
+vacua-scan = { path = "../vacua-scan" }
+vacua-risk = { path = "../vacua-risk" }
+vacua-rules = { path = "../vacua-rules" }
+vacua-content = { path = "../vacua-content" }
+vacua-plan = { path = "../vacua-plan" }
+
+rmcp = { version = "3.5.0", default-features = false, features = ["server", "macros", "schemars", "transport-io"] }
+tokio = { version = "1", features = ["full"] }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+schemars = { workspace = true }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
