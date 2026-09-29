@@ -1,0 +1,22 @@
+{
+  "schema_version": "vacua.mcp.candidate-detail.v1",
+  "candidate_id": "cand-8a9b7c6d5e4f3a2b",
+  "display_path": "~/Library/Caches/com.apple.dt.Xcode",
+  "category": "build-cache",
+  "risk": "safe",
+  "allocated_bytes": 5368709120,
+  "logical_bytes": 5368709120,
+  "confirmed_reclaim_lower_bound": 5368709120,
+  "estimated_reclaim_bytes": 5368709120,
+  "reclaim_upper_bound": 5368709120,
+  "reconstructable": true,
+  "rebuild_consequence": "Xcode will regenerate cache files during next build; initial build may take longer.",
+  "cost_model_status": "CALIBRATED",
+  "evidence_count": 3,
+  "evidence_signals": [
+    "Path conforms to standard macOS cache directory ~/Library/Caches",
+    "Rule match: Xcode compiler intermediate cache",
+    "No active Xcode build process detected"
+  ],
+  "observed_mtime": 1759140000
+}

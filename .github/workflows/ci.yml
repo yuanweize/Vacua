@@ -87,3 +87,36 @@ jobs:
       - name: Run Official MCP Inspector Protocol Verification
         run: ./scripts/test_mcp_inspector.sh ./target/debug/vacua-mcp
 
+  macos-app-check:
+    name: Native macOS App (SwiftUI & Xcode)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Inspect Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Rust MCP Server for Integration Tests
+        run: cargo build -p vacua-mcp
+
+      - name: Run VacuaClient Package Tests
+        run: swift test --package-path apps/macos/Packages/VacuaClient
+
+      - name: Generate Xcode Project
+        run: python3 scripts/generate_xcodeproj.py
+
+      - name: Build Vacua.app via xcodebuild
+        run: xcodebuild -project apps/macos/Vacua.xcodeproj -scheme Vacua -configuration Debug build CODE_SIGNING_ALLOWED=NO
+
+      - name: Run Native App Tests via xcodebuild
+        run: xcodebuild -project apps/macos/Vacua.xcodeproj -scheme Vacua -configuration Debug test CODE_SIGNING_ALLOWED=NO
+
+      - name: Test App Packaging Pipeline
+        run: ./scripts/package-macos-app.sh
+
+

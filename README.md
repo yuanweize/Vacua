@@ -282,7 +282,15 @@ cd vacua-v0.5.0-aarch64-apple-darwin
 sudo cp bin/vacua bin/vacua-intelligence bin/vacua-mcp /usr/local/bin/
 ```
 
-### 3. Build from Source
+### 3. Native macOS App (SwiftUI)
+Download the standalone `Vacua-v0.6.0-macos-arm64-unsigned.zip` from [GitHub Releases](https://github.com/yuanweize/vacua/releases), unzip, and drag `Vacua.app` to your `/Applications` folder:
+- **Strictly Proposal-Only**: Zero mutation or deletion authority in the GUI client (`mutation_authority == false`).
+- **Pure Native UI**: Built with pure SwiftUI and AppKit; no Electron or WebViews.
+- **Storage Intelligence**: Visualizes APFS physical allocations, copy-on-write clone families, application residue, snapshot deltas, and evidence vectors.
+
+See [docs/MACOS_APP.md](docs/MACOS_APP.md) for complete architectural and operational details.
+
+### 4. Build from Source
 Requirements: macOS 14+, Rust 1.80+, Swift 6.0+, Xcode Command Line Tools.
 
 ```bash
@@ -306,6 +314,7 @@ cp apple/VacuaIntelligence/.build/release/vacua-intelligence target/release/
 
 - [Calibrated Performance Benchmarks](BENCHMARKS.md)
 - [Architecture & Design Decisions](ARCHITECTURE.md)
+- [Native macOS App Architecture](docs/MACOS_APP.md)
 - [Safety Model & Invariant Enforcements](SAFETY.md)
 - [Frequently Asked Questions (FAQ)](docs/FAQ.md)
 - [Threat Model & Attack Vector Analysis](docs/THREAT_MODEL.md)

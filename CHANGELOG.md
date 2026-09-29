@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-09-30
+
+Phase 5: Native SwiftUI macOS App Foundation & Storage Intelligence UI: First-party native macOS desktop client over the verified Rust storage truth engine, bundled helper architecture over stdio JSON-RPC 2.0 (MCP), strictly proposal-only safety model, APFS clone awareness, and cross-language contract fixtures.
+
+### Added
+- **First-Party Native macOS Desktop App (`apps/macos/Vacua`)**:
+  - Pure native SwiftUI + AppKit macOS application (`macOS 15+`, Swift 6 with Strict Concurrency).
+  - Modern `NavigationSplitView` architecture with Sidebar navigation: Overview, Candidates, Duplicates, Applications, Snapshots, and Settings.
+  - Storage Pressure Overview: APFS physical allocation breakdown (Used, Free, Purgeable), Swift Charts storage visualization, and guaranteed physical reclaim lower bounds vs estimated upper bounds.
+  - Cleanup Candidates Table & Inspector: Filterable by risk level (`Safe`, `Caution`, `Review`, `Protected`) and category; deep inspector displaying full multi-signal evidence graphs, rebuild consequences, and reclaim bounds.
+  - Duplicates Intelligence with Physical APFS Truth: Clone awareness displaying shared vs independent extents; explicitly marks unmeasured APFS private storage as "Unknown" rather than faking 0.
+  - Application Residue Explorer: Discloses installed applications and potential residual data without false assumptions.
+  - APFS Snapshot Browser: Enumerates local snapshots, creation dates, and retained physical blocks.
+  - Transparent Settings & Security Diagnostics: Configurable allowed root directories via `NSOpenPanel`; displays engine connection state and honestly explains macOS Full Disk Access requirements.
+- **Strict Proposal-Only Safety Model**:
+  - The native app and its bundled helper have strictly zero deletion privileges.
+  - No `rm`, `unlink`, `trash`, `emptyTrash`, or shell execution code is present or linked.
+  - Runtime verification asserts `mutation_authority == false` and `executor_linked == false` during engine handshake.
+  - Includes interactive Dry-Run Simulation (`CleanupSimulationSheet`) and immutable Proposal Review (`CleanupProposalSheet`).
+- **Bundled Engine Subprocess & Process Supervisor (`VacuaClient`)**:
+  - Pure Swift 6 package (`apps/macos/Packages/VacuaClient`) dogfooding the official Model Context Protocol (MCP) JSON-RPC 2.0 interface over `stdio`.
+  - Non-blocking `MCPStdioTransport` utilizing GCD `readabilityHandler` and async continuations to prevent actor thread deadlocks.
+  - `EngineProcessSupervisor` managing child process lifecycle, automatic restarts, root transitions via `--allow-root`, and trusted bundled helper resolution (`Contents/Helpers/vacua-mcp`).
+- **Cross-Language API Contract Fixtures (`fixtures/api/`)**:
+  - 12 comprehensive contract fixtures verifying bidirectional serialization fidelity between Rust (`vacua-api`) and Swift (`VacuaClient`).
+  - Unit and integration tests in both Rust and Swift testing all 19 schemas/DTOs.
+- **Xcode Project & Build Automation**:
+  - Generated Xcode project (`apps/macos/Vacua.xcodeproj`) with shared scheme `Vacua`, `VacuaTests`, and `VacuaUITests`.
+  - Automated build script (`scripts/build-macos-app.sh`) compiling release Rust helpers and embedding them in `Contents/Helpers/`.
+  - Packaging script (`scripts/package-macos-app.sh`) generating standalone `Vacua-v0.6.0-macos-arm64-unsigned.zip`.
+  - CI workflow job `macos-app-check` building and testing the native app on GitHub Actions.
+
+---
+
 ## [0.5.1] - 2026-09-29
 
 MCP Truth, Privacy & Capability Policy Hardening: Authoritative startup canonicalized root authorization, symlink escape rejection, domain-separated BLAKE3 opaque IDs, recursive zero-leak privacy validation, physical reclaim lower-bound accounting, read-only SQLite open guarantees, CursorV2 query binding, snapshot resource template resolution, and pinned official Inspector CI qualification.

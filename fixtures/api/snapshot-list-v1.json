@@ -1,0 +1,16 @@
+{
+  "schema_version": "vacua.mcp.snapshot-list.v1",
+  "items": [
+    {
+      "snapshot_id": "snap-20260929-120000",
+      "name": "pre-cleanup-baseline",
+      "root_path": "~",
+      "created_at": "2026-09-29T12:00:00Z",
+      "total_files": 128500,
+      "allocated_bytes": 450971566080
+    }
+  ],
+  "total_count": 1,
+  "limit": 50,
+  "next_cursor": null
+}

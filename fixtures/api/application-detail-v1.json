@@ -1,0 +1,26 @@
+{
+  "schema_version": "vacua.mcp.application-detail.v1",
+  "application_id": "com.spotify.client",
+  "app_name": "Spotify",
+  "display_path": null,
+  "installed": false,
+  "orphan_confidence": "high",
+  "artifact_count": 2,
+  "estimated_reclaim_bytes": 1073741824,
+  "artifacts": [
+    {
+      "artifact_id": "art-1122334455667788",
+      "display_path": "~/Library/Application Support/Spotify",
+      "kind": "application-support",
+      "allocated_bytes": 805306368,
+      "risk": "caution"
+    },
+    {
+      "artifact_id": "art-8877665544332211",
+      "display_path": "~/Library/Caches/com.spotify.client",
+      "kind": "cache",
+      "allocated_bytes": 268435456,
+      "risk": "safe"
+    }
+  ]
+}

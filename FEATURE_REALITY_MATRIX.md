@@ -52,6 +52,5 @@
 | **MCP Resources & Templates** | `VERIFIED` | `vacua-mcp::server` | `test_official_rmcp_client_integration`, Inspector CLI tests | All 4 advertised templates (`vacua://candidate/{id}`, `vacua://snapshot/{id}`, `vacua://duplicate/{id}`, `vacua://application/{id}`) verified to read and resolve |
 | **MCP Official Inspector CI Gate** | `VERIFIED` | `.github/workflows/ci.yml`, `scripts/test_mcp_inspector.sh` | Pinned `@modelcontextprotocol/inspector@2.8.0` qualification in CI | Full tools/list, resources/list, resources/templates/list, prompts/list, and 4 template reads validated against real fixture |
 | **MCP Remote HTTP** | `NOT_STARTED` | Planned for future release | N/A | Excluded in v0.5.1 for local filesystem security boundary |
-| **SwiftUI Native macOS App** | `NOT_STARTED` | Planned for Phase 5 (`apps/macos`) | N/A | Native macOS desktop UI planned |
-
+| **SwiftUI Native macOS App** | `PARTIAL / IN PROGRESS` | `apps/macos` (Vacua.app, VacuaClient Swift Package) | `testRealEngineSubprocessHandshake`, `VacuaTests`, Xcode build & test | First-party native macOS client foundation over verified Rust engine. Storage Intelligence UI, Overview metrics, Candidates table with evidence inspector, Duplicates with APFS clone awareness, Applications residue, Snapshots diff, and proposal review. Strictly proposal-only (zero mutation authority, no execution engine linked). |
 

@@ -1,0 +1,30 @@
+{
+  "schema_version": "vacua.mcp.plan-proposal.v1",
+  "plan_schema_version": 2,
+  "plan_id": "plan-20260929-143000-abcd",
+  "plan_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "created_at": "2026-09-29T14:30:00Z",
+  "item_count": 2,
+  "highest_risk": "review",
+  "estimated_eventual_reclaim_bytes": 7516192768,
+  "immediate_reclaim_bytes": 0,
+  "preservation_guard_count": 0,
+  "items": [
+    {
+      "candidate_id": "cand-8a9b7c6d5e4f3a2b",
+      "display_path": "~/Library/Caches/com.apple.dt.Xcode",
+      "action": "move_to_trash",
+      "risk": "safe",
+      "estimated_bytes": 5368709120
+    },
+    {
+      "candidate_id": "cand-1f2e3d4c5b6a7988",
+      "display_path": "~/Library/Developer/Xcode/DerivedData/ModuleCache.noindex",
+      "action": "move_to_trash",
+      "risk": "review",
+      "estimated_bytes": 2147483648
+    }
+  ],
+  "proposal_status": "PROPOSAL_ONLY_NOT_EXECUTABLE_VIA_MCP",
+  "serialized_plan": null
+}

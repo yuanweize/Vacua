@@ -1,0 +1,22 @@
+{
+  "schema_version": "vacua.mcp.snapshot-diff.v1",
+  "base_snapshot": "snap-20260929-120000",
+  "target_snapshot": "current",
+  "allocated_delta_bytes": 1073741824,
+  "logical_delta_bytes": 1073741824,
+  "files_delta": 450,
+  "top_growing": [
+    {
+      "display_path": "~/Library/Caches",
+      "delta_bytes": 805306368,
+      "files_delta": 320
+    }
+  ],
+  "top_shrinking": [
+    {
+      "display_path": "~/Downloads",
+      "delta_bytes": -268435456,
+      "files_delta": -5
+    }
+  ]
+}

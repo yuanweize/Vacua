@@ -1,0 +1,43 @@
+{
+  "schema_version": "vacua.mcp.duplicate-group.v1",
+  "group_id": "dup-3a4b5c6d7e8f9012",
+  "file_size": 104857600,
+  "logical_duplicate_bytes": 209715200,
+  "kernel_private_bytes": 0,
+  "confirmed_reclaim_lower_bound": 0,
+  "estimated_reclaim": 209715200,
+  "reclaim_upper_bound": 209715200,
+  "content_identity_verified": true,
+  "algorithm": "BLAKE3",
+  "kernel_private_bytes_known_members": 3,
+  "kernel_private_bytes_unknown_members": 0,
+  "members": [
+    {
+      "member_id": "mem-1111222233334444",
+      "display_path": "~/Downloads/archive_copy1.tar.gz",
+      "physical_relation": "IndependentExtent",
+      "allocated_bytes": 104857600,
+      "kernel_private_bytes": 104857600,
+      "kernel_private_bytes_known": true,
+      "is_cloud_placeholder": false
+    },
+    {
+      "member_id": "mem-5555666677778888",
+      "display_path": "~/Documents/archive_copy2.tar.gz",
+      "physical_relation": "IndependentExtent",
+      "allocated_bytes": 104857600,
+      "kernel_private_bytes": 104857600,
+      "kernel_private_bytes_known": true,
+      "is_cloud_placeholder": false
+    },
+    {
+      "member_id": "mem-9999aaaabbbbcccc",
+      "display_path": "~/Desktop/archive_copy3.tar.gz",
+      "physical_relation": "SharedClone",
+      "allocated_bytes": 104857600,
+      "kernel_private_bytes": 0,
+      "kernel_private_bytes_known": true,
+      "is_cloud_placeholder": false
+    }
+  ]
+}
