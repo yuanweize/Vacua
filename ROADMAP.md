@@ -66,9 +66,14 @@ The development of Vacua is divided into 7 distinct, sequential phases. Per our 
 ---
 
 ## Phase 4B: Agent Native Interface & MCP Server
-- [ ] `vacua-mcp` read-only tool server using official Model Context Protocol Rust SDK.
-- [ ] Vendor-neutral Agent Skill (`skills/vacua/SKILL.md`).
-- [ ] Structured CLI JSON schema specification (`schemas/vacua-v1.json`).
+- [x] `vacua-mcp` official Model Context Protocol Rust SDK (`rmcp` 3.5.0) stdio server.
+- [x] Compile-time capability isolation: `vacua-mcp` has zero dependency on `vacua-executor` and zero mutation authority.
+- [x] Vendor-neutral Agent Skill (`skills/vacua/SKILL.md`).
+- [x] Stable public Machine API DTOs (`vacua-api`) with 18 versioned JSON schemas (`schemas/mcp/*.schema.json`).
+- [x] Automated schema drift test and dependency boundary CI verification.
+- [x] 14 bounded tools, 2 direct resources, 4 resource templates, and 2 prompts.
+- [x] Full `@modelcontextprotocol/inspector` v2.8.0 live CLI qualification.
+
 
 ---
 

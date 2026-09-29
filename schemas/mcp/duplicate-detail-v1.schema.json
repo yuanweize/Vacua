@@ -1,0 +1,107 @@
+{
+  "$defs": {
+    "DuplicateMemberV1": {
+      "description": "Member of an exact duplicate group.",
+      "properties": {
+        "allocated_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "display_path": {
+          "type": "string"
+        },
+        "is_cloud_placeholder": {
+          "type": "boolean"
+        },
+        "kernel_private_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "member_id": {
+          "type": "string"
+        },
+        "physical_relation": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "member_id",
+        "display_path",
+        "physical_relation",
+        "allocated_bytes",
+        "kernel_private_bytes",
+        "is_cloud_placeholder"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Detailed duplicate group with members and APFS physical sharing truth.",
+  "properties": {
+    "algorithm": {
+      "type": "string"
+    },
+    "confirmed_reclaim_lower_bound": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "content_identity_verified": {
+      "type": "boolean"
+    },
+    "estimated_reclaim": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "file_size": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "group_id": {
+      "type": "string"
+    },
+    "kernel_private_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "logical_duplicate_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "members": {
+      "items": {
+        "$ref": "#/$defs/DuplicateMemberV1"
+      },
+      "type": "array"
+    },
+    "reclaim_upper_bound": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "schema_version": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "group_id",
+    "file_size",
+    "logical_duplicate_bytes",
+    "kernel_private_bytes",
+    "confirmed_reclaim_lower_bound",
+    "estimated_reclaim",
+    "reclaim_upper_bound",
+    "content_identity_verified",
+    "algorithm",
+    "members"
+  ],
+  "title": "DuplicateGroupDetailV1",
+  "type": "object"
+}

@@ -10,6 +10,7 @@ description = "Safe, TOCTOU-verified execution engine and SQLite transaction aud
 
 [dependencies]
 vacua-core = { path = "../vacua-core" }
+vacua-index = { path = "../vacua-index" }
 vacua-plan = { path = "../vacua-plan" }
 vacua-rules = { path = "../vacua-rules" }
 rusqlite.workspace = true

@@ -47,6 +47,8 @@ jobs:
           "${SMOKE_DIR}/bin/vacua" --version
           "${SMOKE_DIR}/bin/vacua" doctor
           "${SMOKE_DIR}/bin/vacua" intelligence status
+          "${SMOKE_DIR}/bin/vacua-mcp" --version
+          "${SMOKE_DIR}/bin/vacua-mcp" --self-test
           CAP_JSON=$("${SMOKE_DIR}/bin/vacua-intelligence" capabilities)
           echo "Capabilities: ${CAP_JSON}"
           echo "${CAP_JSON}" | grep '"foundation_models_compiled" : true' || {

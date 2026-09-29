@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Cleanup simulation consequences without filesystem mutation.",
+  "properties": {
+    "blocked_items": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "candidate_count": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "cost_model_status": {
+      "type": "string"
+    },
+    "eventual_reclaim_estimate_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "highest_risk": {
+      "type": "string"
+    },
+    "immediate_reclaim_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "rebuild_consequences": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "candidate_count",
+    "immediate_reclaim_bytes",
+    "eventual_reclaim_estimate_bytes",
+    "highest_risk",
+    "rebuild_consequences",
+    "blocked_items",
+    "cost_model_status"
+  ],
+  "title": "CleanupSimulationV1",
+  "type": "object"
+}

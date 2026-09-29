@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "High-level macOS storage summary with deterministic APFS metrics.",
+  "properties": {
+    "available_space_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "candidate_count": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "candidate_reclaim_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "candidate_reviewable_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "filesystem_type": {
+      "type": "string"
+    },
+    "free_space_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "index_freshness": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "is_stale": {
+      "type": "boolean"
+    },
+    "mount_point": {
+      "type": "string"
+    },
+    "observed_at": {
+      "type": "string"
+    },
+    "pressure_level": {
+      "type": "string"
+    },
+    "purgeable_space_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "target_path": {
+      "type": "string"
+    },
+    "total_space_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "observed_at",
+    "target_path",
+    "mount_point",
+    "filesystem_type",
+    "total_space_bytes",
+    "free_space_bytes",
+    "available_space_bytes",
+    "pressure_level",
+    "candidate_count",
+    "candidate_reclaim_bytes",
+    "candidate_reviewable_bytes",
+    "is_stale"
+  ],
+  "title": "StorageSummaryV1",
+  "type": "object"
+}

@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Server capabilities and capability isolation report.",
+  "properties": {
+    "allowed_roots": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "analyze_only_tier": {
+      "type": "boolean"
+    },
+    "app_evidence_graph_available": {
+      "type": "boolean"
+    },
+    "apple_foundation_models_status": {
+      "type": "string"
+    },
+    "duplicate_engine_available": {
+      "type": "boolean"
+    },
+    "executor_linked": {
+      "type": "boolean"
+    },
+    "index_available": {
+      "type": "boolean"
+    },
+    "mcp_protocol_generation": {
+      "type": "string"
+    },
+    "mutation_authority": {
+      "type": "boolean"
+    },
+    "path_disclosure_mode": {
+      "type": "string"
+    },
+    "platform": {
+      "type": "string"
+    },
+    "propose_only_tier": {
+      "type": "boolean"
+    },
+    "read_only_tier": {
+      "type": "boolean"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "server_version": {
+      "type": "string"
+    },
+    "snapshot_engine_available": {
+      "type": "boolean"
+    },
+    "transport": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "server_version",
+    "mcp_protocol_generation",
+    "platform",
+    "transport",
+    "path_disclosure_mode",
+    "allowed_roots",
+    "mutation_authority",
+    "executor_linked",
+    "read_only_tier",
+    "analyze_only_tier",
+    "propose_only_tier",
+    "index_available",
+    "snapshot_engine_available",
+    "duplicate_engine_available",
+    "app_evidence_graph_available",
+    "apple_foundation_models_status"
+  ],
+  "title": "ServerCapabilitiesV1",
+  "type": "object"
+}

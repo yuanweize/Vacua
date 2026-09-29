@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "In-depth candidate explanation and risk evidence.",
+  "properties": {
+    "allocated_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "candidate_id": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string"
+    },
+    "cost_model_status": {
+      "type": "string"
+    },
+    "display_path": {
+      "type": "string"
+    },
+    "evidence_count": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "evidence_signals": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "logical_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "observed_mtime": {
+      "format": "int64",
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "rebuild_consequence": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reconstructable": {
+      "type": "boolean"
+    },
+    "risk": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "candidate_id",
+    "display_path",
+    "category",
+    "risk",
+    "allocated_bytes",
+    "logical_bytes",
+    "reconstructable",
+    "cost_model_status",
+    "evidence_count",
+    "evidence_signals"
+  ],
+  "title": "CandidateDetailV1",
+  "type": "object"
+}

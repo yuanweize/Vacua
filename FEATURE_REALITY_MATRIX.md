@@ -40,6 +40,13 @@
 | **Target Content Revalidation** | `VERIFIED` | `vacua-executor::executor` | `test_executor_target_content_guard_mismatch_aborts` | Safe regular file open (`O_NOFOLLOW \| O_NONBLOCK \| S_IFREG`), live identity matching (nanosecond mtime/ctime), and full BLAKE3 verification against ContentGuard before Trash movement. |
 | **Cloud & Dataless Placeholder Protection** | `VERIFIED` | `vacua-content::cloud` | `test_dataless_flag_classification_correctness`, `test_regular_local_file_is_not_cloud_placeholder` | Checks Darwin kernel `SF_DATALESS = 0x40000000`; `0x20` (UF_COMPRESSED) correctly distinguished from cloud placeholders to prevent false skipping. |
 | **Bounded Hash Worker Pool** | `VERIFIED` | `vacua-content::staged` (`run_parallel_map`) | `test_hash_worker_pool_concurrency`, `benchmark_hash_concurrency` | Bounded thread pool governed by `--jobs` (default 4); scales throughput across independent large duplicate copies; serialized cache writes prevent SQLite concurrency corruption. |
-| **Read-Only MCP Server** | `NOT_STARTED` | Planned for Phase 4B (`vacua-mcp`) | N/A | Specification in `docs/MCP.md`; `--json` supported |
+| **Stable Machine DTO/API** | `VERIFIED` | `vacua-api` | 18 versioned DTOs, `schemas/mcp/*.schema.json`, `test_mcp_schemas_are_up_to_date` drift CI test | Versioned domain DTOs (`vacua.mcp.*.v1`), JSON Schema validation via `schemars` |
+| **MCP Stdio Server** | `VERIFIED` | `vacua-mcp` | `test_mcp_full_stdio_handshake_and_tools`, `test_stdout_purity` | Official `rmcp` 3.5.0 stdio server, compile-time absence of `vacua-executor`, stdout protocol purity strictly enforced |
+| **MCP Read-Only & Analysis Tools** | `VERIFIED` | `vacua-mcp::domain`, `server` | Automated integration tests + `@modelcontextprotocol/inspector --cli` verification | 13 tools covering APFS storage pressure, snapshots/diff, candidates/evidence, duplicates, and execution audit history |
+| **MCP Propose-Only Plan Tool** | `VERIFIED` | `vacua-mcp::domain` (`vacua_propose_cleanup_plan`) | `test_protected_candidate_refused_from_plan_proposal`, Inspector live tool call | Compiles immutable `CleanupPlan` v2 with SHA-256 integrity seal; zero execution authority; no plan persistence |
+| **MCP Resources & Templates** | `VERIFIED` | `vacua-mcp::server` | `resources/list`, `resources/read`, resource templates verified via Inspector | Direct resources (`vacua://capabilities`, `vacua://storage/summary`) and entity templates |
+| **MCP Inspector Compatibility** | `VERIFIED` | `vacua-mcp` | `@modelcontextprotocol/inspector` v2.8.0 live CLI verified on all tools, resources, and prompts | Verified full stdio JSON-RPC protocol compatibility against official Anthropic/MCP inspector |
+| **MCP Remote HTTP** | `NOT_STARTED` | Planned for future release | N/A | Excluded in v0.5.0 for local filesystem security boundary |
 | **SwiftUI Native macOS App** | `NOT_STARTED` | Planned for Phase 5 (`apps/macos`) | N/A | Native macOS desktop UI planned |
+
 

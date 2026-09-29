@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Discovered application summary.",
+  "properties": {
+    "app_name": {
+      "type": "string"
+    },
+    "application_id": {
+      "type": "string"
+    },
+    "display_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "installed": {
+      "type": "boolean"
+    },
+    "orphan_confidence": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "application_id",
+    "app_name",
+    "installed",
+    "orphan_confidence"
+  ],
+  "title": "ApplicationSummaryV1",
+  "type": "object"
+}

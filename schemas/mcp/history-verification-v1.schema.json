@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Cryptographic verification report for audit history.",
+  "properties": {
+    "broken_record_id": {
+      "format": "int64",
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "error_detail": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "first_hash": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "is_valid": {
+      "type": "boolean"
+    },
+    "latest_hash": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "total_records": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "total_records",
+    "is_valid"
+  ],
+  "title": "HistoryVerificationV1",
+  "type": "object"
+}

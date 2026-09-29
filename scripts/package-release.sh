@@ -24,10 +24,11 @@ mkdir -p "${PKG_DIR}/share/zsh/site-functions"
 mkdir -p "${PKG_DIR}/share/bash-completion/completions"
 mkdir -p "${PKG_DIR}/share/fish/vendor_completions.d"
 
-# 2. Build Rust CLI
-echo "--- Compiling vacua (release) ---"
-cargo build --release --bin vacua --manifest-path "${REPO_ROOT}/Cargo.toml"
+# 2. Build Rust CLI & MCP Server
+echo "--- Compiling vacua and vacua-mcp (release) ---"
+cargo build --release --bin vacua --bin vacua-mcp --manifest-path "${REPO_ROOT}/Cargo.toml"
 cp "${REPO_ROOT}/target/release/vacua" "${PKG_DIR}/bin/"
+cp "${REPO_ROOT}/target/release/vacua-mcp" "${PKG_DIR}/bin/"
 
 # 3. Build Swift Intelligence Helper
 echo "--- Compiling vacua-intelligence (release) ---"
@@ -57,11 +58,13 @@ Installation:
 Move the executables in bin/ to your PATH (e.g. /usr/local/bin or ~/.local/bin):
     cp bin/vacua /usr/local/bin/
     cp bin/vacua-intelligence /usr/local/bin/
+    cp bin/vacua-mcp /usr/local/bin/
 
 Verify:
     vacua --version
     vacua doctor
     vacua intelligence status
+    vacua-mcp --version
 EOF
 
 # 6. Record Build Provenance
