@@ -5,6 +5,49 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-09-29
+
+Content Integrity, APFS Reclaim Truth & Plan Safety Hardening: CleanupPlan schema v2, PreservationGuards, full preflight revalidation, APFS kernel private size accounting, conservative external hardlink/clone detection, fingerprint cache v4 with merge semantics, safe regular-file open primitives, and deterministic benchmark suite.
+
+### Added
+- **CleanupPlan Schema v2 (`vacua-plan`)**:
+  - `CURRENT_PLAN_SCHEMA_VERSION = 2` with canonical deterministic SHA-256 hash using domain separator `VACUA_PLAN_V2\n`.
+  - Hashing covers all safety-critical fields: schema version, ruleset version, creation timestamp, raw OsStr path bytes (`std::os::unix::ffi::OsStrExt`), risk, category, expected size, nanosecond mtime (`mtime_sec`, `mtime_nsec`), nanosecond ctime (`ctime_sec`, `ctime_nsec`), ContentGuards, and PreservationGuards.
+  - Legacy schema v1 plans are strictly refused for destructive execution (`PlanExecutionRefused`).
+  - Strict verification against hash tampering on all plan fields (`test_plan_hash_mutation_detected_for_all_fields`).
+- **PreservationGuards & Target Content Revalidation (`vacua-plan`, `vacua-executor`)**:
+  - Duplicate cleanup plans enforce `>= 1` `PreservationGuard` recording user's preserved copy with cryptographic BLAKE3 content digest.
+  - All-item preflight: before any destructive mutation, ALL `PreservationGuard`s and `ContentGuard`s are verified. If the preserved copy or target content changed in any way, the entire plan aborts before any filesystem mutation occurs.
+- **Safe Regular-File Open Primitives (`vacua-core::fs`)**:
+  - Centralized `open_regular_file_safely` primitive on macOS/Unix using `O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK` followed by `fstat` verifying `S_IFREG`.
+  - Completely blocks symlink substitution, FIFO blocking, socket/device opening, and special file processing.
+- **APFS Kernel Private-Size Accounting (`vacua-scan`, `vacua-core`)**:
+  - Integrated `ATTR_CMNEXT_PRIVATESIZE` via `fgetattrlist` on open file descriptors.
+  - Determines exact bytes uniquely attributable to file and immediately reclaimable on deletion, excluding blocks shared across clone or snapshot relationships.
+- **External Hardlink & APFS Clone Sharing Detection (`vacua-content::group`)**:
+  - Distinguishes internal group aliases from external sharing (`HardlinkSharedExternal`, `APFSCloneSharedExternal`).
+  - Unlinking a non-final hardlink confirms 0 bytes physical reclaim.
+  - Keep-dependent dynamic reclaim calculation: `DuplicatePlanEstimate::for_keep(group, keep_path, selected_remove_paths)` replaces static estimates.
+- **Fingerprint Cache Schema v4 (`vacua-index`)**:
+  - Decoupled `sample_version` and `full_version` columns in SQLite.
+  - Merging semantics: `put_sample` and `put_full` preserve valid staged hashes for identical stat identity, but completely invalidate stale hashes when size, mtime, or ctime changes.
+  - Version mismatches guarantee cache misses.
+- **Bounded Hash Worker Pool & Performance Hardening (`vacua-content::staged`)**:
+  - Real worker pool governed by `--jobs` (default 4) for sample and full hash stages.
+  - Hardlink collapse: hashes representative inode once and maps results back to all aliases, avoiding duplicate disk reads.
+  - Small-file direct full hashing: files `<= 192 KiB` compute full hash in Stage 4 and bypass Stage 5 reread.
+  - Per-file error resilience: unreadable files increment error counters without aborting full-tree scans.
+- **Truthful Reclaim Accounting & CLI Semantics (`vacua-executor`, `vacua-cli`)**:
+  - `ExecutionReport` accurately separates `bytes_moved_to_trash`, `estimated_eventual_reclaim_after_purge`, and `immediate_reclaimed_bytes` (0 for native trash).
+  - CLI reporting reflects "Moved to Trash" and "Potential Reclaim After Trash Is Emptied" rather than claiming immediate free space.
+- **Dataless Cloud Placeholder Classification Fix (`vacua-content::cloud`)**:
+  - Deleted buggy `0x20` mapping (which collided with macOS `UF_COMPRESSED`).
+  - Aligned strictly with macOS XNU `SF_DATALESS = 0x40000000`; local compressed files are never falsely classified as cloud placeholders.
+- **Deterministic Benchmark Suite (`scripts/benchmark-dedup.py`)**:
+  - PRNG-seeded deterministic data generation (`seed = 42`).
+  - Real naive full-hash baseline via `vacua-naive-baseline` reading all bytes and computing BLAKE3 in 64 KiB chunks.
+  - Automated structural assertions, machine-readable output in `benchmarks/dedup-v0.4.1.json`, and automated Markdown table generation.
+
 ## [0.4.0] - 2026-09-29
 
 Content Identity & Duplicate Intelligence Engine: Staged BLAKE3 pipeline, persistent SQLite fingerprint cache, APFS copy-on-write sharing awareness, TOCTOU-safe hashing, and verified duplicate cleanup planning.
