@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "vacua": {
+      "command": "/opt/homebrew/bin/vacua-mcp",
+      "args": [
+        "--path-disclosure",
+        "home-relative"
+      ]
+    }
+  }
+}
