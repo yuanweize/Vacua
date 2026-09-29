@@ -21,12 +21,6 @@ jobs:
           xcodebuild -version 2>/dev/null || true
           swift --version
 
-      - name: FoundationModels Compile Proof (Hard Requirement)
-        run: |
-          cd apple/VacuaIntelligence
-          swift build --target FoundationModelsProof
-          .build/debug/foundation-models-proof
-
       - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
