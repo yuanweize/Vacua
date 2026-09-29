@@ -35,6 +35,11 @@ jobs:
       - name: Workspace Tests
         run: cargo test --workspace --all-features
 
+      - name: FoundationModels Compile Proof (Release Gate)
+        run: |
+          cd apple/VacuaIntelligence
+          swift run foundation-models-proof
+
       - name: Assemble Distribution Package
         run: ./scripts/package-release.sh
 
@@ -66,7 +71,7 @@ jobs:
           generate_release_notes: true
 
       - name: Update Homebrew Tap Formula (Automated)
-        if: env.HOMEBREW_TAP_TOKEN != ''
+        if: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
@@ -80,3 +85,10 @@ jobs:
           git -C /tmp/homebrew-tap config user.email "github-actions[bot]@users.noreply.github.com"
           git -C /tmp/homebrew-tap commit -am "chore(vacua): release v${VERSION}"
           git -C /tmp/homebrew-tap push origin main
+
+      - name: Log Homebrew Manual Instructions (If Token Missing)
+        if: ${{ secrets.HOMEBREW_TAP_TOKEN == '' }}
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          FINAL_SHA=$(cat dist/SHA256SUMS | awk '{print $1}')
+          echo "::notice title=Manual Homebrew Tap Update Required::HOMEBREW_TAP_TOKEN secret is not set. Please update yuanweize/homebrew-tap/Formula/vacua.rb with Version=${VERSION} and SHA=${FINAL_SHA}."

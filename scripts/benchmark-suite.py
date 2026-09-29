@@ -175,7 +175,7 @@ def run_benchmarks():
         }
 
     # Format BENCHMARKS.md content
-    md_content = f"""# Vacua Storage Engine Benchmarks (v0.2.0)
+    md_content = f"""# Vacua Storage Engine Benchmarks (v0.3.0)
 
 > **Engineering Honesty Rule**:
 > All benchmarks reported in this document are reproducible measurements executed against calibrated hardware. No simulated, estimated, or cherry-picked performance metrics are accepted.
