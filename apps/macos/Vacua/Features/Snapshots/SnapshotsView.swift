@@ -1,5 +1,4 @@
 import SwiftUI
-import Charts
 import VacuaClient
 
 public struct SnapshotsView: View {
@@ -14,7 +13,7 @@ public struct SnapshotsView: View {
         HSplitView {
             VStack(spacing: 0) {
                 HStack {
-                    Text("\(model.snapshots.count) APFS Snapshots")
+                    Text("\(model.snapshots.count) Storage Snapshots")
                         .font(.subheadline.weight(.medium))
                     Spacer()
                 }
@@ -28,9 +27,9 @@ public struct SnapshotsView: View {
                         Image(systemName: "camera.metering.matrix")
                             .font(.largeTitle)
                             .foregroundStyle(.tertiary)
-                        Text("No APFS Snapshots")
+                        Text("No Storage Snapshots")
                             .font(.headline)
-                        Text("No local APFS snapshots found on this volume.")
+                        Text("No saved Vacua storage snapshots found for this volume.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -79,7 +78,7 @@ public struct SnapshotsView: View {
                 .background(Color(NSColor.controlBackgroundColor))
             }
         }
-        .navigationTitle("APFS Snapshots")
+        .navigationTitle("Storage Snapshots")
     }
     
     private var currentSelectedSnapshot: SnapshotSummaryV1? {
@@ -103,12 +102,12 @@ public struct SnapshotsView: View {
             Divider()
             
             VStack(alignment: .leading, spacing: 8) {
-                Text("Snapshot Allocation")
+                Text("Recorded Indexed Allocation")
                     .font(.subheadline.weight(.medium))
                 
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Allocated Physical Bytes")
+                        Text("Recorded Allocated Bytes")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                         Text(snap.allocated_bytes.formatted(.byteCount(style: .file)))
@@ -133,10 +132,10 @@ public struct SnapshotsView: View {
                 HStack {
                     Image(systemName: "info.circle")
                         .foregroundStyle(.blue)
-                    Text("APFS Snapshot Retention")
+                    Text("About Storage Snapshots")
                         .font(.caption.weight(.semibold))
                 }
-                Text("APFS snapshots freeze filesystem state. Any files deleted or modified since this snapshot was created will retain their physical disk blocks until the snapshot is deleted by macOS.")
+                Text("Vacua storage snapshots save a file index and allocation measurements for the selected root at a point in time. They record baseline measurements for differential growth tracking (vacua diff) without altering or retaining physical disk blocks.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

@@ -48,22 +48,14 @@ public struct DuplicatesView: View {
                             }
                             
                             HStack(spacing: 12) {
-                                // APFS Kernel Physical Truth Display
-                                if group.kernel_private_bytes_known_members > 0 {
-                                    HStack(spacing: 4) {
-                                        Text("APFS Private:")
-                                            .foregroundStyle(.secondary)
-                                        Text(group.kernel_private_bytes.formatted(.byteCount(style: .file)))
-                                            .foregroundStyle(.green)
-                                    }
-                                } else {
-                                    HStack(spacing: 4) {
-                                        Text("APFS Private:")
-                                            .foregroundStyle(.secondary)
-                                        Text("Unknown")
-                                            .foregroundStyle(.orange)
-                                    }
-                                    .help("APFS physical private allocation unmeasured without snapshot diff")
+                                HStack(spacing: 4) {
+                                    Text("APFS Private:")
+                                        .foregroundStyle(.secondary)
+                                    apfsPrivateStatusView(
+                                        knownMembers: group.kernel_private_bytes_known_members,
+                                        unknownMembers: group.kernel_private_bytes_unknown_members,
+                                        bytes: group.kernel_private_bytes
+                                    )
                                 }
                                 
                                 Spacer()
@@ -147,9 +139,12 @@ public struct DuplicatesView: View {
                         Text("APFS Private Blocks")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
-                        Text(group.kernel_private_bytes_known_members > 0 ? group.kernel_private_bytes.formatted(.byteCount(style: .file)) : "Unknown")
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(group.kernel_private_bytes_known_members > 0 ? .green : .orange)
+                        apfsPrivateStatusView(
+                            knownMembers: group.kernel_private_bytes_known_members,
+                            unknownMembers: group.kernel_private_bytes_unknown_members,
+                            bytes: group.kernel_private_bytes
+                        )
+                        .font(.subheadline.weight(.medium))
                     }
                 }
                 .padding(.top, 4)
@@ -195,5 +190,21 @@ public struct DuplicatesView: View {
         }
         .padding(16)
         .background(Color(NSColor.controlBackgroundColor))
+    }
+    
+    @ViewBuilder
+    private func apfsPrivateStatusView(knownMembers: Int, unknownMembers: Int, bytes: UInt64) -> some View {
+        if unknownMembers == 0 {
+            Text(bytes.formatted(.byteCount(style: .file)))
+                .foregroundStyle(.green)
+        } else if knownMembers > 0 {
+            Text("Partial (\(bytes.formatted(.byteCount(style: .file))))")
+                .foregroundStyle(.orange)
+                .help("\(knownMembers) known members, \(unknownMembers) unmeasured members")
+        } else {
+            Text("Unknown")
+                .foregroundStyle(.orange)
+                .help("APFS physical private allocation unmeasured without snapshot diff")
+        }
     }
 }

@@ -70,6 +70,8 @@ public struct CandidatesView: View {
                 CandidateDetailView(
                     candidate: selected,
                     detail: model.selectedCandidateDetail,
+                    isSimulating: model.isSimulating,
+                    isProposing: model.isProposing,
                     onSimulate: {
                         Task { await model.simulateCleanup(candidateIds: [selected.id]) }
                     },

@@ -4,17 +4,23 @@ import VacuaClient
 public struct CandidateDetailView: View {
     public let candidate: CandidateSummaryV1
     public let detail: CandidateDetailV1?
+    public let isSimulating: Bool
+    public let isProposing: Bool
     public let onSimulate: () -> Void
     public let onPropose: () -> Void
     
     public init(
         candidate: CandidateSummaryV1,
         detail: CandidateDetailV1? = nil,
+        isSimulating: Bool = false,
+        isProposing: Bool = false,
         onSimulate: @escaping () -> Void,
         onPropose: @escaping () -> Void
     ) {
         self.candidate = candidate
         self.detail = detail
+        self.isSimulating = isSimulating
+        self.isProposing = isProposing
         self.onSimulate = onSimulate
         self.onPropose = onPropose
     }
@@ -107,18 +113,32 @@ public struct CandidateDetailView: View {
                     Button {
                         onSimulate()
                     } label: {
-                        Label("Simulate Cleanup", systemImage: "play.circle")
-                            .frame(maxWidth: .infinity)
+                        if isSimulating {
+                            ProgressView()
+                                .controlSize(.small)
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            Label("Simulate Cleanup", systemImage: "play.circle")
+                                .frame(maxWidth: .infinity)
+                        }
                     }
                     .buttonStyle(.bordered)
+                    .disabled(isSimulating || isProposing)
                     
                     Button {
                         onPropose()
                     } label: {
-                        Label("Generate Proposal Plan", systemImage: "doc.badge.plus")
-                            .frame(maxWidth: .infinity)
+                        if isProposing {
+                            ProgressView()
+                                .controlSize(.small)
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            Label("Generate Proposal Plan", systemImage: "doc.badge.plus")
+                                .frame(maxWidth: .infinity)
+                        }
                     }
                     .buttonStyle(.borderedProminent)
+                    .disabled(isSimulating || isProposing)
                 }
                 .padding(.top, 12)
             }

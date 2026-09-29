@@ -16,10 +16,14 @@ public struct RiskBadge: View {
             switch normalized {
             case "safe":
                 return (.green, "Safe")
-            case "cautious":
-                return (.orange, "Cautious")
-            case "risky":
-                return (.red, "Risky")
+            case "caution", "cautious":
+                return (.orange, "Caution")
+            case "review":
+                return (.blue, "Review")
+            case "protected":
+                return (.purple, "Protected")
+            case "unknown":
+                return (.secondary, "Unknown")
             default:
                 return (.secondary, risk.capitalized)
             }

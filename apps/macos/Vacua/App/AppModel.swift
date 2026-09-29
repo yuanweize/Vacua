@@ -80,7 +80,12 @@ public final class AppModel {
         self.supervisor = supervisor
     }
     
+    private var hasStartedEngine = false
+    
     public func startEngine() async {
+        guard !hasStartedEngine else { return }
+        hasStartedEngine = true
+        
         isLoading = true
         errorMessage = nil
         await supervisor.start()

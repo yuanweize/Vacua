@@ -77,7 +77,7 @@ public struct OverviewView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Volume Capacity & Usage")
                         .font(.headline)
-                    Text("APFS Container Physical Allocation (\(summary.filesystem_type))")
+                    Text("\(summary.filesystem_type) Physical Allocation")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

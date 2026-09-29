@@ -270,23 +270,29 @@ brew install yuanweize/tap/vacua
 ```
 
 ### 2. Standalone Release Tarball
+
 Download the pre-compiled binary package from [GitHub Releases](https://github.com/yuanweize/vacua/releases):
 
 ```bash
 # Verify checksum
-shasum -a 256 vacua-v0.5.0-aarch64-apple-darwin.tar.gz
+shasum -a 256 vacua-v0.6.0-aarch64-apple-darwin.tar.gz
 
 # Extract and install
-tar -xzf vacua-v0.5.0-aarch64-apple-darwin.tar.gz
-cd vacua-v0.5.0-aarch64-apple-darwin
+tar -xzf vacua-v0.6.0-aarch64-apple-darwin.tar.gz
+cd vacua-v0.6.0-aarch64-apple-darwin
 sudo cp bin/vacua bin/vacua-intelligence bin/vacua-mcp /usr/local/bin/
 ```
 
 ### 3. Native macOS App (SwiftUI)
+
 Download the standalone `Vacua-v0.6.0-macos-arm64-unsigned.zip` from [GitHub Releases](https://github.com/yuanweize/vacua/releases), unzip, and drag `Vacua.app` to your `/Applications` folder:
+
 - **Strictly Proposal-Only**: Zero mutation or deletion authority in the GUI client (`mutation_authority == false`).
 - **Pure Native UI**: Built with pure SwiftUI and AppKit; no Electron or WebViews.
 - **Storage Intelligence**: Visualizes APFS physical allocations, copy-on-write clone families, application residue, snapshot deltas, and evidence vectors.
+
+> [!NOTE]
+> **macOS Gatekeeper First Launch**: Because community builds are ad-hoc signed without an Apple Developer ID certificate, macOS Sequoia (15+) will block direct execution. On first launch, open **System Settings → Privacy & Security**, scroll down to the Security section, and click **Open Anyway** (or run `xattr -cr /Applications/Vacua.app`).
 
 See [docs/MACOS_APP.md](docs/MACOS_APP.md) for complete architectural and operational details.
 
