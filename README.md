@@ -73,6 +73,9 @@ $ vacua history verify
 Vacua is an evidence-first storage intelligence engine for macOS designed to reason about ownership, growth, physical block allocation, and rebuild costs before modification:
 
 - **APFS Clone-Aware Allocation Accounting**: Uses Darwin `getattrlist(FSOPT_ATTR_CMN_EXTENDED)` to query kernel clone attributes (`ATTR_CMNEXT_CLONEID | ATTR_CMNEXT_EXT_FLAGS | ATTR_CMNEXT_CLONE_REFCNT`). Distinguishes physical shared clone space from exclusive blocks with conservative reclaim bounds, preventing copy-on-write files from inflating freeable estimates. Verified by [`clonefile(2)` integration tests](crates/vacua-scan/src/scanner.rs).
+- **Staged BLAKE3 Content Identity & Persistent Fingerprint Cache**: 6-stage pipeline (Size buckets -> Hardlink collapse -> APFS clone classification -> Domain-separated 3-window sample hash -> Bounded sequential BLAKE3 -> Stage 6 Destructive Pair Confirmation). Bypasses up to 100% of I/O on unique files and caches versioned digests in SQLite keyed by nanosecond filesystem identity (`mtime_nsec`, `ctime_nsec`).
+- **APFS Physical-Sharing Duplicate Accounting**: Strict distinction between hardlinks (0 bytes reclaimable), APFS copy-on-write clone families (shared physical extents, conservative lower/estimated bounds), and independent physical copies. Prevents inflated reclaim estimates.
+- **TOCTOU & Cloud Dataless Safety**: Open file descriptor dual `fstat` validation before and after streaming hash (invalidation on `ChangedDuringRead`). Automatic detection of Darwin `SF_DATALESS | UF_DATALESS` flags to prevent downloading iCloud/cloud placeholders.
 - **Streaming & Bounded Concurrent Scanner**: Multi-threaded parallel metadata worker pool utilizing bounded `sync_channel(2048)` backpressure and deterministic path-order collation. Achieves >300,000 files/sec with <47 MB peak RSS on 100k nodes. Verified via [calibrated benchmarks](BENCHMARKS.md).
 - **Persistent Incremental Indexing via Darwin FSEvents**: Native CoreServices `FSEventStreamCreate` stream with persistent SQLite event cursors (`watched_roots`), updating dirty subtrees surgically without traversing untouched directories. Verified by [FSEvents integration and equivalence tests](crates/vacua-index/src/fsevents.rs).
 - **Point-in-Time Snapshots & Recursive Subtree Diff**: Capture historical allocation state with recursive directory rollup and diff space deltas over time (`vacua snapshot create`, `vacua diff baseline current`).
@@ -81,6 +84,29 @@ Vacua is an evidence-first storage intelligence engine for macOS designed to rea
 - **Grounded Storage Reasoning Engine (`vacua ask`)**: Natural language query engine grounded strictly in snapshot diffs, candidate evidence vectors, and Reclaim Cost, validated against hallucinated references with zero execution authority.
 - **Verifiable Execution & Cryptographic Hash Chaining**: Moves items via native macOS Trash (`-[NSFileManager trashItemAtURL:resultingItemURL:error:]`), enforces fail-safe pre-action intent journaling (aborts immediately if audit write fails), and links all execution records into a hash-chained integrity verification log (`vacua history verify`).
 - **Bounded On-Device Apple Intelligence**: Direct query of Apple `SystemLanguageModel.default.availability` with real typed `@Generable` guided generation and strictly truthful provenance (`provider_used = "apple-system"` only on real neural inference; zero deletion authority).
+
+---
+
+## Duplicate Intelligence
+
+Discover exact byte-identical duplicates without blind full-disk hashing, while respecting APFS copy-on-write sharing and hardlinks:
+
+```bash
+$ vacua duplicates ~ --min-size 10M
+```
+
+```text
+Exact duplicate groups:        14
+Logical duplicate bytes:       38.2 GB
+Confirmed reclaimable:         12.8 GB
+Estimated reclaimable:         15.1 GB
+APFS shared / clone extents:   18.3 GB
+```
+
+### Core Identity Principles
+- **Logical duplicates != Physical reclaimability**: Hardlinks sharing the same inode reclaim **0 bytes** unless the last link is deleted. APFS clones share copy-on-write physical extents; deleting one copy frees only its exclusive private extents. Vacua reports confirmed lower bounds alongside logical duplication.
+- **Sample hashes filter; Full BLAKE3 proves**: Deterministic 3-window sampling quickly rejects same-size non-duplicates, but exact duplicates are never declared without full cryptographic BLAKE3 verification.
+- **Duplicate evidence is not deletion authority**: User documents are classified under `REVIEW` or `PROTECTED`. Cleaning requires explicit review (`vacua duplicates show <group-id>`) and compilation of an immutable, verified cleanup plan (`vacua duplicates plan <group-id> --keep <member>`). Zero direct deletion path exists.
 
 ---
 
