@@ -181,6 +181,37 @@ impl IndexDatabase {
         Ok(Self { conn })
     }
 
+    /// Open existing index database strictly read-only without executing migrations or creating files.
+    pub fn open_read_only(path: &Path) -> Result<Self, IndexError> {
+        if !path.exists() {
+            return Err(IndexError::Io(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("Index database not found at {}", path.display()),
+            )));
+        }
+
+        let conn = Connection::open_with_flags(
+            path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )?;
+
+        let current_version: u32 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+        if current_version < crate::schema::CURRENT_SCHEMA_VERSION {
+            return Err(IndexError::Schema(SchemaError::StaleSchemaVersion {
+                found: current_version,
+                supported: crate::schema::CURRENT_SCHEMA_VERSION,
+            }));
+        }
+        if current_version > crate::schema::CURRENT_SCHEMA_VERSION {
+            return Err(IndexError::Schema(SchemaError::UnsupportedSchemaVersion {
+                found: current_version,
+                supported: crate::schema::CURRENT_SCHEMA_VERSION,
+            }));
+        }
+
+        Ok(Self { conn })
+    }
+
     pub fn record_session(
         &mut self,
         target_path: &Path,

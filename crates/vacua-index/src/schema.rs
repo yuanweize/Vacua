@@ -10,6 +10,9 @@ pub enum SchemaError {
 
     #[error("Unsupported future schema version: database is version {found}, but this binary only supports up to version {supported}. Refusing to operate on database.")]
     UnsupportedSchemaVersion { found: u32, supported: u32 },
+
+    #[error("Database schema version {found} is older than supported version {supported}. Run normal Vacua CLI once to upgrade index.")]
+    StaleSchemaVersion { found: u32, supported: u32 },
 }
 
 pub fn run_migrations(conn: &mut Connection) -> std::result::Result<(), SchemaError> {
