@@ -827,6 +827,195 @@ impl IndexDatabase {
         self.conn.execute("VACUUM", [])?;
         Ok(())
     }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn get_content_fingerprint(
+        &self,
+        device_id: u64,
+        inode: u64,
+        canonical_path: &Path,
+        logical_size: u64,
+        mtime_sec: i64,
+        mtime_nsec: i64,
+        ctime_sec: i64,
+        ctime_nsec: i64,
+    ) -> Result<Option<CachedFingerprint>, IndexError> {
+        let path_str = canonical_path.to_string_lossy();
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT sample_hash, full_hash, hash_algorithm, fingerprint_version, observed_at
+            FROM content_fingerprints
+            WHERE device_id = ?1 AND inode = ?2 AND canonical_path = ?3
+              AND logical_size = ?4 AND mtime_sec = ?5 AND mtime_nsec = ?6
+              AND ctime_sec = ?7 AND ctime_nsec = ?8
+            "#,
+        )?;
+
+        let mut rows = stmt.query(rusqlite::params![
+            device_id,
+            inode,
+            path_str.as_ref(),
+            logical_size,
+            mtime_sec,
+            mtime_nsec,
+            ctime_sec,
+            ctime_nsec,
+        ])?;
+
+        if let Some(row) = rows.next()? {
+            Ok(Some(CachedFingerprint {
+                sample_hash: row.get(0)?,
+                full_hash: row.get(1)?,
+                hash_algorithm: row.get(2)?,
+                fingerprint_version: row.get(3)?,
+                observed_at: row.get(4)?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn upsert_content_fingerprint(
+        &self,
+        record: &ContentFingerprintRecord,
+    ) -> Result<(), IndexError> {
+        let path_str = record.canonical_path.to_string_lossy();
+        self.conn.execute(
+            r#"
+            INSERT INTO content_fingerprints (
+                device_id, inode, canonical_path, logical_size,
+                mtime_sec, mtime_nsec, ctime_sec, ctime_nsec,
+                sample_hash, full_hash, hash_algorithm, fingerprint_version, observed_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+            ON CONFLICT(device_id, inode, canonical_path) DO UPDATE SET
+                logical_size = excluded.logical_size,
+                mtime_sec = excluded.mtime_sec,
+                mtime_nsec = excluded.mtime_nsec,
+                ctime_sec = excluded.ctime_sec,
+                ctime_nsec = excluded.ctime_nsec,
+                sample_hash = excluded.sample_hash,
+                full_hash = excluded.full_hash,
+                hash_algorithm = excluded.hash_algorithm,
+                fingerprint_version = excluded.fingerprint_version,
+                observed_at = excluded.observed_at
+            "#,
+            rusqlite::params![
+                record.device_id,
+                record.inode,
+                path_str.as_ref(),
+                record.logical_size,
+                record.mtime_sec,
+                record.mtime_nsec,
+                record.ctime_sec,
+                record.ctime_nsec,
+                record.sample_hash,
+                record.full_hash,
+                record.hash_algorithm,
+                record.fingerprint_version,
+                record.observed_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_fingerprint_stats(&self) -> Result<FingerprintCacheStats, IndexError> {
+        let total: u64 = self
+            .conn
+            .query_row("SELECT count(*) FROM content_fingerprints", [], |r| {
+                r.get(0)
+            })
+            .unwrap_or(0);
+
+        let sample_count: u64 = self
+            .conn
+            .query_row(
+                "SELECT count(*) FROM content_fingerprints WHERE sample_hash IS NOT NULL",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+
+        let full_count: u64 = self
+            .conn
+            .query_row(
+                "SELECT count(*) FROM content_fingerprints WHERE full_hash IS NOT NULL",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+
+        Ok(FingerprintCacheStats {
+            total_entries: total,
+            sample_hash_count: sample_count,
+            full_hash_count: full_count,
+        })
+    }
+
+    pub fn prune_missing_fingerprints(&self) -> Result<usize, IndexError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT canonical_path FROM content_fingerprints")?;
+        let rows = stmt.query_map([], |row| {
+            let path_str: String = row.get(0)?;
+            Ok(path_str)
+        })?;
+
+        let mut to_delete = Vec::new();
+        for item in rows {
+            let path_str = item?;
+            let path = PathBuf::from(&path_str);
+            if !path.exists() {
+                to_delete.push(path_str);
+            }
+        }
+
+        let deleted_count = to_delete.len();
+        if !to_delete.is_empty() {
+            let tx = self.conn.unchecked_transaction()?;
+            for p in to_delete {
+                tx.execute(
+                    "DELETE FROM content_fingerprints WHERE canonical_path = ?1",
+                    rusqlite::params![p],
+                )?;
+            }
+            tx.commit()?;
+        }
+
+        Ok(deleted_count)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CachedFingerprint {
+    pub sample_hash: Option<String>,
+    pub full_hash: Option<String>,
+    pub hash_algorithm: String,
+    pub fingerprint_version: String,
+    pub observed_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContentFingerprintRecord {
+    pub device_id: u64,
+    pub inode: u64,
+    pub canonical_path: PathBuf,
+    pub logical_size: u64,
+    pub mtime_sec: i64,
+    pub mtime_nsec: i64,
+    pub ctime_sec: i64,
+    pub ctime_nsec: i64,
+    pub sample_hash: Option<String>,
+    pub full_hash: Option<String>,
+    pub hash_algorithm: String,
+    pub fingerprint_version: String,
+    pub observed_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct FingerprintCacheStats {
+    pub total_entries: u64,
+    pub sample_hash_count: u64,
+    pub full_hash_count: u64,
 }
 
 /// Aggregates recursive physical allocated bytes, logical bytes, and file/dir counts for each directory in a scan.
@@ -933,7 +1122,9 @@ mod tests {
             clone_refcnt: 1,
             nlink: 1,
             mtime_sec: 1000,
+            mtime_nsec: 0,
             ctime_sec: 1000,
+            ctime_nsec: 0,
         };
 
         let inserted = db.upsert_entries(&[scanned]).unwrap();
@@ -1082,7 +1273,9 @@ mod tests {
                 clone_refcnt: 1,
                 nlink: 2,
                 mtime_sec: 100,
+                mtime_nsec: 0,
                 ctime_sec: 100,
+                ctime_nsec: 0,
             },
             ScannedEntry {
                 path: dir_a_sub.clone(),
@@ -1098,7 +1291,9 @@ mod tests {
                 clone_refcnt: 1,
                 nlink: 2,
                 mtime_sec: 100,
+                mtime_nsec: 0,
                 ctime_sec: 100,
+                ctime_nsec: 0,
             },
             ScannedEntry {
                 path: dir_a_sub.join("file1.bin"),
@@ -1114,7 +1309,9 @@ mod tests {
                 clone_refcnt: 1,
                 nlink: 1,
                 mtime_sec: 100,
+                mtime_nsec: 0,
                 ctime_sec: 100,
+                ctime_nsec: 0,
             },
             ScannedEntry {
                 path: dir_b.clone(),
@@ -1130,7 +1327,9 @@ mod tests {
                 clone_refcnt: 1,
                 nlink: 2,
                 mtime_sec: 100,
+                mtime_nsec: 0,
                 ctime_sec: 100,
+                ctime_nsec: 0,
             },
             ScannedEntry {
                 path: dir_b.join("file2.bin"),
@@ -1146,7 +1345,9 @@ mod tests {
                 clone_refcnt: 1,
                 nlink: 1,
                 mtime_sec: 100,
+                mtime_nsec: 0,
                 ctime_sec: 100,
+                ctime_nsec: 0,
             },
         ];
 

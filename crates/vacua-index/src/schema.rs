@@ -1,7 +1,7 @@
 use rusqlite::Connection;
 use thiserror::Error;
 
-pub const CURRENT_SCHEMA_VERSION: u32 = 2;
+pub const CURRENT_SCHEMA_VERSION: u32 = 3;
 
 #[derive(Error, Debug)]
 pub enum SchemaError {
@@ -129,6 +129,38 @@ pub fn run_migrations(conn: &mut Connection) -> std::result::Result<(), SchemaEr
         tx.commit()?;
     }
 
+    if current_version < 3 {
+        let tx = conn.transaction()?;
+
+        tx.execute_batch(
+            r#"
+            -- Persistent content fingerprints with nanosecond resolution
+            CREATE TABLE IF NOT EXISTS content_fingerprints (
+                device_id INTEGER NOT NULL,
+                inode INTEGER NOT NULL,
+                canonical_path TEXT NOT NULL,
+                logical_size INTEGER NOT NULL,
+                mtime_sec INTEGER NOT NULL,
+                mtime_nsec INTEGER NOT NULL,
+                ctime_sec INTEGER NOT NULL,
+                ctime_nsec INTEGER NOT NULL,
+                sample_hash TEXT,
+                full_hash TEXT,
+                hash_algorithm TEXT NOT NULL,
+                fingerprint_version TEXT NOT NULL,
+                observed_at INTEGER NOT NULL,
+                PRIMARY KEY (device_id, inode, canonical_path)
+            );
+            CREATE INDEX IF NOT EXISTS idx_fingerprints_identity ON content_fingerprints(device_id, inode, logical_size, mtime_sec, mtime_nsec, ctime_sec, ctime_nsec);
+            CREATE INDEX IF NOT EXISTS idx_fingerprints_full_hash ON content_fingerprints(full_hash);
+            CREATE INDEX IF NOT EXISTS idx_fingerprints_path ON content_fingerprints(canonical_path);
+            "#,
+        )?;
+
+        tx.pragma_update(None, "user_version", 3)?;
+        tx.commit()?;
+    }
+
     Ok(())
 }
 
@@ -149,12 +181,73 @@ mod tests {
         // Verify table existence
         let tables_count: i64 = conn
             .query_row(
-                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('volumes', 'scan_sessions', 'entries', 'classifications', 'watched_roots', 'snapshots')",
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('volumes', 'scan_sessions', 'entries', 'classifications', 'watched_roots', 'snapshots', 'content_fingerprints')",
                 [],
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(tables_count, 6);
+        assert_eq!(tables_count, 7);
+    }
+
+    #[test]
+    fn test_migrations_v2_to_v3_preserves_data() {
+        let mut conn = Connection::open_in_memory().unwrap();
+
+        // Run migrations up to v2 manually
+        conn.execute_batch(
+            r#"
+            CREATE TABLE watched_roots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                watched_root TEXT UNIQUE NOT NULL,
+                volume_id INTEGER NOT NULL,
+                last_event_id INTEGER NOT NULL,
+                last_full_scan INTEGER NOT NULL,
+                status TEXT NOT NULL
+            );
+            CREATE TABLE snapshots (
+                snapshot_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                root_path TEXT NOT NULL,
+                timestamp INTEGER NOT NULL,
+                total_files INTEGER NOT NULL,
+                total_dirs INTEGER NOT NULL,
+                logical_bytes INTEGER NOT NULL,
+                allocated_bytes INTEGER NOT NULL,
+                snapshot_data TEXT NOT NULL
+            );
+            INSERT INTO snapshots VALUES ('snap-1', 'test', '/tmp', 1234, 10, 2, 1000, 2000, '{}');
+            PRAGMA user_version = 2;
+            "#,
+        )
+        .unwrap();
+
+        // Now run full migrations to upgrade to v3
+        run_migrations(&mut conn).unwrap();
+
+        let version: u32 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 3);
+
+        // Check preserved snapshot data
+        let snap_name: String = conn
+            .query_row(
+                "SELECT name FROM snapshots WHERE snapshot_id = 'snap-1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(snap_name, "test");
+
+        // Check new table exists
+        let fp_exists: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name = 'content_fingerprints'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(fp_exists, 1);
     }
 
     #[test]

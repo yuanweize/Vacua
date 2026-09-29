@@ -16,7 +16,9 @@ pub struct ScannedEntry {
     pub clone_refcnt: u32,
     pub nlink: u64,
     pub mtime_sec: i64,
+    pub mtime_nsec: i64,
     pub ctime_sec: i64,
+    pub ctime_nsec: i64,
 }
 
 impl ScannedEntry {
@@ -150,7 +152,9 @@ impl ScannedEntry {
             clone_refcnt,
             nlink: meta.nlink(),
             mtime_sec: meta.mtime(),
+            mtime_nsec: meta.mtime_nsec(),
             ctime_sec: meta.ctime(),
+            ctime_nsec: meta.ctime_nsec(),
         })
     }
 }
