@@ -40,9 +40,12 @@ PUBLISHED_AT=$(echo "${RELEASE_JSON}" | python3 -c 'import sys, json; print(json
 TARGET_COMMITISH=$(echo "${RELEASE_JSON}" | python3 -c 'import sys, json; print(json.load(sys.stdin)["targetCommitish"])')
 
 echo "2. Resolving peeled tag commit SHA..."
-PEELED_COMMIT=$(git ls-remote origin "refs/tags/${TAG}" | head -n 1 | awk '{print $1}')
+PEELED_COMMIT=$(git -C "${REPO_ROOT}" ls-remote origin "refs/tags/${TAG}^{}" | head -n 1 | awk '{print $1}')
 if [ -z "${PEELED_COMMIT}" ]; then
-  PEELED_COMMIT=$(git rev-parse "${TAG}^{commit}" 2>/dev/null || echo "${TARGET_COMMITISH}")
+  PEELED_COMMIT=$(git -C "${REPO_ROOT}" ls-remote origin "refs/tags/${TAG}" | head -n 1 | awk '{print $1}')
+fi
+if [ -z "${PEELED_COMMIT}" ]; then
+  PEELED_COMMIT=$(git -C "${REPO_ROOT}" rev-parse "${TAG}^{commit}" 2>/dev/null || echo "${TARGET_COMMITISH}")
 fi
 
 echo "3. Downloading released assets..."

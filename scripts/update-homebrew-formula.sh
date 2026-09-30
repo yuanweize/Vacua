@@ -41,6 +41,7 @@ class Vacua < Formula
   def install
     bin.install "bin/vacua"
     bin.install "bin/vacua-intelligence"
+    bin.install "bin/vacua-mcp"
     bash_completion.install "share/bash-completion/completions/vacua"
     zsh_completion.install "share/zsh/site-functions/_vacua"
     fish_completion.install "share/fish/vendor_completions.d/vacua.fish"
@@ -49,6 +50,8 @@ class Vacua < Formula
   test do
     assert_match "vacua #{version}", shell_output("#{bin}/vacua --version")
     assert_match "vacua-intelligence #{version}", shell_output("#{bin}/vacua-intelligence --version")
+    assert_match "vacua-mcp #{version}", shell_output("#{bin}/vacua-mcp --version")
+    assert_match "Vacua MCP Server Self-Test: OK", shell_output("#{bin}/vacua-mcp --self-test 2>&1")
   end
 end
 EOF
