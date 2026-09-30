@@ -78,11 +78,14 @@ The development of Vacua is divided into 7 distinct, sequential phases. Per our 
 ---
 
 ## Phase 5: Native SwiftUI macOS Frontend
-- [ ] Pure native SwiftUI application (no Electron, no WebView, no local web server).
-- [ ] Overview Dashboard: Storage pressure, safe reclaimable space, reviewable space.
-- [ ] Visual Storage Map / Treemap (logical vs allocated block views).
-- [ ] Duplicate Explorer & Storage Diff Timeline.
-- [ ] Application Management & Orphan Explorer.
+- [x] Pure native SwiftUI application (macOS 15+, Swift 6 strict concurrency, no Electron/WebView).
+- [x] Overview Dashboard: Storage pressure, confirmed vs estimated reclaim bounds, index freshness.
+- [ ] Visual Storage Map / Treemap (logical vs allocated block views; deferred to v0.7.0).
+- [x] Duplicate Explorer with APFS clone awareness and explicit BLAKE3 user analysis trigger.
+- [x] Storage Snapshot Browser & point-in-time snapshot list.
+- [x] Real Storage Snapshot Diff UI with Rust subtree delta rollups and horizontal delta chart.
+- [x] Application Residue & Orphan Explorer with server-side query filtering.
+- [ ] Application destructive management (deferred to v0.7.0 explicit execution boundary).
+- [~] Observed storage access diagnostics (non-authoritative heuristic; no fake TCC claim).
 - [ ] Developer Artifact Center.
-- [ ] Full Disk Access (FDA) permission onboarding and status monitoring.
 - [ ] Local-only Bayesian preference adaptation (Beta-Bernoulli category preferences).

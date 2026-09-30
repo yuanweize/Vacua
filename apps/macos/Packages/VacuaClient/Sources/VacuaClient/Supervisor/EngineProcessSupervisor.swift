@@ -76,7 +76,8 @@ public final class EngineProcessSupervisor: ObservableObject {
         }
 
         let args = [
-            "--allow-root", currentRootPath
+            "--allow-root", currentRootPath,
+            "--path-disclosure", "home-relative"
         ]
 
         let newTransport = MCPStdioTransport(executableURL: engineURL, arguments: args)

@@ -16,6 +16,5 @@
     }
   ],
   "total_count": 1,
-  "limit": 50,
-  "next_cursor": null
+  "limit": 50
 }

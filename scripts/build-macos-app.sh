@@ -6,13 +6,14 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 echo "=== Building Vacua Native macOS App (SwiftUI) ==="
 
-# 1. Build vacua-mcp helper in release mode
-echo "--- Compiling vacua-mcp (release helper) ---"
-cargo build --release --bin vacua-mcp --manifest-path "${REPO_ROOT}/Cargo.toml"
+# 1. Build vacua and vacua-mcp helper in release mode
+echo "--- Compiling vacua and vacua-mcp (release helpers) ---"
+cargo build --release --bin vacua --bin vacua-mcp --manifest-path "${REPO_ROOT}/Cargo.toml"
 
 MCP_BIN="${REPO_ROOT}/target/release/vacua-mcp"
-if [ ! -f "${MCP_BIN}" ]; then
-  echo "Error: vacua-mcp binary not found at ${MCP_BIN}" >&2
+VACUA_BIN="${REPO_ROOT}/target/release/vacua"
+if [ ! -f "${MCP_BIN}" ] || [ ! -f "${VACUA_BIN}" ]; then
+  echo "Error: Binaries not found at ${MCP_BIN} or ${VACUA_BIN}" >&2
   exit 1
 fi
 
@@ -40,12 +41,13 @@ OUTPUT_APP="${BUILD_DIR}/Vacua.app"
 rm -rf "${OUTPUT_APP}"
 cp -R "${BUILT_APP}" "${OUTPUT_APP}"
 
-# 3. Embed vacua-mcp into Contents/Helpers
-echo "--- Embedding bundled vacua-mcp helper ---"
+# 3. Embed vacua and vacua-mcp into Contents/Helpers
+echo "--- Embedding bundled helpers ---"
 HELPERS_DIR="${OUTPUT_APP}/Contents/Helpers"
 mkdir -p "${HELPERS_DIR}"
 cp "${MCP_BIN}" "${HELPERS_DIR}/vacua-mcp"
-chmod +x "${HELPERS_DIR}/vacua-mcp"
+cp "${VACUA_BIN}" "${HELPERS_DIR}/vacua"
+chmod +x "${HELPERS_DIR}/vacua-mcp" "${HELPERS_DIR}/vacua"
 
 # 4. Ad-hoc codesign app bundle
 echo "--- Ad-hoc signing Vacua.app ---"

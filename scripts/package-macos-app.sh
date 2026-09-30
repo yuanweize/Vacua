@@ -24,7 +24,29 @@ if [ ! -d "${APP_PATH}" ]; then
   exit 1
 fi
 
-# 2. Create Zip Archive (preserving symlinks and permissions)
+# 2. Structural Verification of App Bundle
+echo "--- Verifying App Bundle Structure and Binaries ---"
+test -f "${APP_PATH}/Contents/Info.plist" || { echo "Missing Info.plist"; exit 1; }
+test -f "${APP_PATH}/Contents/MacOS/Vacua" || { echo "Missing MacOS/Vacua executable"; exit 1; }
+test -f "${APP_PATH}/Contents/Helpers/vacua" || { echo "Missing Helpers/vacua"; exit 1; }
+test -f "${APP_PATH}/Contents/Helpers/vacua-mcp" || { echo "Missing Helpers/vacua-mcp"; exit 1; }
+
+echo "Verifying bundled helpers..."
+"${APP_PATH}/Contents/Helpers/vacua" --version
+"${APP_PATH}/Contents/Helpers/vacua-mcp" --version
+"${APP_PATH}/Contents/Helpers/vacua-mcp" --self-test
+
+BUNDLE_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "${APP_PATH}/Contents/Info.plist")
+echo "CFBundleShortVersionString: ${BUNDLE_VERSION}"
+if [ "${BUNDLE_VERSION}" != "${VERSION}" ]; then
+  echo "Error: Bundle version mismatch: expected ${VERSION}, got ${BUNDLE_VERSION}" >&2
+  exit 1
+fi
+
+echo "Verifying ad-hoc code signature..."
+codesign -dv --verbose=4 "${APP_PATH}"
+
+# 3. Create Zip Archive (preserving symlinks and permissions)
 ZIP_NAME="Vacua-v${VERSION}-macos-arm64-unsigned.zip"
 ZIP_PATH="${DIST_DIR}/${ZIP_NAME}"
 rm -f "${ZIP_PATH}"
@@ -35,13 +57,13 @@ echo "--- Compressing Vacua.app into ${ZIP_NAME} ---"
   ditto -c -k --keepParent "Vacua.app" "${ZIP_PATH}"
 )
 
-# 3. Generate SHA256 Checksum
+# 4. Generate SHA256 Checksum
 echo "--- Generating Checksum ---"
 (
   cd "${DIST_DIR}"
   shasum -a 256 "${ZIP_NAME}" > "${ZIP_NAME}.sha256"
 )
 
-echo "=== App package created successfully ==="
+echo "=== App package created and verified successfully ==="
 ls -lh "${DIST_DIR}/${ZIP_NAME}"*
 cat "${DIST_DIR}/${ZIP_NAME}.sha256"

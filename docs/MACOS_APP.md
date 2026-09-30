@@ -63,12 +63,31 @@ swift test --package-path apps/macos/Packages/VacuaClient
 xcodebuild -project apps/macos/Vacua.xcodeproj -scheme Vacua -configuration Debug build
 ```
 
-## Release Packaging
+## Release Packaging & Security Notice
 
-To build a standalone, unsigned distribution bundle:
+To build a standalone, ad-hoc signed distribution bundle:
 
 ```bash
-./scripts/package-macos-app.sh
+./scripts/package-macos-app.sh 0.6.0
 ```
 
 Output archive will be generated in `dist/Vacua-v0.6.0-macos-arm64-unsigned.zip`.
+
+### Gatekeeper & Security Notice (Ad-Hoc Signing)
+
+> [!IMPORTANT]
+> **Ad-Hoc Signed Preview**: This native app preview release is ad-hoc signed (`codesign --sign -`) and is **not Developer ID signed or notarized** by Apple.
+
+Because the binary does not carry an Apple Developer ID signature, macOS Gatekeeper (macOS Sequoia 15+) will display a security warning when launching the downloaded application.
+
+**Recommended Way to Open**:
+1. Open **System Settings → Privacy & Security**.
+2. Scroll down to the **Security** section.
+3. Locate the notice: *"Vacua was blocked from use because it is not from an identified developer"*.
+4. Click **Open Anyway** and confirm with your macOS password or Touch ID.
+
+Alternatively, if needed via terminal, explicitly scope quarantine attribute removal to the application bundle:
+```bash
+xattr -d com.apple.quarantine /Applications/Vacua.app
+```
+*(Never run recursive quarantine removal on `/` or root directories).*

@@ -18,54 +18,88 @@ public struct CandidatesView: View {
                 
                 Divider()
                 
-                // Table
-                if model.candidates.isEmpty && !model.isLoading {
+                // Content area
+                if model.candidatesState.isLoading && model.candidates.isEmpty {
+                    VStack(spacing: 12) {
+                        ProgressView()
+                        Text("Loading cleanup candidates…")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if model.candidates.isEmpty {
                     emptyState
                 } else {
-                    Table(model.candidates, selection: $selectedCandidateId) {
-                        TableColumn("Target Path") { candidate in
-                            Text(candidate.display_path)
-                                .font(.system(.body, design: .monospaced))
-                                .lineLimit(1)
-                                .help(candidate.display_path)
+                    VStack(spacing: 0) {
+                        Table(model.candidates, selection: $selectedCandidateId) {
+                            TableColumn("Target Path") { candidate in
+                                Text(candidate.display_path)
+                                    .font(.system(.body, design: .monospaced))
+                                    .lineLimit(1)
+                                    .help(candidate.display_path)
+                            }
+                            .width(min: 240, ideal: 360)
+                            
+                            TableColumn("Category") { candidate in
+                                CategoryBadge(category: candidate.category)
+                            }
+                            .width(min: 80, ideal: 100)
+                            
+                            TableColumn("Risk") { candidate in
+                                RiskBadge(risk: candidate.risk)
+                            }
+                            .width(min: 70, ideal: 80)
+                            
+                            TableColumn("Confirmed") { candidate in
+                                Text(candidate.confirmed_reclaim_lower_bound.formatted(.byteCount(style: .file)))
+                                    .font(.body.weight(.medium))
+                                    .foregroundStyle(.green)
+                            }
+                            .width(min: 80, ideal: 100)
+                            
+                            TableColumn("Estimated") { candidate in
+                                Text(candidate.reclaim_upper_bound.formatted(.byteCount(style: .file)))
+                                    .font(.body)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .width(min: 80, ideal: 100)
                         }
-                        .width(min: 240, ideal: 360)
+                        .tableStyle(.inset(alternatesRowBackgrounds: true))
+                        .onChange(of: selectedCandidateId) { _, newId in
+                            if let cand = model.candidates.first(where: { $0.id == newId }) {
+                                Task { await model.selectCandidate(cand) }
+                            }
+                        }
+                        .onChange(of: model.candidates) { _, newCandidates in
+                            if let selId = selectedCandidateId, !newCandidates.contains(where: { $0.id == selId }) {
+                                selectedCandidateId = nil
+                                model.selectedCandidate = nil
+                                model.selectedCandidateDetail = nil
+                            }
+                        }
                         
-                        TableColumn("Category") { candidate in
-                            CategoryBadge(category: candidate.category)
-                        }
-                        .width(min: 80, ideal: 100)
-                        
-                        TableColumn("Risk") { candidate in
-                            RiskBadge(risk: candidate.risk)
-                        }
-                        .width(min: 70, ideal: 80)
-                        
-                        TableColumn("Confirmed") { candidate in
-                            Text(candidate.confirmed_reclaim_lower_bound.formatted(.byteCount(style: .file)))
-                                .font(.body.weight(.medium))
-                                .foregroundStyle(.green)
-                        }
-                        .width(min: 80, ideal: 100)
-                        
-                        TableColumn("Estimated") { candidate in
-                            Text(candidate.reclaim_upper_bound.formatted(.byteCount(style: .file)))
-                                .font(.body)
-                                .foregroundStyle(.secondary)
-                        }
-                        .width(min: 80, ideal: 100)
-                    }
-                    .tableStyle(.inset(alternatesRowBackgrounds: true))
-                    .onChange(of: selectedCandidateId) { _, newId in
-                        if let cand = model.candidates.first(where: { $0.id == newId }) {
-                            Task { await model.selectCandidate(cand) }
-                        }
-                    }
-                    .onChange(of: model.candidates) { _, newCandidates in
-                        if let selId = selectedCandidateId, !newCandidates.contains(where: { $0.id == selId }) {
-                            selectedCandidateId = nil
-                            model.selectedCandidate = nil
-                            model.selectedCandidateDetail = nil
+                        // Pagination Footer
+                        if model.hasMoreCandidates {
+                            Divider()
+                            HStack {
+                                Spacer()
+                                Button {
+                                    Task { await model.loadMoreCandidates() }
+                                } label: {
+                                    if model.isLoadingNextCandidatesPage {
+                                        ProgressView()
+                                            .controlSize(.small)
+                                    } else {
+                                        Text("Load More Candidates…")
+                                            .font(.caption)
+                                    }
+                                }
+                                .buttonStyle(.link)
+                                .disabled(model.isLoadingNextCandidatesPage)
+                                Spacer()
+                            }
+                            .padding(.vertical, 8)
+                            .background(Color(NSColor.controlBackgroundColor))
                         }
                     }
                 }
@@ -103,14 +137,18 @@ public struct CandidatesView: View {
             }
         }
         .navigationTitle("Cleanup Candidates")
+        .task {
+            // Lazy load when user enters Candidates view
+            await model.loadCandidatesIfNeeded()
+        }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    Task { await model.refreshCandidates() }
+                    Task { await model.loadCandidates(force: true) }
                 } label: {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
-                .disabled(model.isLoading)
+                .disabled(model.candidatesState.isLoading)
             }
         }
         .sheet(item: $model.activeSimulation) { sim in
@@ -137,12 +175,20 @@ public struct CandidatesView: View {
             }
             .frame(width: 140)
             .onChange(of: model.candidateRiskFilter) { _, _ in
-                Task { await model.refreshCandidates() }
+                selectedCandidateId = nil
+                model.selectedCandidate = nil
+                model.selectedCandidateDetail = nil
+                Task { await model.loadCandidates(force: true) }
             }
             
             Spacer()
             
-            Text("\(model.candidates.count) items found")
+            if model.candidatesState.isLoading && !model.candidates.isEmpty {
+                ProgressView()
+                    .controlSize(.small)
+            }
+            
+            Text("\(model.candidates.count) items loaded\(model.hasMoreCandidates ? " (more available)" : "")")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

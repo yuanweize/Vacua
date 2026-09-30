@@ -37,7 +37,7 @@ public struct OverviewView: View {
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                         Button("Retry Analysis") {
-                            Task { await model.refreshAll() }
+                            Task { await model.loadOverview(force: true) }
                         }
                         .padding(.top, 8)
                     }
@@ -56,11 +56,11 @@ public struct OverviewView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    Task { await model.refreshAll() }
+                    Task { await model.loadOverview(force: true) }
                 } label: {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
-                .disabled(model.isLoading)
+                .disabled(model.overviewState.isLoading)
             }
         }
     }

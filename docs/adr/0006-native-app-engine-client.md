@@ -4,7 +4,7 @@
 Accepted (v0.6.0)
 
 ## Context
-Vacua requires a first-party graphical user interface for macOS to enable visual exploration of storage pressures, cleanup candidates, duplicate sets, application residue, and APFS snapshots.
+Vacua requires a first-party graphical user interface for macOS to enable visual exploration of storage pressures, cleanup candidates, duplicate sets, application residue, and storage snapshots.
 
 Key architectural considerations:
 1. **Frontend Technology**: Electron, Tauri, WebViews, vs native macOS SwiftUI / AppKit.

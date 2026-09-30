@@ -18,3 +18,7 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+
+[[bin]]
+name = "generate_contract_fixtures"
+path = "src/bin/generate_contract_fixtures.rs"

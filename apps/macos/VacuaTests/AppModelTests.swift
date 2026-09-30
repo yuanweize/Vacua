@@ -74,4 +74,64 @@ struct AppModelTests {
         #expect(McpRiskFilter.caution.rawValue == "caution")
         #expect(McpRiskFilter.review.rawValue == "review")
     }
+
+    @Test("Verify LoadState enum transitions and accessors")
+    func testLoadStateTransitions() {
+        var state: LoadState<String> = .idle
+        #expect(!state.isLoading)
+        #expect(state.value == nil)
+        #expect(state.errorMessage == nil)
+
+        state = .loading(previous: nil)
+        #expect(state.isLoading)
+        #expect(state.value == nil)
+
+        state = .loaded("data-1")
+        #expect(!state.isLoading)
+        #expect(state.value == "data-1")
+        #expect(state.errorMessage == nil)
+
+        state = .loading(previous: "data-1")
+        #expect(state.isLoading)
+        #expect(state.value == "data-1")
+
+        state = .failed(message: "Network timeout", previous: "data-1")
+        #expect(!state.isLoading)
+        #expect(state.value == "data-1")
+        #expect(state.errorMessage == "Network timeout")
+    }
+
+    @Test("Verify VacuaDateFormatter parses RFC3339 dates without error")
+    func testDateFormatter() {
+        let rfc3339 = "2026-09-30T01:23:45Z"
+        let parsed = VacuaDateFormatter.parse(rfc3339)
+        #expect(parsed != nil)
+
+        let formatted = VacuaDateFormatter.formatDisplay(rfc3339)
+        #expect(!formatted.isEmpty)
+        #expect(formatted != rfc3339) // formatted should be human-readable, not raw RFC3339
+
+        let invalid = "not-a-date"
+        #expect(VacuaDateFormatter.parse(invalid) == nil)
+        #expect(VacuaDateFormatter.formatDisplay(invalid) == invalid)
+    }
+
+    @Test("Verify SnapshotDiffV1 truth semantics")
+    func testSnapshotDiffSemantics() {
+        let diff = SnapshotDiffV1(
+            schema_version: "vacua.mcp.snapshot-diff.v1",
+            base_snapshot: "snap-1",
+            target_snapshot: "snap-2",
+            allocated_delta_bytes: -1048576,
+            logical_delta_bytes: -2097152,
+            files_delta: -5,
+            top_growing: [],
+            top_shrinking: [
+                SubtreeDeltaV1(display_path: "/Users/test/Caches", delta_bytes: -1048576, files_delta: -5)
+            ]
+        )
+        #expect(diff.allocated_delta_bytes == -1048576)
+        #expect(diff.top_shrinking.count == 1)
+        #expect(diff.top_shrinking.first?.delta_bytes == -1048576)
+    }
 }

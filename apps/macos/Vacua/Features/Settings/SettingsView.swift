@@ -50,7 +50,7 @@ public struct SettingsView: View {
                     
                     Button("Restart Engine Subprocess") {
                         Task {
-                            await model.startEngine()
+                            await model.restartEngine()
                         }
                     }
                     .padding(.top, 4)
