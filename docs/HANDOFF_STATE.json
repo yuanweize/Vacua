@@ -1,0 +1,18 @@
+{
+  "schema": "vacua.handoff.v1",
+  "last_release": "v0.8.0",
+  "release_commit": "7e9ae7159eb20f6f49e0031efe1cd101c0fb5941",
+  "project_license": "Apache-2.0",
+  "ecosystems_supported": 8,
+  "mcp_mutation_authority": false,
+  "native_gui_mutation_authority": false,
+  "apple_intelligence_status": {
+    "framework_compilation_verified": true,
+    "guided_generation_compiled": true,
+    "runtime_inference_verified": false,
+    "qualification_state": "IMPLEMENTED / Awaiting eligible-hardware runtime qualification",
+    "active_runtime_fallback": "deterministic-parser"
+  },
+  "next_recommended_milestone": "v0.9 — Apple Foundation Models Runtime & Grounded Intelligence",
+  "next_focus": "Apple Foundation Models runtime qualification and grounded reasoning"
+}
