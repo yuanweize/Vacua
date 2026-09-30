@@ -28,16 +28,7 @@ public final class EngineProcessSupervisor: ObservableObject {
             return override
         }
 
-        #if DEBUG
-        if let envPath = ProcessInfo.processInfo.environment["VACUA_MCP_PATH"], !envPath.isEmpty {
-            let envURL = URL(fileURLWithPath: envPath)
-            if FileManager.default.isExecutableFile(atPath: envURL.path) {
-                return envURL
-            }
-        }
-        #endif
-
-        // Look in App Bundle Contents/Helpers/vacua-mcp
+        // 1. Primary: Look in App Bundle Contents/Helpers/vacua-mcp
         if let bundleHelpersURL = Bundle.main.resourceURL?.deletingLastPathComponent().appendingPathComponent("Helpers") {
             let bundledMCP = bundleHelpersURL.appendingPathComponent("vacua-mcp")
             if FileManager.default.isExecutableFile(atPath: bundledMCP.path) {
@@ -49,6 +40,27 @@ public final class EngineProcessSupervisor: ObservableObject {
         if FileManager.default.isExecutableFile(atPath: fallbackURL.path) {
             return fallbackURL
         }
+
+        #if DEBUG
+        // 2. In Debug/development, check environment variable
+        if let envPath = ProcessInfo.processInfo.environment["VACUA_MCP_PATH"], !envPath.isEmpty {
+            let envURL = URL(fileURLWithPath: envPath)
+            if FileManager.default.isExecutableFile(atPath: envURL.path) {
+                return envURL
+            }
+        }
+
+        // 3. In Debug/development, fall back to locally installed Homebrew binary
+        let devCandidates = [
+            "/opt/homebrew/bin/vacua-mcp",
+            "/usr/local/bin/vacua-mcp"
+        ]
+        for candidate in devCandidates {
+            if FileManager.default.isExecutableFile(atPath: candidate) {
+                return URL(fileURLWithPath: candidate)
+            }
+        }
+        #endif
 
         throw VacuaClientError.engineNotFound(path: fallbackURL.path)
     }
