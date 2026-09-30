@@ -86,4 +86,28 @@ fn test_contract_fixtures_deserialize_cleanly() {
     assert_eq!(prop.schema_version, SCHEMA_PLAN_PROPOSAL_V1);
     assert_eq!(prop.proposal_status, "PROPOSAL_ONLY_NOT_EXECUTABLE_VIA_MCP");
     assert!(prop.serialized_plan.is_none());
+
+    // 13. Storage Tree Analysis
+    let tree_anal_json =
+        fs::read_to_string(fixtures_dir.join("storage-tree-analysis-v1.json")).unwrap();
+    let tree_anal: StorageTreeAnalysisV1 = serde_json::from_str(&tree_anal_json).unwrap();
+    assert_eq!(tree_anal.schema_version, SCHEMA_STORAGE_TREE_ANALYSIS_V1);
+    assert_eq!(tree_anal.root_node.kind, "root");
+    assert!(tree_anal.physical_sharing_uncertainty);
+
+    // 14. Storage Tree Page
+    let tree_page_json =
+        fs::read_to_string(fixtures_dir.join("storage-tree-page-v1.json")).unwrap();
+    let tree_page: StorageTreePageV1 = serde_json::from_str(&tree_page_json).unwrap();
+    assert_eq!(tree_page.schema_version, SCHEMA_STORAGE_TREE_PAGE_V1);
+    assert_eq!(tree_page.items.len(), 3);
+    assert_eq!(tree_page.remainder.item_count, 1);
+
+    // 15. Storage Tree Node Detail
+    let tree_node_json =
+        fs::read_to_string(fixtures_dir.join("storage-tree-node-detail-v1.json")).unwrap();
+    let tree_node: StorageTreeNodeDetailV1 = serde_json::from_str(&tree_node_json).unwrap();
+    assert_eq!(tree_node.schema_version, SCHEMA_STORAGE_TREE_NODE_DETAIL_V1);
+    assert_eq!(tree_node.node.display_name, "node_modules");
+    assert!(tree_node.delta.is_some());
 }

@@ -99,3 +99,27 @@ Evaluates `--jobs` worker pool throughput across 80 MiB independent duplicate co
 | **`-j 2`** | 26.54 ms | **3013.9 MiB/s** | **1.73x** |
 | **`-j 4`** | 18.24 ms | **4386.6 MiB/s** | **2.52x** |
 | **`-j 8`** | 15.05 ms | **5314.3 MiB/s** | **3.06x** |
+
+---
+
+## 6. Hierarchical Storage Map & Tree Engine (v0.7.0)
+
+Evaluates the deterministic hierarchical storage tree engine (`vacua-tree`), SQLite generation persistence (`vacua-index`), bounded child queries, hardlink deduplication, and squarified layout response. Measured using [`scripts/benchmark-storage-tree.py`](scripts/benchmark-storage-tree.py) on Apple Silicon M4 running macOS 27.0 APFS.
+
+### Synthetic Workloads & Algorithmic Correctness
+
+| Workload | Specification | Cold Build & Commit | Peak RSS | Warm Query Latency | Invariant Proof |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **A: Balanced 10k** | 10,000 files across 408 directories | **236.08 ms** | 29.3 MB | 4.64 ms | Exact file count (10,000) and byte rollup verified |
+| **A: Balanced 50k** | 50,000 files across 2,040 directories | **1555.68 ms** | 102.6 MB | 4.58 ms | Predictable linear scaling for mid-sized project roots |
+| **B: Extreme Fanout** | 20,000 files in 1 directory (Limit 30) | **463.26 ms** | 43.8 MB | 4.86 ms | Remainder exact match: 30 returned + 19,970 remainder = 20,000 |
+| **C: Deep Hierarchy** | Depth 256 nested directories | **57.38 ms** | 10.9 MB | 4.50 ms | Iterative bottom-up rollup; zero stack overflow |
+| **D: Hardlinks** | 1,000 files $\times$ 5 aliases (5,000 entries) | **83.10 ms** | 15.2 MB | 4.60 ms | Logical: 51.3 MB; Allocated: 12.28 MB (4.18x ratio, zero double-count) |
+| **E: Tiny Files** | 20,000 files (0 – 4 KB) | **353.92 ms** | 44.4 MB | 4.70 ms | APFS 4KB block allocation faithfully reflected |
+| **F: Warm Index Query** | 25 iterations on warm SQLite index | — | — | **p50: 4.66 ms / p95: 5.71 ms** | Sub-6ms UI drill-down response |
+
+### Storage Map Invariants
+1. **Zero Double-Counting**: Hardlink aliases are attributed exclusively to the lexicographically smallest canonical relative path. Peer aliases retain namespace logical lengths but report `0` allocated blocks.
+2. **Bounded Response Contract**: Paging guarantees $\sum \text{Page Items} + \text{Remainder} = \text{Parent Metric}$ down to the exact byte.
+3. **Zero Content Reads**: Storage map generation accesses only filesystem directory entries and inode metadata (`stat(2)`), reading exactly 0 file content bytes.
+

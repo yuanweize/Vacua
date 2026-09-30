@@ -1,7 +1,7 @@
 use rusqlite::Connection;
 use thiserror::Error;
 
-pub const CURRENT_SCHEMA_VERSION: u32 = 4;
+pub const CURRENT_SCHEMA_VERSION: u32 = 5;
 
 #[derive(Error, Debug)]
 pub enum SchemaError {
@@ -219,6 +219,59 @@ pub fn run_migrations(conn: &mut Connection) -> std::result::Result<(), SchemaEr
         tx.commit()?;
     }
 
+    if current_version < 5 {
+        let tx = conn.transaction()?;
+
+        tx.execute_batch(
+            r#"
+            -- Storage tree generations
+            CREATE TABLE IF NOT EXISTS storage_tree_generations (
+                generation_id TEXT PRIMARY KEY,
+                root_path TEXT NOT NULL,
+                root_id TEXT NOT NULL,
+                observed_at INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                source TEXT NOT NULL,
+                total_files INTEGER NOT NULL,
+                total_dirs INTEGER NOT NULL,
+                total_logical_bytes INTEGER NOT NULL,
+                total_allocated_bytes INTEGER NOT NULL,
+                coverage_json TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_tree_gen_root ON storage_tree_generations(root_id, observed_at DESC);
+
+            -- Storage tree nodes
+            CREATE TABLE IF NOT EXISTS storage_tree_nodes (
+                generation_id TEXT NOT NULL,
+                node_id TEXT NOT NULL,
+                parent_node_id TEXT,
+                raw_relative_path BLOB NOT NULL,
+                display_name TEXT NOT NULL,
+                display_path TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                depth INTEGER NOT NULL,
+                direct_logical_bytes INTEGER NOT NULL,
+                direct_allocated_bytes INTEGER NOT NULL,
+                subtree_logical_bytes INTEGER NOT NULL,
+                subtree_allocated_bytes INTEGER NOT NULL,
+                file_count INTEGER NOT NULL,
+                directory_count INTEGER NOT NULL,
+                hardlink_alias_count INTEGER NOT NULL,
+                is_hardlink_alias INTEGER NOT NULL DEFAULT 0,
+                child_count INTEGER NOT NULL,
+                mtime_sec INTEGER NOT NULL,
+                PRIMARY KEY (generation_id, node_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_tree_nodes_parent_alloc ON storage_tree_nodes(generation_id, parent_node_id, subtree_allocated_bytes DESC);
+            CREATE INDEX IF NOT EXISTS idx_tree_nodes_parent_logic ON storage_tree_nodes(generation_id, parent_node_id, subtree_logical_bytes DESC);
+            CREATE INDEX IF NOT EXISTS idx_tree_nodes_gen_node ON storage_tree_nodes(generation_id, node_id);
+            "#,
+        )?;
+
+        tx.pragma_update(None, "user_version", 5)?;
+        tx.commit()?;
+    }
+
     Ok(())
 }
 
@@ -239,12 +292,12 @@ mod tests {
         // Verify table existence
         let tables_count: i64 = conn
             .query_row(
-                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('volumes', 'scan_sessions', 'entries', 'classifications', 'watched_roots', 'snapshots', 'content_fingerprints')",
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('volumes', 'scan_sessions', 'entries', 'classifications', 'watched_roots', 'snapshots', 'content_fingerprints', 'storage_tree_generations', 'storage_tree_nodes')",
                 [],
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(tables_count, 7);
+        assert_eq!(tables_count, 9);
     }
 
     #[test]
@@ -346,7 +399,7 @@ mod tests {
         let version: u32 = conn
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 4);
+        assert_eq!(version, CURRENT_SCHEMA_VERSION);
 
         // Verify columns were added and legacy data populated
         let (s_ver, f_ver): (String, String) = conn
@@ -358,6 +411,60 @@ mod tests {
             .unwrap();
         assert_eq!(s_ver, "legacy-v1");
         assert_eq!(f_ver, "legacy-v1");
+    }
+
+    #[test]
+    fn test_migrations_v4_to_v5_preserves_data() {
+        let mut conn = Connection::open_in_memory().unwrap();
+
+        // Run migrations up to v4 manually
+        conn.execute_batch(
+            r#"
+            CREATE TABLE entries (
+                device_id INTEGER NOT NULL,
+                inode INTEGER NOT NULL,
+                canonical_path TEXT NOT NULL,
+                parent_path TEXT NOT NULL,
+                file_type TEXT NOT NULL,
+                logical_bytes INTEGER NOT NULL,
+                allocated_bytes INTEGER NOT NULL,
+                mtime_sec INTEGER NOT NULL,
+                observed_at INTEGER NOT NULL,
+                PRIMARY KEY (device_id, inode, canonical_path)
+            );
+            INSERT INTO entries VALUES (1, 100, '/tmp/a.txt', '/tmp', 'file', 1024, 4096, 1000, 2000);
+            PRAGMA user_version = 4;
+            "#,
+        )
+        .unwrap();
+
+        // Run migrations to upgrade to v5
+        run_migrations(&mut conn).unwrap();
+
+        let version: u32 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, CURRENT_SCHEMA_VERSION);
+
+        // Verify existing entry preserved
+        let path: String = conn
+            .query_row(
+                "SELECT canonical_path FROM entries WHERE inode = 100",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(path, "/tmp/a.txt");
+
+        // Verify new tables created
+        let gen_table_exists: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('storage_tree_generations', 'storage_tree_nodes')",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(gen_table_exists, 2);
     }
 
     #[test]

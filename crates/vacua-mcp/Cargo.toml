@@ -25,6 +25,7 @@ vacua-risk = { path = "../vacua-risk" }
 vacua-rules = { path = "../vacua-rules" }
 vacua-content = { path = "../vacua-content" }
 vacua-plan = { path = "../vacua-plan" }
+vacua-tree = { path = "../vacua-tree" }
 
 rmcp = { version = "3.5.0", default-features = false, features = ["server", "client", "macros", "schemars", "transport-io", "transport-child-process"] }
 tokio = { version = "1", features = ["full"] }

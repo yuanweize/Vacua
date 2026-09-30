@@ -14,7 +14,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "8E855D0C6A964EB893422CCC"
+               BlueprintIdentifier = "F65123E879D84DE69FCB59AA"
                BuildableName = "Vacua.app"
                BlueprintName = "Vacua"
                ReferencedContainer = "container:Vacua.xcodeproj">
@@ -28,7 +28,7 @@
             buildForAnalyzing = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "569041CDD23E4F05A1B18103"
+               BlueprintIdentifier = "B6A883381D404169A3A59896"
                BuildableName = "VacuaTests.xctest"
                BlueprintName = "VacuaTests"
                ReferencedContainer = "container:Vacua.xcodeproj">
@@ -46,7 +46,7 @@
             skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "569041CDD23E4F05A1B18103"
+               BlueprintIdentifier = "B6A883381D404169A3A59896"
                BuildableName = "VacuaTests.xctest"
                BlueprintName = "VacuaTests"
                ReferencedContainer = "container:Vacua.xcodeproj">
@@ -68,7 +68,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "8E855D0C6A964EB893422CCC"
+            BlueprintIdentifier = "F65123E879D84DE69FCB59AA"
             BuildableName = "Vacua.app"
             BlueprintName = "Vacua"
             ReferencedContainer = "container:Vacua.xcodeproj">
@@ -85,7 +85,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "8E855D0C6A964EB893422CCC"
+            BlueprintIdentifier = "F65123E879D84DE69FCB59AA"
             BuildableName = "Vacua.app"
             BlueprintName = "Vacua"
             ReferencedContainer = "container:Vacua.xcodeproj">

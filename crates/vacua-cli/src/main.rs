@@ -6,6 +6,7 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use chrono::Utc;
 use vacua_core::allocation::AllocationInfo;
 use vacua_core::candidate::Candidate;
 use vacua_core::cost::{CleanupSimulation, ReclaimCost};
@@ -18,6 +19,10 @@ use vacua_plan::CleanupPlan;
 use vacua_risk::CandidateEvaluator;
 use vacua_rules::engine::RulesEngine;
 use vacua_scan::{FilesystemScanner, ScanOptions};
+use vacua_tree::{
+    StorageNodeId, StorageNodeKind, StorageTreeBuilder, StorageTreeCoverage, StorageTreeEngine,
+    StorageTreeGeneration, StorageTreeMetric, StorageTreeSource, StorageTreeStatus,
+};
 
 #[derive(Parser)]
 #[command(
@@ -217,6 +222,41 @@ enum Commands {
         #[arg(long, help = "Output machine-readable JSON")]
         json: bool,
     },
+
+    #[command(
+        about = "Analyze and display hierarchical storage tree with logical and allocated metrics"
+    )]
+    Tree {
+        #[arg(default_value = ".", help = "Target path to inspect")]
+        path: PathBuf,
+
+        #[arg(
+            long,
+            value_enum,
+            default_value_t = CliTreeMetric::Allocated,
+            help = "Metric to display/sort by (allocated or logical)"
+        )]
+        metric: CliTreeMetric,
+
+        #[arg(
+            long,
+            default_value_t = 20,
+            help = "Maximum children per directory level to display"
+        )]
+        limit: usize,
+
+        #[arg(long, default_value_t = 1, help = "Maximum tree depth to display")]
+        depth: usize,
+
+        #[arg(long, help = "Force refresh storage tree generation from live scan")]
+        refresh: bool,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum CliTreeMetric {
+    Allocated,
+    Logical,
 }
 
 #[derive(Subcommand, Debug)]
@@ -458,6 +498,255 @@ fn main() {
         },
         Commands::Doctor => handle_doctor(cli.json),
         Commands::Completions { shell } => handle_completions(shell),
+        Commands::Tree {
+            path,
+            metric,
+            limit,
+            depth,
+            refresh,
+        } => handle_tree(&path, metric, limit, depth, cli.json, refresh),
+    }
+}
+
+fn handle_tree(
+    target_path: &Path,
+    metric: CliTreeMetric,
+    limit: usize,
+    depth: usize,
+    json: bool,
+    refresh: bool,
+) {
+    let canonical = match target_path.canonicalize() {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Error resolving target path {:?}: {}", target_path, e);
+            std::process::exit(1);
+        }
+    };
+    let root_id = blake3::hash(canonical.to_string_lossy().as_bytes()).to_hex()[..16].to_string();
+
+    let db_path = default_index_path();
+    let mut db = match IndexDatabase::open(&db_path) {
+        Ok(db) => db,
+        Err(e) => {
+            eprintln!("Error opening index database: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    // Check if ready generation exists
+    let latest_gen = if refresh {
+        None
+    } else {
+        StorageTreeEngine::get_latest_ready_generation(db.conn(), &root_id)
+            .ok()
+            .flatten()
+    };
+    let gen = match latest_gen {
+        Some(g) if g.root_path == canonical => g,
+        _ => {
+            // Build new generation from live scan
+            let scanner = FilesystemScanner::new(ScanOptions::default());
+            let report = match scanner.scan(&canonical) {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!("Error scanning filesystem: {}", e);
+                    std::process::exit(1);
+                }
+            };
+            let builder = StorageTreeBuilder::new(&canonical, &root_id);
+            let nodes = match builder.build_from_scanned_entries(&report.entries) {
+                Ok(n) => n,
+                Err(e) => {
+                    eprintln!("Error building storage tree: {}", e);
+                    std::process::exit(1);
+                }
+            };
+            let root_node = nodes
+                .iter()
+                .find(|n| n.kind == StorageNodeKind::Root)
+                .unwrap();
+            let new_gen = StorageTreeGeneration {
+                generation_id: format!("stg_{}_{}", root_id, Utc::now().timestamp_millis()),
+                root_path: canonical.clone(),
+                root_id: root_id.clone(),
+                observed_at: Utc::now().timestamp(),
+                source: StorageTreeSource::LiveScan,
+                status: StorageTreeStatus::Ready,
+                total_files: root_node.file_count,
+                total_dirs: root_node.directory_count,
+                total_logical_bytes: root_node.subtree_logical_bytes,
+                total_allocated_bytes: root_node.subtree_allocated_bytes,
+                coverage: StorageTreeCoverage {
+                    files_observed: report.total_files,
+                    directories_observed: report.total_dirs,
+                    entries_skipped: report.skipped_paths.len() as u64,
+                    analysis_complete: true,
+                    ..Default::default()
+                },
+            };
+            if let Err(e) = StorageTreeEngine::publish_generation(db.conn_mut(), &new_gen, &nodes) {
+                eprintln!("Error publishing storage tree generation: {}", e);
+                std::process::exit(1);
+            }
+            let _ = StorageTreeEngine::prune_older_generations(db.conn_mut(), &root_id, 2);
+            new_gen
+        }
+    };
+
+    let tree_metric = match metric {
+        CliTreeMetric::Allocated => StorageTreeMetric::Allocated,
+        CliTreeMetric::Logical => StorageTreeMetric::Logical,
+    };
+
+    let root_node_id = StorageNodeId::from_raw_relative(&root_id, b"");
+    let (children, remainder, total_child_count) = match StorageTreeEngine::query_children_page(
+        db.conn(),
+        &gen.generation_id,
+        &root_node_id,
+        tree_metric,
+        limit as u32,
+        0,
+    ) {
+        Ok(res) => res,
+        Err(e) => {
+            eprintln!("Error querying storage tree: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let root_node = match StorageTreeEngine::get_node(db.conn(), &gen.generation_id, &root_node_id)
+    {
+        Ok(Some(n)) => n,
+        _ => {
+            eprintln!("Root node not found");
+            std::process::exit(1);
+        }
+    };
+
+    if json {
+        let page_dto = vacua_api::StorageTreePageV1 {
+            schema_version: vacua_api::SCHEMA_STORAGE_TREE_PAGE_V1.to_string(),
+            generation_id: gen.generation_id.clone(),
+            parent_node: root_node.to_dto(),
+            metric: match metric {
+                CliTreeMetric::Allocated => "allocated".to_string(),
+                CliTreeMetric::Logical => "logical".to_string(),
+            },
+            items: children.iter().map(|c| c.to_dto()).collect(),
+            total_child_count: total_child_count as usize,
+            limit,
+            offset: 0,
+            remainder: remainder.to_dto(),
+            next_cursor: None,
+        };
+        println!("{}", serde_json::to_string_pretty(&page_dto).unwrap());
+    } else {
+        println!("{}", canonical.display());
+        println!(
+            "  {} allocated ({} logical)\n",
+            format_bytes(root_node.subtree_allocated_bytes),
+            format_bytes(root_node.subtree_logical_bytes)
+        );
+
+        let root_metric_val = match metric {
+            CliTreeMetric::Allocated => root_node.subtree_allocated_bytes,
+            CliTreeMetric::Logical => root_node.subtree_logical_bytes,
+        };
+
+        let ctx = TreePrintContext {
+            conn: db.conn(),
+            gen_id: &gen.generation_id,
+            metric,
+            limit,
+            max_depth: depth,
+        };
+
+        print_tree_level(&ctx, &children, &remainder, root_metric_val, 1);
+    }
+}
+
+struct TreePrintContext<'a> {
+    conn: &'a rusqlite::Connection,
+    gen_id: &'a str,
+    metric: CliTreeMetric,
+    limit: usize,
+    max_depth: usize,
+}
+
+fn print_tree_level(
+    ctx: &TreePrintContext,
+    children: &[vacua_tree::StorageTreeNode],
+    remainder: &vacua_tree::StorageTreeRemainder,
+    parent_metric_val: u64,
+    current_depth: usize,
+) {
+    let indent = "  ".repeat(current_depth);
+
+    for child in children {
+        let child_val = match ctx.metric {
+            CliTreeMetric::Allocated => child.subtree_allocated_bytes,
+            CliTreeMetric::Logical => child.subtree_logical_bytes,
+        };
+        let pct = if parent_metric_val > 0 {
+            (child_val as f64 / parent_metric_val as f64) * 100.0
+        } else {
+            0.0
+        };
+        let kind_tag = match child.kind {
+            StorageNodeKind::Directory => format!("dir, {} files", child.file_count),
+            StorageNodeKind::File => "file".to_string(),
+            StorageNodeKind::Root => "root".to_string(),
+        };
+        println!(
+            "{}{:<24} {:>10} ({:>5.1}%)  [{}]",
+            indent,
+            child.display_name,
+            format_bytes(child_val),
+            pct,
+            kind_tag
+        );
+
+        // Recursively print sub-level if depth allows
+        if current_depth < ctx.max_depth
+            && child.kind == StorageNodeKind::Directory
+            && child.child_count > 0
+        {
+            let tree_metric = match ctx.metric {
+                CliTreeMetric::Allocated => StorageTreeMetric::Allocated,
+                CliTreeMetric::Logical => StorageTreeMetric::Logical,
+            };
+            if let Ok((sub_children, sub_rem, _)) = StorageTreeEngine::query_children_page(
+                ctx.conn,
+                ctx.gen_id,
+                &child.node_id,
+                tree_metric,
+                ctx.limit as u32,
+                0,
+            ) {
+                print_tree_level(ctx, &sub_children, &sub_rem, child_val, current_depth + 1);
+            }
+        }
+    }
+
+    if remainder.item_count > 0 {
+        let rem_val = match ctx.metric {
+            CliTreeMetric::Allocated => remainder.allocated_bytes,
+            CliTreeMetric::Logical => remainder.logical_bytes,
+        };
+        let pct = if parent_metric_val > 0 {
+            (rem_val as f64 / parent_metric_val as f64) * 100.0
+        } else {
+            0.0
+        };
+        println!(
+            "{}{:<24} {:>10} ({:>5.1}%)  [remainder, {} items]",
+            indent,
+            "Other",
+            format_bytes(rem_val),
+            pct,
+            remainder.item_count
+        );
     }
 }
 

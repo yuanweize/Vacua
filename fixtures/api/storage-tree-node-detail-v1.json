@@ -1,0 +1,31 @@
+{
+  "schema_version": "vacua.mcp.storage-tree-node-detail.v1",
+  "node": {
+    "node_id": "stn_00000000000000000000000000000002",
+    "parent_id": "stn_00000000000000000000000000000001",
+    "display_name": "node_modules",
+    "display_path": "/Users/alice/Projects/node_modules",
+    "kind": "directory",
+    "depth": 1,
+    "direct_logical_bytes": 0,
+    "direct_allocated_bytes": 0,
+    "subtree_logical_bytes": 24000000000,
+    "subtree_allocated_bytes": 18400000000,
+    "file_count": 14203,
+    "directory_count": 250,
+    "hardlink_alias_count": 0,
+    "is_hardlink_alias": false,
+    "child_count": 120,
+    "mtime_sec": 1727683200
+  },
+  "percentage_of_parent": 38.17427385892116,
+  "percentage_of_root": 38.17427385892116,
+  "allocation_semantics": "Filesystem allocation attributed to this namespace tree. APFS clone sharing may cause physical overlap.",
+  "delta": {
+    "node_id": "stn_00000000000000000000000000000002",
+    "allocated_delta_bytes": 2300000000,
+    "logical_delta_bytes": 3100000000,
+    "file_count_delta": 450,
+    "change_kind": "grown"
+  }
+}

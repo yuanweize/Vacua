@@ -92,6 +92,18 @@ pub fn generate_all_schemas() -> BTreeMap<&'static str, Value> {
         "release-manifest-v1.schema.json",
         serde_json::to_value(schema_for!(ReleaseManifestV1)).unwrap(),
     );
+    map.insert(
+        "storage-tree-analysis-v1.schema.json",
+        serde_json::to_value(schema_for!(StorageTreeAnalysisV1)).unwrap(),
+    );
+    map.insert(
+        "storage-tree-page-v1.schema.json",
+        serde_json::to_value(schema_for!(StorageTreePageV1)).unwrap(),
+    );
+    map.insert(
+        "storage-tree-node-detail-v1.schema.json",
+        serde_json::to_value(schema_for!(StorageTreeNodeDetailV1)).unwrap(),
+    );
 
     map
 }

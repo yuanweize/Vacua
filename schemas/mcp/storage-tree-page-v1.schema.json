@@ -1,0 +1,182 @@
+{
+  "$defs": {
+    "StorageTreeNodeV1": {
+      "description": "Compact node summary within a hierarchical storage tree.",
+      "properties": {
+        "child_count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "depth": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "direct_allocated_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "direct_logical_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "directory_count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "display_path": {
+          "type": "string"
+        },
+        "file_count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "hardlink_alias_count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "is_hardlink_alias": {
+          "type": "boolean"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "mtime_sec": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "parent_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "subtree_allocated_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "subtree_logical_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "node_id",
+        "display_name",
+        "display_path",
+        "kind",
+        "depth",
+        "direct_logical_bytes",
+        "direct_allocated_bytes",
+        "subtree_logical_bytes",
+        "subtree_allocated_bytes",
+        "file_count",
+        "directory_count",
+        "hardlink_alias_count",
+        "is_hardlink_alias",
+        "child_count",
+        "mtime_sec"
+      ],
+      "type": "object"
+    },
+    "StorageTreeRemainderV1": {
+      "description": "Remainder accounting for truncated child queries.",
+      "properties": {
+        "allocated_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "item_count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "logical_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "item_count",
+        "logical_bytes",
+        "allocated_bytes"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Paginated children page for interactive treemap drill-down.",
+  "properties": {
+    "generation_id": {
+      "type": "string"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/StorageTreeNodeV1"
+      },
+      "type": "array"
+    },
+    "limit": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "metric": {
+      "type": "string"
+    },
+    "next_cursor": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "offset": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "parent_node": {
+      "$ref": "#/$defs/StorageTreeNodeV1"
+    },
+    "remainder": {
+      "$ref": "#/$defs/StorageTreeRemainderV1"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "total_child_count": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "generation_id",
+    "parent_node",
+    "metric",
+    "items",
+    "total_child_count",
+    "limit",
+    "offset",
+    "remainder"
+  ],
+  "title": "StorageTreePageV1",
+  "type": "object"
+}

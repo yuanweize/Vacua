@@ -1,0 +1,41 @@
+{
+  "schema_version": "vacua.mcp.storage-tree-analysis.v1",
+  "generation_id": "stg_sample_20260930_abc123",
+  "root_path": "/Users/alice/Projects",
+  "root_id": "root_projects_1",
+  "observed_at": "2026-09-30T10:00:00Z",
+  "source": "LiveScan",
+  "root_node": {
+    "node_id": "stn_00000000000000000000000000000001",
+    "display_name": "Projects",
+    "display_path": "/Users/alice/Projects",
+    "kind": "root",
+    "depth": 0,
+    "direct_logical_bytes": 0,
+    "direct_allocated_bytes": 0,
+    "subtree_logical_bytes": 62100000000,
+    "subtree_allocated_bytes": 48200000000,
+    "file_count": 17355,
+    "directory_count": 315,
+    "hardlink_alias_count": 12,
+    "is_hardlink_alias": false,
+    "child_count": 4,
+    "mtime_sec": 1727683200
+  },
+  "total_files": 17355,
+  "total_dirs": 315,
+  "total_logical_bytes": 62100000000,
+  "total_allocated_bytes": 48200000000,
+  "physical_sharing_uncertainty": true,
+  "allocation_semantics": "Filesystem allocation attributed to this namespace tree. APFS clone sharing may cause physical overlap.",
+  "coverage": {
+    "files_observed": 17355,
+    "directories_observed": 315,
+    "entries_skipped": 0,
+    "permission_errors": 0,
+    "mount_boundary_skips": 0,
+    "special_files_skipped": 0,
+    "cloud_placeholders_observed": 0,
+    "analysis_complete": true
+  }
+}

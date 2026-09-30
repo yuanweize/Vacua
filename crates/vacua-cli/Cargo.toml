@@ -24,6 +24,7 @@ vacua-plan = { path = "../vacua-plan" }
 vacua-index = { path = "../vacua-index" }
 vacua-executor = { path = "../vacua-executor" }
 vacua-content = { path = "../vacua-content" }
+vacua-tree = { path = "../vacua-tree" }
 vacua-api = { path = "../vacua-api" }
 clap = { workspace = true }
 clap_complete = { workspace = true }
@@ -32,6 +33,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 blake3 = { workspace = true }
+rusqlite = { workspace = true }
 walkdir = { workspace = true }
 
 [dev-dependencies]

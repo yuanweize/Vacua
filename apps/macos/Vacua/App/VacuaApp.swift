@@ -64,6 +64,8 @@ struct ContentView: View {
                 switch model.selectedNavigation {
                 case .overview:
                     OverviewView(model: model)
+                case .storageMap:
+                    StorageMapView(model: model.storageMapModel)
                 case .candidates:
                     CandidatesView(model: model)
                 case .duplicates:

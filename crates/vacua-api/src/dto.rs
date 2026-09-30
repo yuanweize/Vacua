@@ -442,3 +442,106 @@ pub struct ReleaseManifestV1 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub github_run_id: Option<String>,
 }
+
+/// Coverage metrics for storage tree analysis.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
+pub struct StorageTreeCoverageV1 {
+    pub files_observed: u64,
+    pub directories_observed: u64,
+    pub entries_skipped: u64,
+    pub permission_errors: u64,
+    pub mount_boundary_skips: u64,
+    pub special_files_skipped: u64,
+    pub cloud_placeholders_observed: u64,
+    pub analysis_complete: bool,
+}
+
+/// Compact node summary within a hierarchical storage tree.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
+pub struct StorageTreeNodeV1 {
+    pub node_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_id: Option<String>,
+    pub display_name: String,
+    pub display_path: String,
+    pub kind: String,
+    pub depth: u32,
+    pub direct_logical_bytes: u64,
+    pub direct_allocated_bytes: u64,
+    pub subtree_logical_bytes: u64,
+    pub subtree_allocated_bytes: u64,
+    pub file_count: u64,
+    pub directory_count: u64,
+    pub hardlink_alias_count: u64,
+    pub is_hardlink_alias: bool,
+    pub child_count: u64,
+    pub mtime_sec: i64,
+}
+
+/// Remainder accounting for truncated child queries.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
+pub struct StorageTreeRemainderV1 {
+    pub item_count: u64,
+    pub logical_bytes: u64,
+    pub allocated_bytes: u64,
+}
+
+/// Complete storage tree analysis response.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
+pub struct StorageTreeAnalysisV1 {
+    pub schema_version: String,
+    pub generation_id: String,
+    pub root_path: String,
+    pub root_id: String,
+    pub observed_at: String,
+    pub source: String,
+    pub root_node: StorageTreeNodeV1,
+    pub total_files: u64,
+    pub total_dirs: u64,
+    pub total_logical_bytes: u64,
+    pub total_allocated_bytes: u64,
+    pub physical_sharing_uncertainty: bool,
+    pub allocation_semantics: String,
+    pub coverage: StorageTreeCoverageV1,
+}
+
+/// Paginated children page for interactive treemap drill-down.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
+pub struct StorageTreePageV1 {
+    pub schema_version: String,
+    pub generation_id: String,
+    pub parent_node: StorageTreeNodeV1,
+    pub metric: String,
+    pub items: Vec<StorageTreeNodeV1>,
+    pub total_child_count: usize,
+    pub limit: usize,
+    pub offset: usize,
+    pub remainder: StorageTreeRemainderV1,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
+}
+
+/// Observed storage delta between a tree node and a baseline snapshot.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
+pub struct StorageTreeDeltaV1 {
+    pub node_id: String,
+    pub allocated_delta_bytes: i64,
+    pub logical_delta_bytes: i64,
+    pub file_count_delta: i64,
+    pub change_kind: String,
+}
+
+/// Detailed node inspection view.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, JsonSchema)]
+pub struct StorageTreeNodeDetailV1 {
+    pub schema_version: String,
+    pub node: StorageTreeNodeV1,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub percentage_of_parent: Option<f64>,
+    pub percentage_of_root: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hardlink_info: Option<String>,
+    pub allocation_semantics: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delta: Option<StorageTreeDeltaV1>,
+}
