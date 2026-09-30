@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2026-09-30
+
+Native macOS Product Design, App Icon & UX Hardening: Elevates Vacua into a visually coherent, recognizable, accessible, production-grade native macOS product while maintaining strict truth boundaries and zero-destructive execution safety.
+
+### Added
+
+- **Production macOS App Icon & Asset Catalog Pipeline**:
+  - Original vector master artwork (`design/icon/VacuaIcon.svg`) embodying the "Negative Space Matrix" concept (slate graphite squircle with electric cyan aperture).
+  - Reproducible native Swift export pipeline (`scripts/export_app_icon.swift`) generating standard macOS icon sizes (16pt–512pt @1x, @2x) into `Assets.xcassets/AppIcon.appiconset`.
+  - Xcode project generator integration compiling `AppIcon.icns` and `Assets.car` directly into `Vacua.app`.
+  - Icon architecture and HIG compliance documentation (`docs/design/APP_ICON.md`).
+- **P0 Snapshot Delta Full-Page Batch API (`vacua-api`, `vacua-tree`, `vacua-mcp`)**:
+  - Added `item_deltas: Option<Vec<StorageTreeDeltaV1>>` to `StorageTreePageV1` DTO and schema.
+  - Added `compare_nodes_with_snapshot` batch comparison in `vacua-tree` calculating growth, shrinkage, unchanged, and new states in a single $O(K)$ pass.
+  - Added `compare_snapshot_id` parameter to `vacua_get_storage_map` MCP endpoint, resolving deltas for all visible items on a page without N+1 requests.
+  - Full-page delta overlay in SwiftUI `TreemapView` and `StorageMapModel`, displaying simultaneous delta state and symbols (`↑`, `↓`, `●`, `—`) across all visible rectangles without requiring individual cell selection.
+- **Modular Native Design System (`apps/macos/Vacua/Common/DesignSystem`)**:
+  - `VacuaTheme`: Centralized brand tokens, adaptive surface styling, snapshot delta semantic colors, and a deterministic stable grouping palette for Treemap branch hierarchy that avoids risk implication.
+  - `VacuaSymbols`: Centralized, audited macOS 15 SF Symbols registry avoiding destructive clichés (replaced trash icon with `list.bullet.clipboard`, camera with `clock.arrow.circlepath`).
+  - `Metrics`: Standardized window, padding, card spacing, and corner radius tokens.
+  - `Badges`: Accessible `RiskBadge` and `ReclaimBoundsView` pairing color with symbols and labels.
+  - `StatusViews`: Unified `SafetyGuaranteeBanner` and `EngineStatusBadge`.
+  - `EmptyState` & `ErrorState`: Polished native placeholders with contextual guidance and action buttons across all views.
+- **Accessibility & Localization Hardening**:
+  - String Catalog foundation (`Localizable.xcstrings`) for future localization.
+  - High-contrast border adaptation responding dynamically to `\.colorSchemeContrast`.
+  - Non-color visual indicators on all status and delta elements complying with Differentiate Without Color.
+  - Keyboard navigation and VoiceOver accessibility labels for Treemap cells and breadcrumbs.
+- **Design & Qualification Documentation**:
+  - Comprehensive Visual System specification (`docs/design/VISUAL_SYSTEM.md`).
+  - Detailed UI audit and remediation matrix (`docs/design/UI_AUDIT_v0.7.1.md`).
+  - Runtime visual qualification report (`docs/qualification/v0.7.1-ui.md`).
+
+### Changed
+
+- Refactored sidebar navigation into "Core" and "Analysis" sections and removed redundant sidebar Settings item in favor of native macOS Preferences scene (`⌘,`).
+- Replaced hardcoded "v0.7.0" release strings in banners and proposal sheets with dynamic version lookups and standardized "Analysis & proposal only" safety copy.
+- Enriched Settings view with About Vacua section featuring embedded app icon, version, git commit, license, and repository links.
+- Streamlined candidate and duplicate review screens with concise local verification copy and accessible error recovery.
+
+---
+
 ## [0.7.0] - 2026-09-30
 
 Phase 5: Hierarchical Storage Map & Native Treemap Intelligence Engine: Introduces a deterministic Rust hierarchical storage engine (`vacua-tree`), SQLite-backed tree generation persistence (Schema v5), hardlink-aware allocated block attribution, bounded child queries with exact remainder invariants, capability-isolated MCP tools, Swift engine client bindings, and a native macOS Squarified Treemap in SwiftUI with lazy drill-down, metric toggles, node inspection, and snapshot delta overlays.

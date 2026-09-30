@@ -92,10 +92,13 @@ public struct StorageNodeInspector: View {
                                         .font(.subheadline)
                                         .foregroundStyle(.secondary)
                                     Spacer()
-                                    Text(delta.change_kind.capitalized)
-                                        .font(.subheadline)
-                                        .fontWeight(.semibold)
-                                        .foregroundStyle(deltaColor(delta.change_kind))
+                                    HStack(spacing: 4) {
+                                        Image(systemName: VacuaTheme.deltaSymbol(for: delta.change_kind))
+                                            .font(.system(size: 10, weight: .bold))
+                                        Text(VacuaTheme.deltaLabel(for: delta.change_kind))
+                                            .font(.subheadline.weight(.semibold))
+                                    }
+                                    .foregroundStyle(VacuaTheme.deltaColor(for: delta.change_kind))
                                 }
 
                                 InspectorRow(
@@ -185,17 +188,8 @@ public struct StorageNodeInspector: View {
                 .padding()
             }
         }
-        .frame(minWidth: 240, idealWidth: 280, maxWidth: 320)
+        .frame(minWidth: VacuaMetrics.inspectorMinWidth, idealWidth: VacuaMetrics.inspectorIdealWidth, maxWidth: VacuaMetrics.inspectorMaxWidth)
         .background(Color(nsColor: .windowBackgroundColor))
-    }
-
-    private func deltaColor(_ kind: String) -> Color {
-        switch kind {
-        case "grown": return .red
-        case "shrunk": return .green
-        case "new": return .purple
-        default: return .secondary
-        }
     }
 }
 

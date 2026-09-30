@@ -1,41 +1,51 @@
 import SwiftUI
-import VacuaClient
 
 // MARK: - Risk Badge
 
 public struct RiskBadge: View {
-    public let risk: String
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
     
+    public let risk: String
+
     public init(risk: String) {
         self.risk = risk
     }
-    
+
     public var body: some View {
         let normalized = risk.lowercased()
-        let (color, text): (Color, String) = {
+        let (color, text, symbol): (Color, String, String) = {
             switch normalized {
             case "safe":
-                return (.green, "Safe")
+                return (.green, "Safe", VacuaSymbols.riskSafe)
             case "caution", "cautious":
-                return (.orange, "Caution")
+                return (.orange, "Caution", VacuaSymbols.riskCaution)
             case "review":
-                return (.blue, "Review")
+                return (.blue, "Review", VacuaSymbols.riskReview)
             case "protected":
-                return (.purple, "Protected")
+                return (.purple, "Protected", VacuaSymbols.riskProtected)
             case "unknown":
-                return (.secondary, "Unknown")
+                return (.secondary, "Unknown", VacuaSymbols.riskUnknown)
             default:
-                return (.secondary, risk.capitalized)
+                return (.secondary, risk.capitalized, VacuaSymbols.info)
             }
         }()
-        
-        Text(text)
-            .font(.caption2.weight(.semibold))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(color.opacity(0.15))
-            .foregroundStyle(color)
-            .clipShape(Capsule())
+
+        HStack(spacing: 3) {
+            Image(systemName: symbol)
+                .font(.system(size: 9, weight: .semibold))
+            Text(text)
+                .font(.caption2.weight(.semibold))
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2.5)
+        .background(color.opacity(colorScheme == .dark ? 0.22 : 0.12))
+        .foregroundStyle(color)
+        .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .stroke(differentiateWithoutColor ? color : color.opacity(0.3), lineWidth: 1)
+        )
     }
 }
 
@@ -43,11 +53,11 @@ public struct RiskBadge: View {
 
 public struct CategoryBadge: View {
     public let category: String
-    
+
     public init(category: String) {
         self.category = category
     }
-    
+
     public var body: some View {
         Text(category.capitalized)
             .font(.caption2.weight(.medium))
@@ -55,7 +65,7 @@ public struct CategoryBadge: View {
             .padding(.vertical, 2)
             .background(Color.secondary.opacity(0.12))
             .foregroundStyle(.secondary)
-            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .clipShape(RoundedRectangle(cornerRadius: VacuaMetrics.cornerRadiusSmall))
     }
 }
 
@@ -65,13 +75,13 @@ public struct ByteCountText: View {
     public let bytes: Int64
     public let font: Font
     public let weight: Font.Weight
-    
+
     public init(bytes: Int64, font: Font = .body, weight: Font.Weight = .regular) {
         self.bytes = bytes
         self.font = font
         self.weight = weight
     }
-    
+
     public var body: some View {
         Text(bytes.formatted(.byteCount(style: .file)))
             .font(font.weight(weight))
@@ -84,54 +94,27 @@ public struct ByteCountText: View {
 public struct ReclaimBoundsView: View {
     public let lowerBoundBytes: Int64
     public let upperBoundBytes: Int64
-    
+
     public init(lowerBoundBytes: Int64, upperBoundBytes: Int64) {
         self.lowerBoundBytes = lowerBoundBytes
         self.upperBoundBytes = upperBoundBytes
     }
-    
+
     public var body: some View {
-        VStack(alignment: .trailing, spacing: 1) {
+        VStack(alignment: .trailing, spacing: 2) {
             HStack(spacing: 4) {
+                Text("Confirmed:")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
                 Text(lowerBoundBytes.formatted(.byteCount(style: .file)))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.green)
             }
             if upperBoundBytes > lowerBoundBytes {
-                Text("up to \(upperBoundBytes.formatted(.byteCount(style: .file)))")
+                Text("Estimated up to \(upperBoundBytes.formatted(.byteCount(style: .file)))")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
         }
-    }
-}
-
-// MARK: - Safety Guarantee Banner
-
-public struct SafetyGuaranteeBanner: View {
-    public init() {}
-    
-    public var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "checkmark.shield.fill")
-                .foregroundStyle(.green)
-                .font(.title3)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Proposal-Only Interface (v0.7.0)")
-                    .font(.subheadline.weight(.medium))
-                Text("Vacua native client has strictly zero mutation authority. No deletions or modifications will ever be performed from this interface.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-        }
-        .padding(10)
-        .background(Color.green.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.green.opacity(0.2), lineWidth: 1)
-        )
     }
 }

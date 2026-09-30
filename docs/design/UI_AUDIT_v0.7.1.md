@@ -1,0 +1,23 @@
+# Vacua v0.7.1 UI & Design Audit
+
+## Overview
+Targeting release **v0.7.1**, this audit identifies visual, structural, accessibility, and correctness issues across the native macOS application (`apps/macos/Vacua`) prior to product hardening.
+
+---
+
+## Findings & Action Items
+
+| # | Screen / Component | Issue / Problem | User Impact | Proposed Fix | Implemented? |
+|---|-------------------|-----------------|-------------|--------------|:------------:|
+| 1 | **Application Identity** | No `Assets.xcassets` or `AppIcon.appiconset`; Xcode generator lacks asset catalog. | App appears with generic default system icon in Dock, Finder, and App Switcher. | Create `Assets.xcassets` with square 1024×1024 source, generate AppIcon set, update `generate_xcodeproj.py`. | Planned |
+| 2 | **Treemap Snapshot Delta** | `delta: (isSelected ? model.selectedNodeDetail?.delta : nil)` only colors the single selected node. | "Change Since Snapshot" mode fails to provide a full-map visual overlay; unselected items appear neutral. | Extend storage tree page query API in Rust to batch-compute deltas for visible nodes; bind authoritative delta to all visible cells. | Planned |
+| 3 | **Sidebar & Navigation** | `Settings` is duplicated in both sidebar navigation and standard macOS `Settings` scene (`⌘,`). | Redundant navigation; violates standard macOS HIG conventions. | Remove Settings from sidebar; group sidebar logically into Core (Overview, Storage Map) and Analysis domains (Candidates, Duplicates, Applications, Snapshots). | Planned |
+| 4 | **Iconography & Semantics** | Candidates jumpCard uses `trash`; Snapshots uses `camera.metering.matrix` and `camera.fill`. | Miscommunicates safe review as deletion, and filesystem snapshots as photography. | Centralize in `VacuaSymbols`; use `checklist`/`list.bullet.rectangle` for Candidates, `clock.arrow.circlepath` for Snapshots. | Planned |
+| 5 | **Design System Sprawl** | `Common/DesignSystem.swift` mixes badges, byte formatters, and banners with hardcoded sizes and colors. | Difficult to maintain; inconsistent margins, fonts, and borders across views. | Refactor into `Common/DesignSystem/` modules: `VacuaTheme`, `VacuaSymbols`, `Metrics`, `Badges`, `EmptyState`, `ErrorState`. | Planned |
+| 6 | **Dark / Light Contrast** | Treemap borders use hardcoded `Color.white.opacity(0.6)` on hover and `Color.black.opacity(0.15)` for normal. | Hover border is nearly invisible in Light mode; normal border is invisible in Dark mode. | Use adaptive semantic borders and dynamic strokes that provide high contrast in both appearances. | Planned |
+| 7 | **Accessibility (Color Independence)** | Snapshot Delta overlay and RiskBadges rely primarily on red/green tinting. | Users with color vision deficiencies or "Differentiate Without Color" enabled cannot distinguish growth from shrinkage. | Add textual/symbolic indicators (`↑ Grown`, `↓ Shrunk`, `● New`, `— Unchanged`) and respect `accessibilityDifferentiateWithoutColor`. | Planned |
+| 8 | **Accessibility (Motion & Hierarchy)** | Transitions lack `@Environment(\.accessibilityReduceMotion)` checks; focus rings lack full keyboard model. | Users with vestibular sensitivity or keyboard-only navigation experience jarring movement or inability to drill down. | Add `accessibilityReduceMotion` guards; support Return drill-down and Escape back; maintain accessible List View parity. | Planned |
+| 9 | **Hardcoded Version Strings** | `SafetyGuaranteeBanner`, `CleanupProposalSheet`, and `SettingsView` hardcode `"v0.7.0"`. | Safety banners and dialogs show stale version info after subsequent releases. | Remove hardcoded version from safety banners; bind version dynamically to `Bundle` and `BuildInfo`. | Planned |
+| 10 | **Overview Visual Hierarchy** | 12 equal-weight cards and no clear indication of active inspection root. | User cannot easily parse storage health and active root at a 3-second glance. | Add prominent Root Header with path disclosure; structure layout into Primary Capacity, Reclaim Truth, and Domain Jumps. | Planned |
+| 11 | **Terminology & Copy** | Jargon like "Analyzing storage truth from Rust engine…" in user-facing progress views. | Technical overload in primary UI; feels like a debugger rather than a polished product. | Simplify primary copy to "Analyzing storage…" while retaining exact technical details in tooltips and inspectors. | Planned |
+| 12 | **Localization Foundation** | User-visible copy is scattered as inline string literals across SwiftUI files. | Future localization is impeded; copy updates risk regressions. | Introduce `Localizable.xcstrings` String Catalog foundation for user-facing strings. | Planned |

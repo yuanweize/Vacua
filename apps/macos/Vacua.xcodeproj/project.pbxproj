@@ -7,94 +7,123 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		1E6089E825D24F05A926014E /* VacuaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 657839DACB534703A721C043 /* VacuaApp.swift */; };
-		7361F79D145144CFBEB06A74 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD7E0CB32B5D4C1BB6FC01D3 /* AppModel.swift */; };
-		567D9689F60A49B9B4A73DD5 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB289128756E4AFC913693F6 /* DesignSystem.swift */; };
-		46FCC68129294E0AA261D222 /* OverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B56CB546CEE4C319C0C4AB7 /* OverviewView.swift */; };
-		8380901C20EC42ECB76330FB /* CandidatesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF3714F052DF4B73A6DE48A4 /* CandidatesView.swift */; };
-		670E24A77DCF455FAAE1A482 /* CandidateDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E7E52226C7B439897D760B1 /* CandidateDetailView.swift */; };
-		70F05009BC374F1BBAE7D46E /* CleanupSimulationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 795CE04A362240EEA9AA162F /* CleanupSimulationSheet.swift */; };
-		BEEA7B6CEE7B45A79323D339 /* CleanupProposalSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CC53AAF1744429EBC6778FC /* CleanupProposalSheet.swift */; };
-		1EA406B2563944A990821CCF /* DuplicatesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4569F3DA6FF1492AA76BC8D8 /* DuplicatesView.swift */; };
-		711F03D142DF40A992A0072A /* ApplicationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24D02E90FB094275B50972A6 /* ApplicationsView.swift */; };
-		052E7E124B1648C0ADC3A464 /* SnapshotsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65778DA4504E46A39F5688AC /* SnapshotsView.swift */; };
-		4ABA7078F71B4818AC2020BA /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B21E603D61A479E8023C9C0 /* SettingsView.swift */; };
-		2BF7051B96D64D0A8DF2B180 /* StorageMapModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A483085E50D464BB471754D /* StorageMapModel.swift */; };
-		E7619E5D1B5640BC8F3BB3FB /* StorageMapToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A02054A4615E4EDCA8F46C0A /* StorageMapToolbar.swift */; };
-		F96C851238DF43E394FCBA04 /* StorageMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDC6BE6495F845A88FFF47E0 /* StorageMapView.swift */; };
-		E48F5F9E28474AEAB5216334 /* StorageNodeInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E6E3C134914B47AFD47DD3 /* StorageNodeInspector.swift */; };
-		31686D068E45485ABEAB3475 /* TreemapLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E16EA6A79AD4C46855D7ED4 /* TreemapLayout.swift */; };
-		E308F6FD22614C19BF30CC52 /* TreemapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE9E20605D594422B5DE8247 /* TreemapView.swift */; };
-		9B78972CBB7F4A19B1C5E0FF /* AppModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA1C998A9AB4B7AB95A9B6D /* AppModelTests.swift */; };
-		5FDF10F28D6F4C4B897C8FF7 /* TreemapLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 160E51E6BA714EFDB4B544B7 /* TreemapLayoutTests.swift */; };
-		18C70D90E8EA41C8BA18B1C4 /* VacuaUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 093EEEE3365C4C4491D29A58 /* VacuaUITests.swift */; };
-		298CF97A39274EE38E7025B9 /* VacuaClient in Frameworks */ = {isa = PBXBuildFile; productRef = FBD7A2D65DD04561B95B78B7 /* VacuaClient */; };
-		BD731967AD8E4D52A710DE72 /* VacuaClient in Frameworks */ = {isa = PBXBuildFile; productRef = 017295F5184A4D7A98DE2F69 /* VacuaClient */; };
+		BFF31ECC0D4949348023B503 /* VacuaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EFAD46BF0424A1A8CDB44A5 /* VacuaApp.swift */; };
+		844B2D01D3F849D8AE303E38 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9C1ABD2B319476BA18AECC0 /* AppModel.swift */; };
+		4FE95E48B62E409D87A95D26 /* VacuaTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9B0F66792EC45A1904FABD4 /* VacuaTheme.swift */; };
+		0DFF31AE843347428E5CD552 /* VacuaSymbols.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12617A66088A41A395D1940C /* VacuaSymbols.swift */; };
+		262E8DD8546F45DE83616FD2 /* Metrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FF90A1EB34841D999F6F325 /* Metrics.swift */; };
+		24000C3E9C4A4E9C8A7233BB /* Badges.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B73AF555D3A4B83A10EE34F /* Badges.swift */; };
+		12F874DEBA6C4D478BC7EDED /* StatusViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63850228000D45AE9010CAAC /* StatusViews.swift */; };
+		A2862BE258944D538B447C3F /* EmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A723ECCCB1DC4E86AD37D2A3 /* EmptyState.swift */; };
+		59AE88B19B874A05AB12CEDF /* ErrorState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B502B7FFAD44181A41BEE69 /* ErrorState.swift */; };
+		12934B73BC83427C9D094E6C /* OverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 653B39ACF33A42A699DF453B /* OverviewView.swift */; };
+		98ECF29D315B4FD28C6C3D09 /* CandidatesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A48D57947C2645AEA267EC48 /* CandidatesView.swift */; };
+		0B29E49577C74107BB0240C8 /* CandidateDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE20DC4361D4BEC9C949FB7 /* CandidateDetailView.swift */; };
+		2596D1E1C9A34E60A5498094 /* CleanupSimulationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB4267987F854B41AF5A7CCE /* CleanupSimulationSheet.swift */; };
+		9E4A960C381B4ACABA3C49B6 /* CleanupProposalSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0C45BD4E674917B491F920 /* CleanupProposalSheet.swift */; };
+		AB1EB6CC27C741C5A08DBB69 /* DuplicatesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A281B85E452844C68EA29C95 /* DuplicatesView.swift */; };
+		628722A82C6A4835B3F0EEAC /* ApplicationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8423DBCA63F4848A0CF9D17 /* ApplicationsView.swift */; };
+		A89392125E6746EE898404D5 /* SnapshotsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB5B318FF33A4C3E864EC8B5 /* SnapshotsView.swift */; };
+		9D63B8C5AD5C46538AF19145 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2068E8E96A42438497622658 /* SettingsView.swift */; };
+		0A641531253041D4B3A4E4C2 /* StorageMapModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DB1B28D3C7A47998069F336 /* StorageMapModel.swift */; };
+		158DDAB226BE4CA389C5C348 /* StorageMapToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 674BFBBF20A741089A64D2FB /* StorageMapToolbar.swift */; };
+		D90712C6C73F444895EB5C65 /* StorageMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A07E7FFF4CE04F9FAB81D008 /* StorageMapView.swift */; };
+		925C17786AA142789F80CC94 /* StorageNodeInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A999FAB516D4AB39EAAF223 /* StorageNodeInspector.swift */; };
+		55EA6158F1FC4ECD82F0210C /* TreemapLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 164E0A6BA76F42B0BCC72D99 /* TreemapLayout.swift */; };
+		904260038583458486F0FF90 /* TreemapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CFC73EAAD3643888F55C71D /* TreemapView.swift */; };
+		D2C8B14EA06C4E08B1111609 /* AppModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C20BE666FCA490EBD407665 /* AppModelTests.swift */; };
+		FA2ED3BB9E6042FEB1FE5C35 /* TreemapLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 418B63642F234C6BA1381A5D /* TreemapLayoutTests.swift */; };
+		2C8FEA9C580A4A29B3690BF0 /* VacuaUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAD1B6B76FC74E79AE4FC048 /* VacuaUITests.swift */; };
+		8FB73694301B47BA846AEF7B /* VacuaClient in Frameworks */ = {isa = PBXBuildFile; productRef = 723A8D08259947AD85E5A00C /* VacuaClient */; };
+		ADC8EE3CA2264821AF5054C5 /* VacuaClient in Frameworks */ = {isa = PBXBuildFile; productRef = 89F5C94BF9574B2D8894C98C /* VacuaClient */; };
+		22DA197E023A4A4FBB18298E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 21E9CD511FFC424AAAF8D1EF /* Assets.xcassets */; };
+		FF9309057B0348EF86FBA5B0 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 446497F4C2CA4949B3C7A997 /* Localizable.xcstrings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		886619FE6FE4426787F39896 /* PBXContainerItemProxy */ = {
+		F3E3BC1F80094997BA35ECA3 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = 4D79B16AD5FF460A923E9D5B /* Project object */;
+			containerPortal = 81350A272A9448F3883D92CC /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = F65123E879D84DE69FCB59AA;
+			remoteGlobalIDString = 11DF7C3F8362488DAFD31625;
 			remoteInfo = Vacua;
 		};
-		7B8539506A084B55A3B9683E /* PBXContainerItemProxy */ = {
+		0E8DB362C1184A47BA19404C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = 4D79B16AD5FF460A923E9D5B /* Project object */;
+			containerPortal = 81350A272A9448F3883D92CC /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = F65123E879D84DE69FCB59AA;
+			remoteGlobalIDString = 11DF7C3F8362488DAFD31625;
 			remoteInfo = Vacua;
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXTargetDependency section */
+		31EF28DA71FC4C718C2B4A7D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 11DF7C3F8362488DAFD31625 /* Vacua */;
+			targetProxy = F3E3BC1F80094997BA35ECA3 /* PBXContainerItemProxy */;
+		};
+		5AE8B865885C4189811B627B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 11DF7C3F8362488DAFD31625 /* Vacua */;
+			targetProxy = 0E8DB362C1184A47BA19404C /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin PBXFileReference section */
-		B7914FA5E1024B32A4B4CF85 /* Vacua.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Vacua.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		F141113F980044639932051E /* VacuaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VacuaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		62A9B7A8561C41EC8E2ABFDF /* VacuaUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VacuaUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		70C7B34A967E4333A407557B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Vacua/Resources/Info.plist"; sourceTree = "<group>"; };
-		657839DACB534703A721C043 /* VacuaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/App/VacuaApp.swift"; sourceTree = "<group>"; };
-		FD7E0CB32B5D4C1BB6FC01D3 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/App/AppModel.swift"; sourceTree = "<group>"; };
-		BB289128756E4AFC913693F6 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Common/DesignSystem.swift"; sourceTree = "<group>"; };
-		1B56CB546CEE4C319C0C4AB7 /* OverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/Overview/OverviewView.swift"; sourceTree = "<group>"; };
-		DF3714F052DF4B73A6DE48A4 /* CandidatesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/Candidates/CandidatesView.swift"; sourceTree = "<group>"; };
-		7E7E52226C7B439897D760B1 /* CandidateDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/Candidates/CandidateDetailView.swift"; sourceTree = "<group>"; };
-		795CE04A362240EEA9AA162F /* CleanupSimulationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/Candidates/CleanupSimulationSheet.swift"; sourceTree = "<group>"; };
-		1CC53AAF1744429EBC6778FC /* CleanupProposalSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/Candidates/CleanupProposalSheet.swift"; sourceTree = "<group>"; };
-		4569F3DA6FF1492AA76BC8D8 /* DuplicatesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/Duplicates/DuplicatesView.swift"; sourceTree = "<group>"; };
-		24D02E90FB094275B50972A6 /* ApplicationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/Applications/ApplicationsView.swift"; sourceTree = "<group>"; };
-		65778DA4504E46A39F5688AC /* SnapshotsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/Snapshots/SnapshotsView.swift"; sourceTree = "<group>"; };
-		2B21E603D61A479E8023C9C0 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/Settings/SettingsView.swift"; sourceTree = "<group>"; };
-		0A483085E50D464BB471754D /* StorageMapModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/StorageMap/StorageMapModel.swift"; sourceTree = "<group>"; };
-		A02054A4615E4EDCA8F46C0A /* StorageMapToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/StorageMap/StorageMapToolbar.swift"; sourceTree = "<group>"; };
-		FDC6BE6495F845A88FFF47E0 /* StorageMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/StorageMap/StorageMapView.swift"; sourceTree = "<group>"; };
-		14E6E3C134914B47AFD47DD3 /* StorageNodeInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/StorageMap/StorageNodeInspector.swift"; sourceTree = "<group>"; };
-		7E16EA6A79AD4C46855D7ED4 /* TreemapLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/StorageMap/TreemapLayout.swift"; sourceTree = "<group>"; };
-		DE9E20605D594422B5DE8247 /* TreemapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/StorageMap/TreemapView.swift"; sourceTree = "<group>"; };
-		FAA1C998A9AB4B7AB95A9B6D /* AppModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VacuaTests/AppModelTests.swift"; sourceTree = "<group>"; };
-		160E51E6BA714EFDB4B544B7 /* TreemapLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VacuaTests/TreemapLayoutTests.swift"; sourceTree = "<group>"; };
-		093EEEE3365C4C4491D29A58 /* VacuaUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VacuaUITests/VacuaUITests.swift"; sourceTree = "<group>"; };
+		C8260F147F174CAFB4AB9DB4 /* Vacua.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Vacua.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		FA073681F3154D638DFFD39A /* VacuaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VacuaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		33638855BB0A41AEA3D27096 /* VacuaUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VacuaUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		5E1D6BB37E644A11B8721EA7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Vacua/Resources/Info.plist"; sourceTree = "<group>"; };
+		21E9CD511FFC424AAAF8D1EF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Vacua/Resources/Assets.xcassets"; sourceTree = "<group>"; };
+		446497F4C2CA4949B3C7A997 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = "Vacua/Resources/Localizable.xcstrings"; sourceTree = "<group>"; };
+		4EFAD46BF0424A1A8CDB44A5 /* VacuaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/App/VacuaApp.swift"; sourceTree = "<group>"; };
+		D9C1ABD2B319476BA18AECC0 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/App/AppModel.swift"; sourceTree = "<group>"; };
+		A9B0F66792EC45A1904FABD4 /* VacuaTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Common/DesignSystem/VacuaTheme.swift"; sourceTree = "<group>"; };
+		12617A66088A41A395D1940C /* VacuaSymbols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Common/DesignSystem/VacuaSymbols.swift"; sourceTree = "<group>"; };
+		8FF90A1EB34841D999F6F325 /* Metrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Common/DesignSystem/Metrics.swift"; sourceTree = "<group>"; };
+		0B73AF555D3A4B83A10EE34F /* Badges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Common/DesignSystem/Badges.swift"; sourceTree = "<group>"; };
+		63850228000D45AE9010CAAC /* StatusViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Common/DesignSystem/StatusViews.swift"; sourceTree = "<group>"; };
+		A723ECCCB1DC4E86AD37D2A3 /* EmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Common/DesignSystem/EmptyState.swift"; sourceTree = "<group>"; };
+		6B502B7FFAD44181A41BEE69 /* ErrorState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Common/DesignSystem/ErrorState.swift"; sourceTree = "<group>"; };
+		653B39ACF33A42A699DF453B /* OverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/Overview/OverviewView.swift"; sourceTree = "<group>"; };
+		A48D57947C2645AEA267EC48 /* CandidatesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/Candidates/CandidatesView.swift"; sourceTree = "<group>"; };
+		4AE20DC4361D4BEC9C949FB7 /* CandidateDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/Candidates/CandidateDetailView.swift"; sourceTree = "<group>"; };
+		BB4267987F854B41AF5A7CCE /* CleanupSimulationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/Candidates/CleanupSimulationSheet.swift"; sourceTree = "<group>"; };
+		2C0C45BD4E674917B491F920 /* CleanupProposalSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/Candidates/CleanupProposalSheet.swift"; sourceTree = "<group>"; };
+		A281B85E452844C68EA29C95 /* DuplicatesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/Duplicates/DuplicatesView.swift"; sourceTree = "<group>"; };
+		F8423DBCA63F4848A0CF9D17 /* ApplicationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/Applications/ApplicationsView.swift"; sourceTree = "<group>"; };
+		AB5B318FF33A4C3E864EC8B5 /* SnapshotsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/Snapshots/SnapshotsView.swift"; sourceTree = "<group>"; };
+		2068E8E96A42438497622658 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/Settings/SettingsView.swift"; sourceTree = "<group>"; };
+		9DB1B28D3C7A47998069F336 /* StorageMapModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/StorageMap/StorageMapModel.swift"; sourceTree = "<group>"; };
+		674BFBBF20A741089A64D2FB /* StorageMapToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/StorageMap/StorageMapToolbar.swift"; sourceTree = "<group>"; };
+		A07E7FFF4CE04F9FAB81D008 /* StorageMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/StorageMap/StorageMapView.swift"; sourceTree = "<group>"; };
+		8A999FAB516D4AB39EAAF223 /* StorageNodeInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/StorageMap/StorageNodeInspector.swift"; sourceTree = "<group>"; };
+		164E0A6BA76F42B0BCC72D99 /* TreemapLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/StorageMap/TreemapLayout.swift"; sourceTree = "<group>"; };
+		9CFC73EAAD3643888F55C71D /* TreemapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/StorageMap/TreemapView.swift"; sourceTree = "<group>"; };
+		6C20BE666FCA490EBD407665 /* AppModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VacuaTests/AppModelTests.swift"; sourceTree = "<group>"; };
+		418B63642F234C6BA1381A5D /* TreemapLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VacuaTests/TreemapLayoutTests.swift"; sourceTree = "<group>"; };
+		BAD1B6B76FC74E79AE4FC048 /* VacuaUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VacuaUITests/VacuaUITests.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		EB46BED9C93D4BE88B66FD4B /* Frameworks */ = {
+		F194D8A477B74C82B31217F8 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				298CF97A39274EE38E7025B9 /* VacuaClient in Frameworks */,
+				8FB73694301B47BA846AEF7B /* VacuaClient in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		79E06D20968A4260AB7FB834 /* Frameworks */ = {
+		9D6FA41F1C8C4769AFB5A679 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				BD731967AD8E4D52A710DE72 /* VacuaClient in Frameworks */,
+				ADC8EE3CA2264821AF5054C5 /* VacuaClient in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		95974E1DDA1C4BDBB1D7C1D8 /* Frameworks */ = {
+		C761738B10D1466FBA3E1DCB /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -104,65 +133,73 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		9BCCDADFA349433E8D9241A6 = {
+		6CDF154C08F841B7A46589BC = {
 			isa = PBXGroup;
 			children = (
-				6B4F98CE34734786A4CFBA1F /* Vacua */,
-				5577C728AF4F436BB2ECCC02 /* VacuaTests */,
-				71E6ED512B8D4F3699A6849B /* VacuaUITests */,
-				B86C1D80216C4F099FB678B1 /* Products */,
+				03E744D97C5841558EDC0C16 /* Vacua */,
+				4221478174344A50BFB75C1A /* VacuaTests */,
+				EB5BB262EF6C4A49A88BFE0F /* VacuaUITests */,
+				CB0BC9A384CF40C08467D20C /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		B86C1D80216C4F099FB678B1 /* Products */ = {
+		CB0BC9A384CF40C08467D20C /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				B7914FA5E1024B32A4B4CF85 /* Vacua.app */,
-				F141113F980044639932051E /* VacuaTests.xctest */,
-				62A9B7A8561C41EC8E2ABFDF /* VacuaUITests.xctest */,
+				C8260F147F174CAFB4AB9DB4 /* Vacua.app */,
+				FA073681F3154D638DFFD39A /* VacuaTests.xctest */,
+				33638855BB0A41AEA3D27096 /* VacuaUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		6B4F98CE34734786A4CFBA1F /* Vacua */ = {
+		03E744D97C5841558EDC0C16 /* Vacua */ = {
 			isa = PBXGroup;
 			children = (
-				70C7B34A967E4333A407557B /* Info.plist */,
-				657839DACB534703A721C043 /* VacuaApp.swift */,
-				FD7E0CB32B5D4C1BB6FC01D3 /* AppModel.swift */,
-				BB289128756E4AFC913693F6 /* DesignSystem.swift */,
-				1B56CB546CEE4C319C0C4AB7 /* OverviewView.swift */,
-				DF3714F052DF4B73A6DE48A4 /* CandidatesView.swift */,
-				7E7E52226C7B439897D760B1 /* CandidateDetailView.swift */,
-				795CE04A362240EEA9AA162F /* CleanupSimulationSheet.swift */,
-				1CC53AAF1744429EBC6778FC /* CleanupProposalSheet.swift */,
-				4569F3DA6FF1492AA76BC8D8 /* DuplicatesView.swift */,
-				24D02E90FB094275B50972A6 /* ApplicationsView.swift */,
-				65778DA4504E46A39F5688AC /* SnapshotsView.swift */,
-				2B21E603D61A479E8023C9C0 /* SettingsView.swift */,
-				0A483085E50D464BB471754D /* StorageMapModel.swift */,
-				A02054A4615E4EDCA8F46C0A /* StorageMapToolbar.swift */,
-				FDC6BE6495F845A88FFF47E0 /* StorageMapView.swift */,
-				14E6E3C134914B47AFD47DD3 /* StorageNodeInspector.swift */,
-				7E16EA6A79AD4C46855D7ED4 /* TreemapLayout.swift */,
-				DE9E20605D594422B5DE8247 /* TreemapView.swift */,
+				5E1D6BB37E644A11B8721EA7 /* Info.plist */,
+				21E9CD511FFC424AAAF8D1EF /* Assets.xcassets */,
+				446497F4C2CA4949B3C7A997 /* Localizable.xcstrings */,
+				4EFAD46BF0424A1A8CDB44A5 /* VacuaApp.swift */,
+				D9C1ABD2B319476BA18AECC0 /* AppModel.swift */,
+				A9B0F66792EC45A1904FABD4 /* VacuaTheme.swift */,
+				12617A66088A41A395D1940C /* VacuaSymbols.swift */,
+				8FF90A1EB34841D999F6F325 /* Metrics.swift */,
+				0B73AF555D3A4B83A10EE34F /* Badges.swift */,
+				63850228000D45AE9010CAAC /* StatusViews.swift */,
+				A723ECCCB1DC4E86AD37D2A3 /* EmptyState.swift */,
+				6B502B7FFAD44181A41BEE69 /* ErrorState.swift */,
+				653B39ACF33A42A699DF453B /* OverviewView.swift */,
+				A48D57947C2645AEA267EC48 /* CandidatesView.swift */,
+				4AE20DC4361D4BEC9C949FB7 /* CandidateDetailView.swift */,
+				BB4267987F854B41AF5A7CCE /* CleanupSimulationSheet.swift */,
+				2C0C45BD4E674917B491F920 /* CleanupProposalSheet.swift */,
+				A281B85E452844C68EA29C95 /* DuplicatesView.swift */,
+				F8423DBCA63F4848A0CF9D17 /* ApplicationsView.swift */,
+				AB5B318FF33A4C3E864EC8B5 /* SnapshotsView.swift */,
+				2068E8E96A42438497622658 /* SettingsView.swift */,
+				9DB1B28D3C7A47998069F336 /* StorageMapModel.swift */,
+				674BFBBF20A741089A64D2FB /* StorageMapToolbar.swift */,
+				A07E7FFF4CE04F9FAB81D008 /* StorageMapView.swift */,
+				8A999FAB516D4AB39EAAF223 /* StorageNodeInspector.swift */,
+				164E0A6BA76F42B0BCC72D99 /* TreemapLayout.swift */,
+				9CFC73EAAD3643888F55C71D /* TreemapView.swift */,
 			);
 			name = Vacua;
 			sourceTree = "<group>";
 		};
-		5577C728AF4F436BB2ECCC02 /* VacuaTests */ = {
+		4221478174344A50BFB75C1A /* VacuaTests */ = {
 			isa = PBXGroup;
 			children = (
-				FAA1C998A9AB4B7AB95A9B6D /* AppModelTests.swift */,
-				160E51E6BA714EFDB4B544B7 /* TreemapLayoutTests.swift */,
+				6C20BE666FCA490EBD407665 /* AppModelTests.swift */,
+				418B63642F234C6BA1381A5D /* TreemapLayoutTests.swift */,
 			);
 			name = VacuaTests;
 			sourceTree = "<group>";
 		};
-		71E6ED512B8D4F3699A6849B /* VacuaUITests */ = {
+		EB5BB262EF6C4A49A88BFE0F /* VacuaUITests */ = {
 			isa = PBXGroup;
 			children = (
-				093EEEE3365C4C4491D29A58 /* VacuaUITests.swift */,
+				BAD1B6B76FC74E79AE4FC048 /* VacuaUITests.swift */,
 			);
 			name = VacuaUITests;
 			sourceTree = "<group>";
@@ -170,13 +207,13 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		F65123E879D84DE69FCB59AA /* Vacua */ = {
+		11DF7C3F8362488DAFD31625 /* Vacua */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = B4FD3E859C684B5FA01040AC /* Build configuration list for PBXNativeTarget "Vacua" */;
+			buildConfigurationList = 26E1273D0A044523997E0FC3 /* Build configuration list for PBXNativeTarget "Vacua" */;
 			buildPhases = (
-				E71DC12D283146EA8AD15473 /* Sources */,
-				EB46BED9C93D4BE88B66FD4B /* Frameworks */,
-				E8564F9181B44003B4EC347B /* Resources */,
+				E98BD7C1D4FC4A329BF8E7AE /* Sources */,
+				F194D8A477B74C82B31217F8 /* Frameworks */,
+				2C5FA45940064B0CB2713A34 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -184,72 +221,74 @@
 			);
 			name = Vacua;
 			packageProductDependencies = (
-				FBD7A2D65DD04561B95B78B7 /* VacuaClient */,
+				723A8D08259947AD85E5A00C /* VacuaClient */,
 			);
 			productName = Vacua;
-			productReference = B7914FA5E1024B32A4B4CF85 /* Vacua.app */;
+			productReference = C8260F147F174CAFB4AB9DB4 /* Vacua.app */;
 			productType = "com.apple.product-type.application";
 		};
-		B6A883381D404169A3A59896 /* VacuaTests */ = {
+		569C2B252BB14AC897499C80 /* VacuaTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 2D38674B3E4A4C4286701CC6 /* Build configuration list for PBXNativeTarget "VacuaTests" */;
+			buildConfigurationList = 273CE837027E4AD58D52B433 /* Build configuration list for PBXNativeTarget "VacuaTests" */;
 			buildPhases = (
-				A33F05A0197B4B44AC9A0CED /* Sources */,
-				79E06D20968A4260AB7FB834 /* Frameworks */,
-				AC149DD533A3457D944AB426 /* Resources */,
+				51D2BA8A94074CAB9406E906 /* Sources */,
+				9D6FA41F1C8C4769AFB5A679 /* Frameworks */,
+				43C0524028C24DE897F13A7B /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				31EF28DA71FC4C718C2B4A7D /* PBXTargetDependency */,
 			);
 			name = VacuaTests;
 			packageProductDependencies = (
-				017295F5184A4D7A98DE2F69 /* VacuaClient */,
+				89F5C94BF9574B2D8894C98C /* VacuaClient */,
 			);
 			productName = VacuaTests;
-			productReference = F141113F980044639932051E /* VacuaTests.xctest */;
+			productReference = FA073681F3154D638DFFD39A /* VacuaTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		73EBA9824EAC461AB25916F1 /* VacuaUITests */ = {
+		C4B5310863814ACDBEB4C270 /* VacuaUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 74448055335B43098C676DAD /* Build configuration list for PBXNativeTarget "VacuaUITests" */;
+			buildConfigurationList = 8CAAC499739945BBB6AE941C /* Build configuration list for PBXNativeTarget "VacuaUITests" */;
 			buildPhases = (
-				E244833B4AC74552936557CD /* Sources */,
-				95974E1DDA1C4BDBB1D7C1D8 /* Frameworks */,
-				2F715FC4B0934E7DA4BB4C55 /* Resources */,
+				3012CA25EE964224AD4B7B6F /* Sources */,
+				C761738B10D1466FBA3E1DCB /* Frameworks */,
+				829461461B2A4FF084A8FB7B /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				5AE8B865885C4189811B627B /* PBXTargetDependency */,
 			);
 			name = VacuaUITests;
 			productName = VacuaUITests;
-			productReference = 62A9B7A8561C41EC8E2ABFDF /* VacuaUITests.xctest */;
+			productReference = 33638855BB0A41AEA3D27096 /* VacuaUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		4D79B16AD5FF460A923E9D5B /* Project object */ = {
+		81350A272A9448F3883D92CC /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
-					F65123E879D84DE69FCB59AA = {
+					11DF7C3F8362488DAFD31625 = {
 						CreatedOnToolsVersion = 16.0;
 					};
-					B6A883381D404169A3A59896 = {
+					569C2B252BB14AC897499C80 = {
 						CreatedOnToolsVersion = 16.0;
-						TestTargetID = F65123E879D84DE69FCB59AA;
+						TestTargetID = 11DF7C3F8362488DAFD31625;
 					};
-					73EBA9824EAC461AB25916F1 = {
+					C4B5310863814ACDBEB4C270 = {
 						CreatedOnToolsVersion = 16.0;
-						TestTargetID = F65123E879D84DE69FCB59AA;
+						TestTargetID = 11DF7C3F8362488DAFD31625;
 					};
 				};
 			};
-			buildConfigurationList = D370AB7863DE48829531C147 /* Build configuration list for PBXProject "Vacua" */;
+			buildConfigurationList = CFEE0064EFFF41A38DDDA8CA /* Build configuration list for PBXProject "Vacua" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -257,37 +296,39 @@
 				en,
 				Base,
 			);
-			mainGroup = 9BCCDADFA349433E8D9241A6;
+			mainGroup = 6CDF154C08F841B7A46589BC;
 			packageReferences = (
-				EE66C66A878C4F14BC225D30 /* XCLocalSwiftPackageReference "Packages/VacuaClient" */,
+				3D8957EAA16140E6BE53E441 /* XCLocalSwiftPackageReference "Packages/VacuaClient" */,
 			);
-			productRefGroup = B86C1D80216C4F099FB678B1 /* Products */;
+			productRefGroup = CB0BC9A384CF40C08467D20C /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				F65123E879D84DE69FCB59AA /* Vacua */,
-				B6A883381D404169A3A59896 /* VacuaTests */,
-				73EBA9824EAC461AB25916F1 /* VacuaUITests */,
+				11DF7C3F8362488DAFD31625 /* Vacua */,
+				569C2B252BB14AC897499C80 /* VacuaTests */,
+				C4B5310863814ACDBEB4C270 /* VacuaUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		E8564F9181B44003B4EC347B /* Resources */ = {
+		2C5FA45940064B0CB2713A34 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				22DA197E023A4A4FBB18298E /* Assets.xcassets in Resources */,
+				FF9309057B0348EF86FBA5B0 /* Localizable.xcstrings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		43C0524028C24DE897F13A7B /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		AC149DD533A3457D944AB426 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		2F715FC4B0934E7DA4BB4C55 /* Resources */ = {
+		829461461B2A4FF084A8FB7B /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -297,52 +338,58 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		E71DC12D283146EA8AD15473 /* Sources */ = {
+		E98BD7C1D4FC4A329BF8E7AE /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1E6089E825D24F05A926014E /* VacuaApp.swift in Sources */,
-				7361F79D145144CFBEB06A74 /* AppModel.swift in Sources */,
-				567D9689F60A49B9B4A73DD5 /* DesignSystem.swift in Sources */,
-				46FCC68129294E0AA261D222 /* OverviewView.swift in Sources */,
-				8380901C20EC42ECB76330FB /* CandidatesView.swift in Sources */,
-				670E24A77DCF455FAAE1A482 /* CandidateDetailView.swift in Sources */,
-				70F05009BC374F1BBAE7D46E /* CleanupSimulationSheet.swift in Sources */,
-				BEEA7B6CEE7B45A79323D339 /* CleanupProposalSheet.swift in Sources */,
-				1EA406B2563944A990821CCF /* DuplicatesView.swift in Sources */,
-				711F03D142DF40A992A0072A /* ApplicationsView.swift in Sources */,
-				052E7E124B1648C0ADC3A464 /* SnapshotsView.swift in Sources */,
-				4ABA7078F71B4818AC2020BA /* SettingsView.swift in Sources */,
-				2BF7051B96D64D0A8DF2B180 /* StorageMapModel.swift in Sources */,
-				E7619E5D1B5640BC8F3BB3FB /* StorageMapToolbar.swift in Sources */,
-				F96C851238DF43E394FCBA04 /* StorageMapView.swift in Sources */,
-				E48F5F9E28474AEAB5216334 /* StorageNodeInspector.swift in Sources */,
-				31686D068E45485ABEAB3475 /* TreemapLayout.swift in Sources */,
-				E308F6FD22614C19BF30CC52 /* TreemapView.swift in Sources */,
+				BFF31ECC0D4949348023B503 /* VacuaApp.swift in Sources */,
+				844B2D01D3F849D8AE303E38 /* AppModel.swift in Sources */,
+				4FE95E48B62E409D87A95D26 /* VacuaTheme.swift in Sources */,
+				0DFF31AE843347428E5CD552 /* VacuaSymbols.swift in Sources */,
+				262E8DD8546F45DE83616FD2 /* Metrics.swift in Sources */,
+				24000C3E9C4A4E9C8A7233BB /* Badges.swift in Sources */,
+				12F874DEBA6C4D478BC7EDED /* StatusViews.swift in Sources */,
+				A2862BE258944D538B447C3F /* EmptyState.swift in Sources */,
+				59AE88B19B874A05AB12CEDF /* ErrorState.swift in Sources */,
+				12934B73BC83427C9D094E6C /* OverviewView.swift in Sources */,
+				98ECF29D315B4FD28C6C3D09 /* CandidatesView.swift in Sources */,
+				0B29E49577C74107BB0240C8 /* CandidateDetailView.swift in Sources */,
+				2596D1E1C9A34E60A5498094 /* CleanupSimulationSheet.swift in Sources */,
+				9E4A960C381B4ACABA3C49B6 /* CleanupProposalSheet.swift in Sources */,
+				AB1EB6CC27C741C5A08DBB69 /* DuplicatesView.swift in Sources */,
+				628722A82C6A4835B3F0EEAC /* ApplicationsView.swift in Sources */,
+				A89392125E6746EE898404D5 /* SnapshotsView.swift in Sources */,
+				9D63B8C5AD5C46538AF19145 /* SettingsView.swift in Sources */,
+				0A641531253041D4B3A4E4C2 /* StorageMapModel.swift in Sources */,
+				158DDAB226BE4CA389C5C348 /* StorageMapToolbar.swift in Sources */,
+				D90712C6C73F444895EB5C65 /* StorageMapView.swift in Sources */,
+				925C17786AA142789F80CC94 /* StorageNodeInspector.swift in Sources */,
+				55EA6158F1FC4ECD82F0210C /* TreemapLayout.swift in Sources */,
+				904260038583458486F0FF90 /* TreemapView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		A33F05A0197B4B44AC9A0CED /* Sources */ = {
+		51D2BA8A94074CAB9406E906 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				9B78972CBB7F4A19B1C5E0FF /* AppModelTests.swift in Sources */,
-				5FDF10F28D6F4C4B897C8FF7 /* TreemapLayoutTests.swift in Sources */,
+				D2C8B14EA06C4E08B1111609 /* AppModelTests.swift in Sources */,
+				FA2ED3BB9E6042FEB1FE5C35 /* TreemapLayoutTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		E244833B4AC74552936557CD /* Sources */ = {
+		3012CA25EE964224AD4B7B6F /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				18C70D90E8EA41C8BA18B1C4 /* VacuaUITests.swift in Sources */,
+				2C8FEA9C580A4A29B3690BF0 /* VacuaUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		AEDF810473CF41E79A780986 /* Debug */ = {
+		2F2238D5A2BB4443B7D31764 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -370,7 +417,7 @@
 			};
 			name = Debug;
 		};
-		160E87F1FFFE4E26954B849E /* Release */ = {
+		F685E258D523481A8672A66C /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -392,9 +439,10 @@
 			};
 			name = Release;
 		};
-		828984775A4E4C11B8958578 /* Debug */ = {
+		28D7F1E1C2F445BDBB54749D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -405,7 +453,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.7.0;
+				MARKETING_VERSION = 0.7.1;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.yuanweize.vacua;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -413,9 +461,10 @@
 			};
 			name = Debug;
 		};
-		B15D7C6961084A72838CF701 /* Release */ = {
+		0BFD41789A0B49F197620F15 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -426,7 +475,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.7.0;
+				MARKETING_VERSION = 0.7.1;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.yuanweize.vacua;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -434,14 +483,14 @@
 			};
 			name = Release;
 		};
-		24EDDE18E60E4E5E874A7110 /* Debug */ = {
+		1D2F464BB5A3492ABB081100 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 0.7.0;
+				MARKETING_VERSION = 0.7.1;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.yuanweize.vacua.VacuaTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -450,14 +499,14 @@
 			};
 			name = Debug;
 		};
-		00BAA2191C32498AA974B4F1 /* Release */ = {
+		9538B57C02EC4A00B031B313 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 0.7.0;
+				MARKETING_VERSION = 0.7.1;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.yuanweize.vacua.VacuaTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -466,13 +515,13 @@
 			};
 			name = Release;
 		};
-		F1BB53A33C1D4B3BB5ED3FAA /* Debug */ = {
+		F589EA9FB31043B992C42066 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 0.7.0;
+				MARKETING_VERSION = 0.7.1;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.yuanweize.vacua.VacuaUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -481,13 +530,13 @@
 			};
 			name = Debug;
 		};
-		885AD32BBBBE46E4A0B93000 /* Release */ = {
+		8AFAEACB51434D089EEF49C1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 0.7.0;
+				MARKETING_VERSION = 0.7.1;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.yuanweize.vacua.VacuaUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -499,38 +548,38 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		D370AB7863DE48829531C147 /* Build configuration list for PBXProject "Vacua" */ = {
+		CFEE0064EFFF41A38DDDA8CA /* Build configuration list for PBXProject "Vacua" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				AEDF810473CF41E79A780986 /* Debug */,
-				160E87F1FFFE4E26954B849E /* Release */,
+				2F2238D5A2BB4443B7D31764 /* Debug */,
+				F685E258D523481A8672A66C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		B4FD3E859C684B5FA01040AC /* Build configuration list for PBXNativeTarget "Vacua" */ = {
+		26E1273D0A044523997E0FC3 /* Build configuration list for PBXNativeTarget "Vacua" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				828984775A4E4C11B8958578 /* Debug */,
-				B15D7C6961084A72838CF701 /* Release */,
+				28D7F1E1C2F445BDBB54749D /* Debug */,
+				0BFD41789A0B49F197620F15 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		2D38674B3E4A4C4286701CC6 /* Build configuration list for PBXNativeTarget "VacuaTests" */ = {
+		273CE837027E4AD58D52B433 /* Build configuration list for PBXNativeTarget "VacuaTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				24EDDE18E60E4E5E874A7110 /* Debug */,
-				00BAA2191C32498AA974B4F1 /* Release */,
+				1D2F464BB5A3492ABB081100 /* Debug */,
+				9538B57C02EC4A00B031B313 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		74448055335B43098C676DAD /* Build configuration list for PBXNativeTarget "VacuaUITests" */ = {
+		8CAAC499739945BBB6AE941C /* Build configuration list for PBXNativeTarget "VacuaUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				F1BB53A33C1D4B3BB5ED3FAA /* Debug */,
-				885AD32BBBBE46E4A0B93000 /* Release */,
+				F589EA9FB31043B992C42066 /* Debug */,
+				8AFAEACB51434D089EEF49C1 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -538,25 +587,25 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		EE66C66A878C4F14BC225D30 /* XCLocalSwiftPackageReference "Packages/VacuaClient" */ = {
+		3D8957EAA16140E6BE53E441 /* XCLocalSwiftPackageReference "Packages/VacuaClient" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/VacuaClient;
 		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		FBD7A2D65DD04561B95B78B7 /* VacuaClient */ = {
+		723A8D08259947AD85E5A00C /* VacuaClient */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = EE66C66A878C4F14BC225D30 /* XCLocalSwiftPackageReference "Packages/VacuaClient" */;
+			package = 3D8957EAA16140E6BE53E441 /* XCLocalSwiftPackageReference "Packages/VacuaClient" */;
 			productName = VacuaClient;
 		};
-		017295F5184A4D7A98DE2F69 /* VacuaClient */ = {
+		89F5C94BF9574B2D8894C98C /* VacuaClient */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = EE66C66A878C4F14BC225D30 /* XCLocalSwiftPackageReference "Packages/VacuaClient" */;
+			package = 3D8957EAA16140E6BE53E441 /* XCLocalSwiftPackageReference "Packages/VacuaClient" */;
 			productName = VacuaClient;
 		};
 /* End XCSwiftPackageProductDependency section */
 
 	};
-	rootObject = 4D79B16AD5FF460A923E9D5B /* Project object */;
+	rootObject = 81350A272A9448F3883D92CC /* Project object */;
 }

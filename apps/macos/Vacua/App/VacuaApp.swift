@@ -36,24 +36,41 @@ struct ContentView: View {
     
     var body: some View {
         NavigationSplitView {
-            List(NavigationItem.allCases, selection: $model.selectedNavigation) { item in
-                NavigationLink(value: item) {
-                    Label(item.rawValue, systemImage: item.iconName)
+            List(selection: $model.selectedNavigation) {
+                Section {
+                    ForEach(NavigationItem.coreItems) { item in
+                        NavigationLink(value: item) {
+                            Label(item.rawValue, systemImage: item.iconName)
+                        }
+                    }
+                }
+                
+                Section("Analysis") {
+                    ForEach(NavigationItem.analysisItems) { item in
+                        NavigationLink(value: item) {
+                            Label(item.rawValue, systemImage: item.iconName)
+                        }
+                    }
                 }
             }
             .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 240)
+            .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 250)
             
             // Sidebar Footer: Engine Status Indicator
             VStack(alignment: .leading, spacing: 4) {
                 Divider()
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     Circle()
                         .fill(engineStatusColor)
                         .frame(width: 8, height: 8)
                     Text(model.engineState.statusTitle)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer()
+                    Text(model.activeRootDisplayName)
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.tertiary)
                         .lineLimit(1)
                 }
                 .padding(.horizontal, 12)
@@ -74,11 +91,9 @@ struct ContentView: View {
                     ApplicationsView(model: model)
                 case .snapshots:
                     SnapshotsView(model: model)
-                case .settings:
-                    SettingsView(model: model)
                 }
             }
-            .frame(minWidth: 600, minHeight: 450)
+            .frame(minWidth: 620, minHeight: 460)
         }
     }
     

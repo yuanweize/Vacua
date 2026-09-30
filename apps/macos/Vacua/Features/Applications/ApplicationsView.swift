@@ -55,17 +55,15 @@ public struct ApplicationsView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if model.applications.isEmpty {
-                    VStack(spacing: 8) {
-                        Image(systemName: "app.badge")
-                            .font(.largeTitle)
-                            .foregroundStyle(.tertiary)
-                        Text("No Applications Found")
-                            .font(.headline)
-                        Text("No matching applications or residual metadata in scope.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    VacuaEmptyState(
+                        symbol: VacuaSymbols.applications,
+                        title: "No Applications Found",
+                        message: "No matching application bundles or potential residual metadata found in scope.",
+                        actionTitle: "Refresh Applications",
+                        action: {
+                            Task { await model.loadApplications(force: true) }
+                        }
+                    )
                 } else {
                     VStack(spacing: 0) {
                         List(model.applications, selection: $selectedAppId) { app in

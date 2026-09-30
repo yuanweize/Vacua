@@ -12,8 +12,28 @@ public struct OverviewView: View {
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Safety Banner
-                SafetyGuaranteeBanner()
+                // Active Root & Safety Header
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .center) {
+                        Image(systemName: VacuaSymbols.activeRoot)
+                            .font(.title3)
+                            .foregroundStyle(.tint)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Active Storage Root")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+                            Text(model.activeRootPath)
+                                .font(.subheadline.weight(.semibold))
+                                .lineLimit(1)
+                        }
+                        Spacer()
+                    }
+                    .padding(12)
+                    .background(Color(NSColor.controlBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: VacuaMetrics.cornerRadiusMedium))
+
+                    SafetyGuaranteeBanner()
+                }
                 
                 if let summary = model.storageSummary {
                     // Storage Breakdown Card
@@ -22,29 +42,17 @@ public struct OverviewView: View {
                     // Reclaim Potential Grid
                     reclaimSummaryGrid(summary: summary)
                 } else if model.isLoading {
-                    ProgressView("Analyzing storage truth from Rust engine…")
+                    ProgressView("Analyzing storage…")
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.vertical, 40)
                 } else if let error = model.errorMessage {
-                    VStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.largeTitle)
-                            .foregroundStyle(.orange)
-                        Text("Engine Analysis Unavailable")
-                            .font(.headline)
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                        Button("Retry Analysis") {
+                    VacuaErrorState(
+                        title: "Storage Analysis Unavailable",
+                        message: error,
+                        retryAction: {
                             Task { await model.loadOverview(force: true) }
                         }
-                        .padding(.top, 8)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(30)
-                    .background(Color.secondary.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    )
                 }
                 
                 // Navigation Quick Cards
@@ -203,19 +211,19 @@ public struct OverviewView: View {
                 jumpCard(
                     title: "Candidates",
                     count: model.candidates.count,
-                    icon: "trash",
+                    icon: VacuaSymbols.candidates,
                     destination: .candidates
                 )
                 jumpCard(
                     title: "Duplicates",
                     count: model.duplicateGroups.count,
-                    icon: "doc.on.doc",
+                    icon: VacuaSymbols.duplicates,
                     destination: .duplicates
                 )
                 jumpCard(
                     title: "Applications",
                     count: model.applications.count,
-                    icon: "app.badge",
+                    icon: VacuaSymbols.applications,
                     destination: .applications
                 )
             }

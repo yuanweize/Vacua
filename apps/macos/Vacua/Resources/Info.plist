@@ -17,9 +17,13 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.7.0</string>
+	<string>0.7.1</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIconName</key>
+	<string>AppIcon</string>
 	<key>VacuaGitCommit</key>
 	<string>development</string>
 	<key>LSMinimumSystemVersion</key>

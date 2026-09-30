@@ -41,7 +41,7 @@ public struct CleanupProposalSheet: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Proposal Only — No Files Changed")
                         .font(.subheadline.weight(.semibold))
-                    Text("Vacua v0.7.0 does not execute cleanup from the native app. Execution authority is strictly disabled in the native client and MCP helper. You may inspect or export this proposal for verification.")
+                    Text("Vacua does not execute cleanup from the native app. Execution authority is strictly disabled in the native client and MCP helper. You may inspect or export this proposal for verification.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

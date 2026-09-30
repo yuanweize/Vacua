@@ -1,0 +1,179 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <!-- Background Slate Base Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#242933"/>
+      <stop offset="50%" stop-color="#181B22"/>
+      <stop offset="100%" stop-color="#0E1015"/>
+    </linearGradient>
+
+    <!-- Subtle Bevel Border Gradient -->
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#4B5568" stop-opacity="0.6"/>
+      <stop offset="30%" stop-color="#2D3342" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#141720" stop-opacity="0.8"/>
+    </linearGradient>
+
+    <!-- Spatial Glow Core -->
+    <radialGradient id="voidGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#00E5FF" stop-opacity="0.85"/>
+      <stop offset="25%" stop-color="#00A8E8" stop-opacity="0.45"/>
+      <stop offset="60%" stop-color="#004477" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Outer Deep Shadow -->
+    <radialGradient id="matrixAmbient" cx="50%" cy="50%" r="48%">
+      <stop offset="0%" stop-color="#0D1F33" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#05080E" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Block 1 (Top-Left) Gradient -->
+    <linearGradient id="blockTLGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#252C38"/>
+      <stop offset="100%" stop-color="#151922"/>
+    </linearGradient>
+
+    <!-- Block 2 (Top-Right) Gradient -->
+    <linearGradient id="blockTRGrad" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2A3240"/>
+      <stop offset="100%" stop-color="#171C26"/>
+    </linearGradient>
+
+    <!-- Block 3 (Bottom-Left) Gradient -->
+    <linearGradient id="blockBLGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1A202B"/>
+      <stop offset="100%" stop-color="#12161E"/>
+    </linearGradient>
+
+    <!-- Block 4 (Bottom-Right) Gradient -->
+    <linearGradient id="blockBRGrad" x1="100%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#202633"/>
+      <stop offset="100%" stop-color="#131720"/>
+    </linearGradient>
+
+    <!-- Cyan Inner Edge Glow Gradient -->
+    <linearGradient id="cyanEdge" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00E5FF" stop-opacity="0.9"/>
+      <stop offset="50%" stop-color="#00B4D8" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#0077B6" stop-opacity="0.2"/>
+    </linearGradient>
+
+    <!-- Drop Shadow Filter for Storage Blocks -->
+    <filter id="blockShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#04060A" flood-opacity="0.75"/>
+    </filter>
+
+    <!-- Inner Core Glow Filter -->
+    <filter id="coreBlur" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="28"/>
+    </filter>
+  </defs>
+
+  <!-- Base Plate Layer: Rounded App Icon Tile (macOS Squircle Canvas) -->
+  <rect x="96" y="96" width="832" height="832" rx="186" ry="186" fill="url(#bgGrad)"/>
+  <rect x="96" y="96" width="832" height="832" rx="186" ry="186" fill="none" stroke="url(#borderGrad)" stroke-width="4"/>
+
+  <!-- Subtle Precision Grid Pattern in Dark Plate -->
+  <g opacity="0.04" stroke="#FFFFFF" stroke-width="1.5">
+    <line x1="200" y1="96" x2="200" y2="928"/>
+    <line x1="356" y1="96" x2="356" y2="928"/>
+    <line x1="512" y1="96" x2="512" y2="928"/>
+    <line x1="668" y1="96" x2="668" y2="928"/>
+    <line x1="824" y1="96" x2="824" y2="928"/>
+    <line x1="96" y1="200" x2="928" y2="200"/>
+    <line x1="96" y1="356" x2="928" y2="356"/>
+    <line x1="96" y1="512" x2="928" y2="512"/>
+    <line x1="96" y1="668" x2="928" y2="668"/>
+    <line x1="96" y1="824" x2="928" y2="824"/>
+  </g>
+
+  <!-- Ambient Blue/Cyan Spatial Fog behind Matrix -->
+  <circle cx="512" cy="512" r="320" fill="url(#matrixAmbient)"/>
+  <!-- Central Radiant Void Glow -->
+  <circle cx="512" cy="512" r="180" fill="url(#voidGlow)" filter="url(#coreBlur)"/>
+
+  <!-- Storage Matrix: 4 Precision Blocks surrounding the Central Void -->
+  <g filter="url(#blockShadow)">
+    <!-- Block 1: Top-Left Partition (Primary Explorer) -->
+    <path d="M 216 236
+             L 476 236
+             Q 488 236 492 248
+             L 492 468
+             Q 492 480 480 488
+             L 468 492
+             L 248 492
+             Q 236 492 228 484
+             L 216 472
+             Z"
+          fill="url(#blockTLGrad)"
+          stroke="#343E50"
+          stroke-width="2.5"/>
+    <!-- Subtle Top-Left Specular Inset Highlight -->
+    <path d="M 224 244 L 468 244" stroke="#5E6D88" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+
+    <!-- Block 2: Top-Right Partition (Hierarchical Tree) -->
+    <path d="M 532 236
+             L 792 236
+             Q 804 236 808 248
+             L 808 436
+             Q 808 448 796 456
+             L 556 456
+             Q 544 456 536 448
+             L 532 444
+             Z"
+          fill="url(#blockTRGrad)"
+          stroke="#343E50"
+          stroke-width="2.5"/>
+    <path d="M 540 244 L 784 244" stroke="#5E6D88" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+
+    <!-- Block 3: Bottom-Left Partition (Storage Quota/Evidence) -->
+    <path d="M 216 532
+             L 456 532
+             Q 468 532 476 540
+             L 476 772
+             Q 476 784 464 788
+             L 248 788
+             Q 236 788 228 780
+             L 216 768
+             Z"
+          fill="url(#blockBLGrad)"
+          stroke="#343E50"
+          stroke-width="2.5"/>
+    <path d="M 224 540 L 448 540" stroke="#5E6D88" stroke-width="2" stroke-linecap="round" opacity="0.4"/>
+
+    <!-- Block 4: Bottom-Right Partition (Telemetry & Snapshots) -->
+    <path d="M 524 496
+             L 544 496
+             Q 556 496 564 504
+             L 808 504
+             L 808 772
+             Q 808 784 796 788
+             L 536 788
+             Q 524 788 516 780
+             L 512 776
+             L 512 508
+             Z"
+          fill="url(#blockBRGrad)"
+          stroke="#343E50"
+          stroke-width="2.5"/>
+    <path d="M 552 512 L 784 512" stroke="#5E6D88" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+  </g>
+
+  <!-- Negative Space 'Void' Aperture Highlights (Edges facing the Void) -->
+  <g opacity="0.85">
+    <!-- TL Void Corner Accent -->
+    <path d="M 480 450 L 480 480 L 450 480" fill="none" stroke="url(#cyanEdge)" stroke-width="3.5" stroke-linecap="round"/>
+    <!-- TR Void Corner Accent -->
+    <path d="M 544 420 L 544 444 L 570 444" fill="none" stroke="url(#cyanEdge)" stroke-width="3" stroke-linecap="round"/>
+    <!-- BL Void Corner Accent -->
+    <path d="M 440 544 L 464 544 L 464 570" fill="none" stroke="url(#cyanEdge)" stroke-width="3" stroke-linecap="round"/>
+    <!-- BR Void Corner Accent -->
+    <path d="M 524 520 L 524 504 L 544 504" fill="none" stroke="url(#cyanEdge)" stroke-width="3.5" stroke-linecap="round"/>
+  </g>
+
+  <!-- Central Focus Node: The Evidence Sensor in the Void -->
+  <circle cx="504" cy="488" r="14" fill="#00E5FF" opacity="0.95"/>
+  <circle cx="504" cy="488" r="6" fill="#FFFFFF"/>
+  <circle cx="504" cy="488" r="28" fill="none" stroke="#00E5FF" stroke-width="2" opacity="0.4" stroke-dasharray="6,4"/>
+</svg>

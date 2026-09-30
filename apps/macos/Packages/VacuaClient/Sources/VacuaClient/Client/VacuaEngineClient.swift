@@ -54,7 +54,8 @@ public protocol VacuaEngineClient: Sendable {
         nodeId: String?,
         metric: String?,
         limit: Int?,
-        offset: Int?
+        offset: Int?,
+        compareSnapshotId: String?
     ) async throws -> StorageTreePageV1
 
     func storageNode(

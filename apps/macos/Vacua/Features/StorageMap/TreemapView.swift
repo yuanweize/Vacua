@@ -2,6 +2,7 @@ import SwiftUI
 import VacuaClient
 
 public struct TreemapView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable var model: StorageMapModel
     @State private var hoveredNodeId: String?
 
@@ -46,7 +47,7 @@ public struct TreemapView: View {
                             colorMode: model.colorMode,
                             isSelected: isSelected,
                             isHovered: isHovered,
-                            delta: (isSelected ? model.selectedNodeDetail?.delta : nil)
+                            delta: model.delta(for: r.id)
                         )
                         .onHover { hovering in
                             hoveredNodeId = hovering ? r.id : nil
@@ -114,6 +115,10 @@ public struct TreemapView: View {
 // MARK: - Individual Treemap Rectangle Cell
 
 struct TreemapCellView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+
     let rect: CGRect
     let node: StorageTreeNodeV1?
     let isOther: Bool
@@ -134,25 +139,29 @@ struct TreemapCellView: View {
             return (metric == .allocated) ? node.subtree_allocated_bytes : node.subtree_logical_bytes
         }()
 
+        let isHighContrast = (colorSchemeContrast == .increased)
         let fillColor = computeFillColor()
+        let borderColor = computeBorderColor(isHighContrast: isHighContrast)
+        let borderWidth: CGFloat = isSelected ? 2.5 : (isHovered ? 1.5 : (isHighContrast ? 1.0 : 0.5))
 
         ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 3)
+            RoundedRectangle(cornerRadius: VacuaMetrics.cornerRadiusSmall)
                 .fill(fillColor)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 3)
-                        .stroke(
-                            isSelected ? Color.accentColor : (isHovered ? Color.white.opacity(0.6) : Color.black.opacity(0.15)),
-                            lineWidth: isSelected ? 2.5 : (isHovered ? 1.5 : 0.5)
-                        )
+                    RoundedRectangle(cornerRadius: VacuaMetrics.cornerRadiusSmall)
+                        .stroke(borderColor, lineWidth: borderWidth)
                 )
 
             // Content label inside rectangle if there is enough space
-            if rect.width > 36 && rect.height > 20 {
+            if rect.width > VacuaMetrics.treemapCellMinLabelWidth && rect.height > VacuaMetrics.treemapCellMinLabelHeight {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 4) {
-                        if !isOther {
-                            Image(systemName: (node?.isDirectory ?? false) ? "folder.fill" : "doc.fill")
+                        if colorMode == .snapshotDelta, let delta {
+                            Image(systemName: VacuaTheme.deltaSymbol(for: delta.change_kind))
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(VacuaTheme.deltaColor(for: delta.change_kind))
+                        } else if !isOther {
+                            Image(systemName: (node?.isDirectory ?? false) ? VacuaSymbols.folder : VacuaSymbols.file)
                                 .font(.system(size: 9))
                                 .opacity(0.7)
                         }
@@ -161,11 +170,19 @@ struct TreemapCellView: View {
                             .lineLimit(1)
                     }
 
-                    if rect.width > 70 && rect.height > 38 {
-                        Text(Formatters.formatBytes(byteCount))
-                            .font(.system(size: 9))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                    if rect.width > VacuaMetrics.treemapCellMinDetailWidth && rect.height > VacuaMetrics.treemapCellMinDetailHeight {
+                        if colorMode == .snapshotDelta, let delta {
+                            let sign = delta.allocated_delta_bytes >= 0 ? "+" : ""
+                            Text("\(sign)\(delta.allocated_delta_bytes.formatted(.byteCount(style: .file)))")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(VacuaTheme.deltaColor(for: delta.change_kind))
+                                .lineLimit(1)
+                        } else {
+                            Text(Formatters.formatBytes(byteCount))
+                                .font(.system(size: 9))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
                     }
                 }
                 .padding(4)
@@ -184,34 +201,58 @@ struct TreemapCellView: View {
             return Color(nsColor: .windowBackgroundColor).opacity(0.8)
         }
 
-        if colorMode == .snapshotDelta, let delta {
-            switch delta.change_kind {
-            case "grown":
-                return Color.red.opacity(0.4)
-            case "shrunk":
-                return Color.green.opacity(0.4)
-            case "new":
-                return Color.purple.opacity(0.4)
-            default:
-                return Color.gray.opacity(0.25)
+        if colorMode == .snapshotDelta {
+            if let delta {
+                let opacity: Double = (colorScheme == .dark ? 0.35 : 0.22)
+                return VacuaTheme.deltaColor(for: delta.change_kind).opacity(opacity)
+            } else {
+                return Color.gray.opacity(0.18)
             }
         }
 
-        // Type color mode
-        guard let node else { return Color.gray.opacity(0.3) }
-        if node.isDirectory {
-            return Color.blue.opacity(0.25)
-        } else {
-            return Color.cyan.opacity(0.2)
+        // Type / Hierarchical Grouping mode
+        guard let node else { return Color.gray.opacity(0.2) }
+        let baseColor = VacuaTheme.stableGroupingColor(for: node.node_id)
+        let opacity: Double = node.isDirectory
+            ? (colorScheme == .dark ? 0.38 : 0.25)
+            : (colorScheme == .dark ? 0.22 : 0.15)
+        return baseColor.opacity(opacity)
+    }
+
+    private func computeBorderColor(isHighContrast: Bool) -> Color {
+        if isSelected {
+            return Color.accentColor
         }
+        if isHovered {
+            return colorScheme == .dark
+                ? Color.white.opacity(0.7)
+                : Color.black.opacity(0.55)
+        }
+        if isHighContrast {
+            return colorScheme == .dark
+                ? Color.white.opacity(0.35)
+                : Color.black.opacity(0.4)
+        }
+        return colorScheme == .dark
+            ? Color.white.opacity(0.12)
+            : Color.black.opacity(0.12)
     }
 
     private func tooltipText(displayName: String, byteCount: UInt64) -> String {
-        "\(displayName)\n\(Formatters.formatBytes(byteCount)) (\(metric.rawValue))"
+        var base = "\(displayName)\n\(Formatters.formatBytes(byteCount)) (\(metric.rawValue))"
+        if colorMode == .snapshotDelta, let delta {
+            let sign = delta.allocated_delta_bytes >= 0 ? "+" : ""
+            base += "\nChange: \(sign)\(delta.allocated_delta_bytes.formatted(.byteCount(style: .file))) (\(VacuaTheme.deltaLabel(for: delta.change_kind)))"
+        }
+        return base
     }
 
     private func accessibilityDescription(displayName: String, byteCount: UInt64) -> String {
         let kind = isOther ? "Remainder aggregate" : (node?.isDirectory == true ? "Folder" : "File")
-        return "\(displayName), \(kind), \(Formatters.formatBytes(byteCount))"
+        var desc = "\(displayName), \(kind), \(Formatters.formatBytes(byteCount))"
+        if colorMode == .snapshotDelta, let delta {
+            desc += ", Snapshot change: \(VacuaTheme.deltaLabel(for: delta.change_kind)), \(delta.allocated_delta_bytes) bytes"
+        }
+        return desc
     }
 }

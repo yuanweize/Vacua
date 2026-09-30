@@ -149,7 +149,8 @@ public final class StorageMapModel {
                 nodeId: nodeId,
                 metric: metric,
                 limit: 100,
-                offset: 0
+                offset: 0,
+                compareSnapshotId: selectedSnapshotId
             )
             self.currentPage = page
         } catch let VacuaClientError.serverError(code, message) where code == "VACUA_STALE_STATE" {
@@ -256,9 +257,32 @@ public final class StorageMapModel {
             self.colorMode = .type
         }
 
+        if let analysis = currentAnalysis {
+            let targetId = currentNode?.node_id == analysis.root_node.node_id ? nil : currentNode?.node_id
+            await loadPage(
+                rootId: analysis.root_id,
+                generationId: analysis.generation_id,
+                nodeId: targetId,
+                metric: metric.apiKey
+            )
+        }
+
         if let selectedNodeId {
             await selectNode(id: selectedNodeId)
         }
+    }
+
+    /// Authoritative snapshot delta for a given node id, from batch page deltas or inspected detail.
+    public func delta(for nodeId: String) -> StorageTreeDeltaV1? {
+        if let itemDeltas = currentPage?.item_deltas {
+            if let matched = itemDeltas.first(where: { $0.node_id == nodeId }) {
+                return matched
+            }
+        }
+        if selectedNodeId == nodeId {
+            return selectedNodeDetail?.delta
+        }
+        return nil
     }
 
     /// Load list of available snapshots for the compare dropdown.

@@ -159,6 +159,10 @@ pub struct GetStorageMapParams {
     pub limit: Option<usize>,
     #[schemars(description = "Paging offset.")]
     pub offset: Option<usize>,
+    #[schemars(
+        description = "Optional snapshot name or ID for computing batch deltas for all visible nodes."
+    )]
+    pub compare_snapshot_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -546,6 +550,7 @@ impl VacuaMcpServer {
                 params.0.metric.as_deref(),
                 params.0.limit,
                 params.0.offset,
+                params.0.compare_snapshot_id.as_deref(),
             )
             .map(Json)
             .map_err(to_mcp_error)
