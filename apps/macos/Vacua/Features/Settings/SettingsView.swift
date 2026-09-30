@@ -57,6 +57,13 @@ public struct SettingsView: View {
                 }
             }
             
+            Section("Build Identity & Provenance") {
+                VStack(alignment: .leading, spacing: 10) {
+                    statusRow(label: "App Version", value: appVersionWithCommit)
+                    statusRow(label: "Source Commit", value: appGitCommit)
+                }
+            }
+
             Section("macOS Storage Access Truth") {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
@@ -106,5 +113,18 @@ public struct SettingsView: View {
                 await model.updateRoot(path: selectedURL.path)
             }
         }
+    }
+
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.6.1"
+    }
+
+    private var appGitCommit: String {
+        Bundle.main.infoDictionary?["VacuaGitCommit"] as? String ?? "development"
+    }
+
+    private var appVersionWithCommit: String {
+        let shortCommit = appGitCommit.count >= 7 ? String(appGitCommit.prefix(7)) : appGitCommit
+        return "\(appVersion) (\(shortCommit))"
     }
 }

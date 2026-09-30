@@ -274,18 +274,21 @@ brew install yuanweize/tap/vacua
 Download the pre-compiled binary package from [GitHub Releases](https://github.com/yuanweize/vacua/releases):
 
 ```bash
+# Verify cryptographic provenance attestation
+gh attestation verify vacua-v0.6.1-aarch64-apple-darwin.tar.gz --repo yuanweize/vacua
+
 # Verify checksum
-shasum -a 256 vacua-v0.6.0-aarch64-apple-darwin.tar.gz
+shasum -a 256 vacua-v0.6.1-aarch64-apple-darwin.tar.gz
 
 # Extract and install
-tar -xzf vacua-v0.6.0-aarch64-apple-darwin.tar.gz
-cd vacua-v0.6.0-aarch64-apple-darwin
+tar -xzf vacua-v0.6.1-aarch64-apple-darwin.tar.gz
+cd vacua-v0.6.1-aarch64-apple-darwin
 sudo cp bin/vacua bin/vacua-intelligence bin/vacua-mcp /usr/local/bin/
 ```
 
 ### 3. Native macOS App (SwiftUI)
 
-Download the standalone `Vacua-v0.6.0-macos-arm64-unsigned.zip` from [GitHub Releases](https://github.com/yuanweize/vacua/releases), unzip, and drag `Vacua.app` to your `/Applications` folder:
+Download the standalone `Vacua-v0.6.1-macos-arm64-unsigned.zip` from [GitHub Releases](https://github.com/yuanweize/vacua/releases), unzip, and drag `Vacua.app` to your `/Applications` folder:
 
 - **Strictly Proposal-Only**: Zero mutation or deletion authority in the GUI client (`mutation_authority == false`).
 - **Pure Native UI**: Built with pure SwiftUI and AppKit; no Electron or WebViews.

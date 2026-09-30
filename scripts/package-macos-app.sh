@@ -31,15 +31,47 @@ test -f "${APP_PATH}/Contents/MacOS/Vacua" || { echo "Missing MacOS/Vacua execut
 test -f "${APP_PATH}/Contents/Helpers/vacua" || { echo "Missing Helpers/vacua"; exit 1; }
 test -f "${APP_PATH}/Contents/Helpers/vacua-mcp" || { echo "Missing Helpers/vacua-mcp"; exit 1; }
 
-echo "Verifying bundled helpers..."
-"${APP_PATH}/Contents/Helpers/vacua" --version
-"${APP_PATH}/Contents/Helpers/vacua-mcp" --version
+echo "Verifying bundled helpers and build provenance identity..."
 "${APP_PATH}/Contents/Helpers/vacua-mcp" --self-test
 
+VACUA_BUILD_INFO=$("${APP_PATH}/Contents/Helpers/vacua" --build-info)
+MCP_BUILD_INFO=$("${APP_PATH}/Contents/Helpers/vacua-mcp" --build-info)
+
+VACUA_HELPER_VER=$(echo "${VACUA_BUILD_INFO}" | grep '"version":' | head -n 1 | awk -F'"' '{print $4}')
+VACUA_HELPER_SHA=$(echo "${VACUA_BUILD_INFO}" | grep '"git_commit":' | head -n 1 | awk -F'"' '{print $4}')
+
+MCP_HELPER_VER=$(echo "${MCP_BUILD_INFO}" | grep '"version":' | head -n 1 | awk -F'"' '{print $4}')
+MCP_HELPER_SHA=$(echo "${MCP_BUILD_INFO}" | grep '"git_commit":' | head -n 1 | awk -F'"' '{print $4}')
+
 BUNDLE_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "${APP_PATH}/Contents/Info.plist")
-echo "CFBundleShortVersionString: ${BUNDLE_VERSION}"
+BUNDLE_GIT_SHA=$(/usr/libexec/PlistBuddy -c "Print :VacuaGitCommit" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || echo "unknown")
+
+echo "Bundle Version:    ${BUNDLE_VERSION}"
+echo "Bundle Git Commit: ${BUNDLE_GIT_SHA}"
+echo "vacua Version:     ${VACUA_HELPER_VER} (${VACUA_HELPER_SHA})"
+echo "vacua-mcp Version: ${MCP_HELPER_VER} (${MCP_HELPER_SHA})"
+
+# Machine-assert version matches
 if [ "${BUNDLE_VERSION}" != "${VERSION}" ]; then
   echo "Error: Bundle version mismatch: expected ${VERSION}, got ${BUNDLE_VERSION}" >&2
+  exit 1
+fi
+if [ "${VACUA_HELPER_VER}" != "${VERSION}" ]; then
+  echo "Error: vacua helper version mismatch: expected ${VERSION}, got ${VACUA_HELPER_VER}" >&2
+  exit 1
+fi
+if [ "${MCP_HELPER_VER}" != "${VERSION}" ]; then
+  echo "Error: vacua-mcp helper version mismatch: expected ${VERSION}, got ${MCP_HELPER_VER}" >&2
+  exit 1
+fi
+
+# Machine-assert Git SHA matches across all binaries
+if [ "${BUNDLE_GIT_SHA}" != "${VACUA_HELPER_SHA}" ]; then
+  echo "Error: Provenance mismatch: App Git SHA (${BUNDLE_GIT_SHA}) != vacua helper (${VACUA_HELPER_SHA})" >&2
+  exit 1
+fi
+if [ "${VACUA_HELPER_SHA}" != "${MCP_HELPER_SHA}" ]; then
+  echo "Error: Provenance mismatch: vacua helper Git SHA (${VACUA_HELPER_SHA}) != vacua-mcp helper (${MCP_HELPER_SHA})" >&2
   exit 1
 fi
 

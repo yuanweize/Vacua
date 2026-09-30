@@ -395,3 +395,50 @@ pub struct HistoryVerificationV1 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_detail: Option<String>,
 }
+
+/// Build identity and provenance information.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
+pub struct BuildInfoV1 {
+    pub schema_version: String,
+    pub version: String,
+    pub git_commit: String,
+    pub target: String,
+    pub profile: String,
+}
+
+pub fn get_build_info() -> BuildInfoV1 {
+    BuildInfoV1 {
+        schema_version: "vacua.build-info.v1".to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        git_commit: env!("VACUA_GIT_SHA").to_string(),
+        target: env!("VACUA_TARGET").to_string(),
+        profile: env!("VACUA_PROFILE").to_string(),
+    }
+}
+
+/// Release artifact entry in the release manifest.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
+pub struct ArtifactChecksumV1 {
+    pub name: String,
+    pub sha256: String,
+}
+
+/// Machine-verifiable release manifest.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
+pub struct ReleaseManifestV1 {
+    pub schema_version: String,
+    pub version: String,
+    pub tag: String,
+    pub git_commit: String,
+    pub repository: String,
+    pub target: String,
+    pub artifacts: Vec<ArtifactChecksumV1>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rustc_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub swift_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub xcode_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub github_run_id: Option<String>,
+}

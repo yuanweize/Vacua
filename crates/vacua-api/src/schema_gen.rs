@@ -84,6 +84,14 @@ pub fn generate_all_schemas() -> BTreeMap<&'static str, Value> {
         "history-verification-v1.schema.json",
         serde_json::to_value(schema_for!(HistoryVerificationV1)).unwrap(),
     );
+    map.insert(
+        "build-info-v1.schema.json",
+        serde_json::to_value(schema_for!(BuildInfoV1)).unwrap(),
+    );
+    map.insert(
+        "release-manifest-v1.schema.json",
+        serde_json::to_value(schema_for!(ReleaseManifestV1)).unwrap(),
+    );
 
     map
 }

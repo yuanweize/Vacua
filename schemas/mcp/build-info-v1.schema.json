@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Build identity and provenance information.",
+  "properties": {
+    "git_commit": {
+      "type": "string"
+    },
+    "profile": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "target": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "version",
+    "git_commit",
+    "target",
+    "profile"
+  ],
+  "title": "BuildInfoV1",
+  "type": "object"
+}
