@@ -1,0 +1,84 @@
+{
+  "schema_version": "vacua.mcp.developer-artifact-analysis.v1",
+  "generation_id": "gen_devart_1727740000",
+  "root_id": "root-macos-user-workspace",
+  "root_path": "/Users/developer/Workspace",
+  "observed_at": "2026-10-01T00:00:00Z",
+  "total_projects": 4,
+  "total_artifacts": 5,
+  "total_logical_bytes": 7247757311,
+  "total_allocated_bytes": 8522825728,
+  "projects": [
+    {
+      "project_id": "devproj_1a2b3c4d5e6f7a8b",
+      "display_name": "Vacua",
+      "display_path": ".",
+      "primary_ecosystem": "rust_cargo",
+      "all_ecosystems": [
+        "rust_cargo",
+        "xcode"
+      ],
+      "artifacts_count": 2,
+      "total_logical_bytes": 4831838208,
+      "total_allocated_bytes": 5502926848,
+      "rebuild_confidence": "partial",
+      "active_state": "active"
+    },
+    {
+      "project_id": "devproj_9f8e7d6c5b4a3a2b",
+      "display_name": "web-client",
+      "display_path": "web-client",
+      "primary_ecosystem": "node",
+      "all_ecosystems": [
+        "node"
+      ],
+      "artifacts_count": 1,
+      "total_logical_bytes": 1288490188,
+      "total_allocated_bytes": 1610612736,
+      "rebuild_confidence": "verified",
+      "active_state": "dormant"
+    },
+    {
+      "project_id": "devproj_8a7b6c5d4e3f2a1b",
+      "display_name": "ai-tools",
+      "display_path": "ai-tools",
+      "primary_ecosystem": "python",
+      "all_ecosystems": [
+        "python"
+      ],
+      "artifacts_count": 1,
+      "total_logical_bytes": 858993459,
+      "total_allocated_bytes": 1073741824,
+      "rebuild_confidence": "strong",
+      "active_state": "active"
+    },
+    {
+      "project_id": "devproj_4b5a6f7e8d9c0b1a",
+      "display_name": "legacy-lib",
+      "display_path": "legacy-lib",
+      "primary_ecosystem": "unknown",
+      "all_ecosystems": [
+        "unknown"
+      ],
+      "artifacts_count": 1,
+      "total_logical_bytes": 268435456,
+      "total_allocated_bytes": 335544320,
+      "rebuild_confidence": "partial",
+      "active_state": "unknown"
+    }
+  ],
+  "coverage": {
+    "supported_ecosystems": [
+      "xcode",
+      "swift_pm",
+      "rust_cargo",
+      "node",
+      "python",
+      "gradle",
+      "maven",
+      "cmake"
+    ],
+    "unclassified_candidate_directories": 4,
+    "skipped_items": 0
+  }
+}

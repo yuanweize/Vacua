@@ -20,7 +20,7 @@ public final class MCPVacuaEngineClient: VacuaEngineClient, @unchecked Sendable 
             ],
             "clientInfo": [
                 "name": "vacua-app",
-                "version": "0.7.1"
+                "version": "0.8.0"
             ]
         ]
 
@@ -264,6 +264,61 @@ public final class MCPVacuaEngineClient: VacuaEngineClient, @unchecked Sendable 
             name: "vacua_get_storage_node",
             arguments: args,
             expectedSchema: VacuaSchemas.storageTreeNodeDetailV1
+        )
+    }
+
+    // MARK: - Developer Artifacts
+
+    public func analyzeDeveloperArtifacts(
+        rootId: String? = nil,
+        forceRefresh: Bool? = nil
+    ) async throws -> DeveloperArtifactAnalysisV1 {
+        var args: [String: Any] = [:]
+        if let rootId { args["root_id"] = rootId }
+        if let forceRefresh { args["force_refresh"] = forceRefresh }
+        return try await callTool(
+            name: "vacua_analyze_developer_artifacts",
+            arguments: args,
+            expectedSchema: VacuaSchemas.developerArtifactAnalysisV1,
+            timeoutSeconds: 60.0
+        )
+    }
+
+    public func listDeveloperArtifacts(
+        rootId: String? = nil,
+        generationId: String? = nil,
+        ecosystem: String? = nil,
+        kind: String? = nil,
+        confidence: String? = nil,
+        projectId: String? = nil,
+        minAllocatedBytes: UInt64? = nil,
+        limit: Int? = nil,
+        offset: Int? = nil
+    ) async throws -> DeveloperArtifactPageV1 {
+        var args: [String: Any] = [:]
+        if let rootId { args["root_id"] = rootId }
+        if let generationId { args["generation_id"] = generationId }
+        if let ecosystem { args["ecosystem"] = ecosystem }
+        if let kind { args["kind"] = kind }
+        if let confidence { args["confidence"] = confidence }
+        if let projectId { args["project_id"] = projectId }
+        if let minAllocatedBytes { args["min_allocated_bytes"] = minAllocatedBytes }
+        if let limit { args["limit"] = limit }
+        if let offset { args["offset"] = offset }
+        return try await callTool(
+            name: "vacua_list_developer_artifacts",
+            arguments: args,
+            expectedSchema: VacuaSchemas.developerArtifactPageV1
+        )
+    }
+
+    public func developerArtifactDetail(
+        artifactId: String
+    ) async throws -> DeveloperArtifactDetailV1 {
+        return try await callTool(
+            name: "vacua_get_developer_artifact",
+            arguments: ["artifact_id": artifactId],
+            expectedSchema: VacuaSchemas.developerArtifactDetailV1
         )
     }
 

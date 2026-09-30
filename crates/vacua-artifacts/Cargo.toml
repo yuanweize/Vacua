@@ -1,0 +1,25 @@
+[package]
+name = "vacua-artifacts"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Deterministic developer project and artifact intelligence engine for Vacua"
+
+[dependencies]
+vacua-core = { path = "../vacua-core" }
+vacua-index = { path = "../vacua-index" }
+vacua-tree = { path = "../vacua-tree" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+blake3 = { workspace = true }
+chrono = { workspace = true }
+rusqlite = { workspace = true }
+walkdir = { workspace = true }
+schemars = { workspace = true }
+libc = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

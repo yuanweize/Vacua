@@ -1,0 +1,48 @@
+{
+  "schema_version": "vacua.mcp.developer-project-detail.v1",
+  "project_id": "devproj_1a2b3c4d5e6f7a8b",
+  "display_name": "Vacua",
+  "display_path": ".",
+  "primary_ecosystem": "rust_cargo",
+  "all_ecosystems": [
+    "rust_cargo",
+    "xcode"
+  ],
+  "manifest_paths": [
+    "Cargo.toml"
+  ],
+  "lockfile_paths": [
+    "Cargo.lock"
+  ],
+  "artifacts": [
+    {
+      "artifact_id": "devart_7b8a9c0d1e2f3a4b",
+      "project_id": "devproj_1a2b3c4d5e6f7a8b",
+      "display_name": "target",
+      "display_path": "target",
+      "ecosystem": "rust_cargo",
+      "artifact_kind": "build_output",
+      "logical_bytes": 4294967296,
+      "allocated_bytes": 4831838208,
+      "confirmed_reclaim_lower_bound": 4831838208,
+      "rebuild_confidence": "strong",
+      "candidate_id": "cand-rust-target-01"
+    },
+    {
+      "artifact_id": "devart_2b3c4d5e6f7a8b9c",
+      "project_id": "devproj_1a2b3c4d5e6f7a8b",
+      "display_name": "Archives",
+      "display_path": "build/Archives",
+      "ecosystem": "xcode",
+      "artifact_kind": "build_output",
+      "logical_bytes": 536870912,
+      "allocated_bytes": 671088640,
+      "confirmed_reclaim_lower_bound": 671088640,
+      "rebuild_confidence": "partial"
+    }
+  ],
+  "total_logical_bytes": 4831838208,
+  "total_allocated_bytes": 5502926848,
+  "rebuild_confidence": "partial",
+  "active_state": "active"
+}

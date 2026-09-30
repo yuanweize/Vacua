@@ -1,0 +1,140 @@
+{
+  "$defs": {
+    "DeveloperArtifactSummaryV1": {
+      "description": "Compact summary of a single developer artifact for listings and project grouping.",
+      "properties": {
+        "allocated_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "artifact_id": {
+          "type": "string"
+        },
+        "artifact_kind": {
+          "type": "string"
+        },
+        "candidate_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "confirmed_reclaim_lower_bound": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "display_path": {
+          "type": "string"
+        },
+        "ecosystem": {
+          "type": "string"
+        },
+        "logical_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "project_id": {
+          "type": "string"
+        },
+        "rebuild_confidence": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "project_id",
+        "display_name",
+        "display_path",
+        "ecosystem",
+        "artifact_kind",
+        "logical_bytes",
+        "allocated_bytes",
+        "confirmed_reclaim_lower_bound",
+        "rebuild_confidence"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Detailed inspection view of a developer project including all its artifacts.",
+  "properties": {
+    "active_state": {
+      "type": "string"
+    },
+    "all_ecosystems": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "artifacts": {
+      "items": {
+        "$ref": "#/$defs/DeveloperArtifactSummaryV1"
+      },
+      "type": "array"
+    },
+    "display_name": {
+      "type": "string"
+    },
+    "display_path": {
+      "type": "string"
+    },
+    "lockfile_paths": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "manifest_paths": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "primary_ecosystem": {
+      "type": "string"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "rebuild_confidence": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "total_allocated_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "total_logical_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "project_id",
+    "display_name",
+    "display_path",
+    "primary_ecosystem",
+    "all_ecosystems",
+    "manifest_paths",
+    "lockfile_paths",
+    "artifacts",
+    "total_logical_bytes",
+    "total_allocated_bytes",
+    "rebuild_confidence",
+    "active_state"
+  ],
+  "title": "DeveloperProjectDetailV1",
+  "type": "object"
+}

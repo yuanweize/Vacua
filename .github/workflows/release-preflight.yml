@@ -1,0 +1,38 @@
+name: Release Preflight
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Target version to validate (e.g. 0.8.0)"
+        required: false
+        default: ""
+
+jobs:
+  preflight:
+    name: Permanent Release Preflight Proof
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Inspect Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Install cargo-deny
+        run: brew install cargo-deny
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run Permanent Release Preflight
+        run: |
+          ./scripts/release-preflight.sh "${{ inputs.version }}"

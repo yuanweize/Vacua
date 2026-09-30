@@ -3,6 +3,10 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use vacua_api::*;
+use vacua_artifacts::{
+    ArtifactPersistence, DeveloperArtifactKind, DeveloperArtifactScanner, DeveloperEcosystem,
+    RebuildConfidence,
+};
 use vacua_content::DuplicateScanOptions;
 use vacua_core::candidate::Candidate;
 use vacua_core::evidence_graph::{ApplicationEvidenceGraph, NodeKind, OrphanConfidence};
@@ -1742,5 +1746,388 @@ impl VacuaDomainService {
             allocation_semantics: "Filesystem allocation attributed to this namespace tree. APFS clone sharing may cause physical overlap; not guaranteed unique physical storage.".to_string(),
             delta,
         })
+    }
+
+    /// Analyze or build developer artifacts for authoritative root.
+    pub async fn analyze_developer_artifacts(
+        &self,
+        root_id: Option<&str>,
+        force_refresh: Option<bool>,
+    ) -> Result<DeveloperArtifactAnalysisV1, VacuaErrorResponse> {
+        let _permit = self.policy.acquire_expensive_permit().await?;
+        let root = self.policy.get_root(root_id)?.clone();
+
+        let mut db = self.open_index_writable().ok_or_else(|| {
+            VacuaErrorResponse::new(
+                VacuaErrorCode::VacuaInternal,
+                "Failed to open index database for writing",
+            )
+        })?;
+
+        let canonical_root = root.canonical_path.clone();
+        let root_id_str = root.root_id.clone();
+        let force = force_refresh.unwrap_or(false);
+        let policy_clone = self.policy.clone();
+
+        tokio::time::timeout(
+            self.policy.timeout,
+            tokio::task::spawn_blocking(
+                move || -> Result<DeveloperArtifactAnalysisV1, VacuaErrorResponse> {
+                    let latest_gen = if !force {
+                        ArtifactPersistence::get_latest_ready_generation(db.conn(), &root_id_str)
+                            .map_err(|e| {
+                                VacuaErrorResponse::new(
+                                    VacuaErrorCode::VacuaInternal,
+                                    e.to_string(),
+                                )
+                            })?
+                    } else {
+                        None
+                    };
+
+                    let canonical_str = canonical_root.to_string_lossy().to_string();
+                    let gen = match latest_gen {
+                        Some(g) if g.root_path == canonical_str => g,
+                        _ => {
+                            let scanner =
+                                DeveloperArtifactScanner::new(&canonical_root, &root_id_str);
+                            let new_gen = scanner.scan().map_err(|e| {
+                                VacuaErrorResponse::new(
+                                    VacuaErrorCode::VacuaInternal,
+                                    e.to_string(),
+                                )
+                            })?;
+                            ArtifactPersistence::publish_generation(db.conn_mut(), &new_gen)
+                                .map_err(|e| {
+                                    VacuaErrorResponse::new(
+                                        VacuaErrorCode::VacuaInternal,
+                                        e.to_string(),
+                                    )
+                                })?;
+                            new_gen
+                        }
+                    };
+
+                    let total_projects = gen.projects.len();
+                    let total_artifacts: usize =
+                        gen.projects.iter().map(|p| p.artifacts.len()).sum();
+
+                    let projects_summary = gen
+                        .projects
+                        .iter()
+                        .map(|p| {
+                            let full_p = canonical_root.join(Path::new(&p.display_path));
+                            let display_path = policy_clone.format_path(&full_p);
+                            DeveloperProjectSummaryV1 {
+                                project_id: p.project_id.as_str().to_string(),
+                                display_name: p.display_name.clone(),
+                                display_path,
+                                primary_ecosystem: p.primary_ecosystem.as_str().to_string(),
+                                all_ecosystems: p
+                                    .all_ecosystems
+                                    .iter()
+                                    .map(|e| e.as_str().to_string())
+                                    .collect(),
+                                artifacts_count: p.artifacts.len(),
+                                total_logical_bytes: p.total_logical_bytes,
+                                total_allocated_bytes: p.total_allocated_bytes,
+                                rebuild_confidence: p.rebuild_confidence.as_str().to_string(),
+                                active_state: p.active_state.as_str().to_string(),
+                            }
+                        })
+                        .collect();
+
+                    let coverage = DeveloperArtifactCoverageV1 {
+                        supported_ecosystems: gen
+                            .coverage
+                            .supported_ecosystems
+                            .iter()
+                            .map(|e| e.as_str().to_string())
+                            .collect(),
+                        unclassified_candidate_directories: gen
+                            .coverage
+                            .unclassified_candidate_directories,
+                        skipped_items: gen.coverage.skipped_items,
+                    };
+
+                    let root_path_display = policy_clone.format_path(&canonical_root);
+
+                    Ok(DeveloperArtifactAnalysisV1 {
+                        schema_version: SCHEMA_DEVELOPER_ARTIFACT_ANALYSIS_V1.to_string(),
+                        generation_id: gen.generation_id,
+                        root_id: root_id_str,
+                        root_path: root_path_display,
+                        observed_at: chrono::DateTime::<Utc>::from_timestamp(gen.observed_at, 0)
+                            .map(|t| t.to_rfc3339())
+                            .unwrap_or_else(|| Utc::now().to_rfc3339()),
+                        total_projects,
+                        total_artifacts,
+                        total_logical_bytes: gen.total_logical_bytes,
+                        total_allocated_bytes: gen.total_allocated_bytes,
+                        projects: projects_summary,
+                        coverage,
+                    })
+                },
+            ),
+        )
+        .await
+        .map_err(|_| {
+            VacuaErrorResponse::new(
+                VacuaErrorCode::VacuaInternal,
+                "Developer artifact analysis timed out",
+            )
+        })?
+        .map_err(|e| {
+            VacuaErrorResponse::new(
+                VacuaErrorCode::VacuaInternal,
+                format!("Task join error: {}", e),
+            )
+        })?
+    }
+
+    /// List developer artifacts with deterministic filtering and pagination.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn list_developer_artifacts(
+        &self,
+        root_id: Option<&str>,
+        generation_id: Option<&str>,
+        ecosystem: Option<&str>,
+        kind: Option<&str>,
+        confidence: Option<&str>,
+        project_id: Option<&str>,
+        min_allocated_bytes: Option<u64>,
+        limit: Option<usize>,
+        offset: Option<usize>,
+    ) -> Result<DeveloperArtifactPageV1, VacuaErrorResponse> {
+        let root = self.policy.get_root(root_id)?.clone();
+        let db = self.open_index().ok_or_else(|| {
+            VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, "Index database not found")
+        })?;
+
+        let canonical_root = root.canonical_path.clone();
+        let root_id_str = root.root_id.clone();
+        let gen_id_opt = generation_id.map(|s| s.to_string());
+        let eco_opt = ecosystem.and_then(DeveloperEcosystem::from_str_name);
+        let kind_opt = kind.and_then(DeveloperArtifactKind::from_str_name);
+        let conf_opt = confidence.and_then(RebuildConfidence::from_str_name);
+        let proj_id_opt = project_id.map(|s| s.to_string());
+        let min_bytes = min_allocated_bytes;
+        let lim = limit.unwrap_or(50).clamp(1, 200);
+        let off = offset.unwrap_or(0);
+        let policy_clone = self.policy.clone();
+
+        tokio::time::timeout(
+            self.policy.timeout,
+            tokio::task::spawn_blocking(
+                move || -> Result<DeveloperArtifactPageV1, VacuaErrorResponse> {
+                    let actual_gen_id = match gen_id_opt {
+                        Some(id) => id,
+                        None => {
+                            let latest = ArtifactPersistence::get_latest_ready_generation(
+                                db.conn(),
+                                &root_id_str,
+                            )
+                            .map_err(|e| {
+                                VacuaErrorResponse::new(
+                                    VacuaErrorCode::VacuaInternal,
+                                    e.to_string(),
+                                )
+                            })?;
+                            match latest {
+                                Some(g) => g.generation_id,
+                                None => {
+                                    return Ok(DeveloperArtifactPageV1 {
+                                        schema_version: SCHEMA_DEVELOPER_ARTIFACT_PAGE_V1
+                                            .to_string(),
+                                        generation_id: String::new(),
+                                        root_id: root_id_str,
+                                        artifacts: Vec::new(),
+                                        total_count: 0,
+                                        offset: off,
+                                        limit: lim,
+                                        has_more: false,
+                                    });
+                                }
+                            }
+                        }
+                    };
+
+                    let artifacts_raw = ArtifactPersistence::query_artifacts(
+                        db.conn(),
+                        &actual_gen_id,
+                        eco_opt,
+                        kind_opt,
+                        conf_opt,
+                        proj_id_opt.as_deref(),
+                        min_bytes,
+                        lim + 1,
+                        off,
+                    )
+                    .map_err(|e| {
+                        VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, e.to_string())
+                    })?;
+
+                    let has_more = artifacts_raw.len() > lim;
+                    let artifacts_sliced = artifacts_raw.into_iter().take(lim);
+
+                    let artifacts: Vec<DeveloperArtifactSummaryV1> = artifacts_sliced
+                        .map(|art| {
+                            let full_p = canonical_root.join(Path::new(&art.display_path));
+                            let display_path = policy_clone.format_path(&full_p);
+                            DeveloperArtifactSummaryV1 {
+                                artifact_id: art.artifact_id.as_str().to_string(),
+                                project_id: art.project_id.as_str().to_string(),
+                                display_name: art.display_name,
+                                display_path,
+                                ecosystem: art.ecosystem.as_str().to_string(),
+                                artifact_kind: art.artifact_kind.as_str().to_string(),
+                                logical_bytes: art.logical_bytes,
+                                allocated_bytes: art.allocated_bytes,
+                                confirmed_reclaim_lower_bound: art.confirmed_reclaim_lower_bound,
+                                rebuild_confidence: art
+                                    .rebuild_evidence
+                                    .reconstruction_confidence
+                                    .as_str()
+                                    .to_string(),
+                                candidate_id: art.candidate_id,
+                            }
+                        })
+                        .collect();
+
+                    let total_count = off + artifacts.len() + if has_more { 1 } else { 0 };
+
+                    Ok(DeveloperArtifactPageV1 {
+                        schema_version: SCHEMA_DEVELOPER_ARTIFACT_PAGE_V1.to_string(),
+                        generation_id: actual_gen_id,
+                        root_id: root_id_str,
+                        artifacts,
+                        total_count,
+                        offset: off,
+                        limit: lim,
+                        has_more,
+                    })
+                },
+            ),
+        )
+        .await
+        .map_err(|_| {
+            VacuaErrorResponse::new(
+                VacuaErrorCode::VacuaInternal,
+                "Query developer artifacts timed out",
+            )
+        })?
+        .map_err(|e| {
+            VacuaErrorResponse::new(
+                VacuaErrorCode::VacuaInternal,
+                format!("Task join error: {}", e),
+            )
+        })?
+    }
+
+    /// Retrieve full details and causal rebuild evidence for a single developer artifact.
+    pub async fn get_developer_artifact(
+        &self,
+        artifact_id: &str,
+    ) -> Result<DeveloperArtifactDetailV1, VacuaErrorResponse> {
+        let db = self.open_index().ok_or_else(|| {
+            VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, "Index database not found")
+        })?;
+
+        let art_id_str = artifact_id.to_string();
+        let policy_clone = self.policy.clone();
+
+        tokio::time::timeout(
+            self.policy.timeout,
+            tokio::task::spawn_blocking(
+                move || -> Result<DeveloperArtifactDetailV1, VacuaErrorResponse> {
+                    let art = ArtifactPersistence::get_artifact(db.conn(), &art_id_str)
+                        .map_err(|e| {
+                            VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, e.to_string())
+                        })?
+                        .ok_or_else(|| {
+                            VacuaErrorResponse::new(
+                                VacuaErrorCode::VacuaNotFound,
+                                format!("Developer artifact '{}' not found", art_id_str),
+                            )
+                        })?;
+
+                    let proj_name: String = db
+                    .conn()
+                    .query_row(
+                        "SELECT display_name FROM developer_projects WHERE project_id = ?1 LIMIT 1",
+                        rusqlite::params![art.project_id.as_str()],
+                        |row| row.get(0),
+                    )
+                    .unwrap_or_else(|_| "Unknown Project".to_string());
+
+                    let display_path = policy_clone.format_path(Path::new(&art.display_path));
+
+                    let manifest_path_formatted = art
+                        .rebuild_evidence
+                        .manifest_path
+                        .as_ref()
+                        .map(|p| policy_clone.format_path(Path::new(p)));
+                    let lockfile_path_formatted = art
+                        .rebuild_evidence
+                        .lockfile_path
+                        .as_ref()
+                        .map(|p| policy_clone.format_path(Path::new(p)));
+
+                    Ok(DeveloperArtifactDetailV1 {
+                        schema_version: SCHEMA_DEVELOPER_ARTIFACT_DETAIL_V1.to_string(),
+                        artifact_id: art.artifact_id.as_str().to_string(),
+                        project_id: art.project_id.as_str().to_string(),
+                        project_name: proj_name,
+                        display_name: art.display_name,
+                        display_path,
+                        ecosystem: art.ecosystem.as_str().to_string(),
+                        artifact_kind: art.artifact_kind.as_str().to_string(),
+                        logical_bytes: art.logical_bytes,
+                        allocated_bytes: art.allocated_bytes,
+                        confirmed_reclaim_lower_bound: art.confirmed_reclaim_lower_bound,
+                        estimated_reclaim: art.estimated_reclaim,
+                        physical_sharing_uncertainty: art.physical_sharing_uncertainty,
+                        rebuild_evidence: RebuildEvidenceV1 {
+                            manifest_present: art.rebuild_evidence.manifest_present,
+                            manifest_path: manifest_path_formatted,
+                            lockfile_present: art.rebuild_evidence.lockfile_present,
+                            lockfile_path: lockfile_path_formatted,
+                            known_artifact_convention: art
+                                .rebuild_evidence
+                                .known_artifact_convention,
+                            project_root_known: art.rebuild_evidence.project_root_known,
+                            toolchain_identified: art.rebuild_evidence.toolchain_identified,
+                            active_project_state: art
+                                .rebuild_evidence
+                                .active_project_state
+                                .as_str()
+                                .to_string(),
+                            reconstruction_confidence: art
+                                .rebuild_evidence
+                                .reconstruction_confidence
+                                .as_str()
+                                .to_string(),
+                            rebuild_command_template: art.rebuild_evidence.rebuild_command_template,
+                            reasons: art.rebuild_evidence.reasons,
+                        },
+                        candidate_id: art.candidate_id,
+                        observed_at: Utc::now().to_rfc3339(),
+                    })
+                },
+            ),
+        )
+        .await
+        .map_err(|_| {
+            VacuaErrorResponse::new(
+                VacuaErrorCode::VacuaInternal,
+                "Get developer artifact timed out",
+            )
+        })?
+        .map_err(|e| {
+            VacuaErrorResponse::new(
+                VacuaErrorCode::VacuaInternal,
+                format!("Task join error: {}", e),
+            )
+        })?
     }
 }

@@ -547,3 +547,128 @@ pub struct StorageTreeNodeDetailV1 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub delta: Option<StorageTreeDeltaV1>,
 }
+
+/// Comprehensive, evidence-based causal rebuild model for developer artifacts.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct RebuildEvidenceV1 {
+    pub manifest_present: bool,
+    pub manifest_path: Option<String>,
+    pub lockfile_present: bool,
+    pub lockfile_path: Option<String>,
+    pub known_artifact_convention: bool,
+    pub project_root_known: bool,
+    pub toolchain_identified: Option<String>,
+    pub active_project_state: String,
+    pub reconstruction_confidence: String,
+    pub rebuild_command_template: Option<String>,
+    pub reasons: Vec<String>,
+}
+
+/// Compact summary of a single developer artifact for listings and project grouping.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DeveloperArtifactSummaryV1 {
+    pub artifact_id: String,
+    pub project_id: String,
+    pub display_name: String,
+    pub display_path: String,
+    pub ecosystem: String,
+    pub artifact_kind: String,
+    pub logical_bytes: u64,
+    pub allocated_bytes: u64,
+    pub confirmed_reclaim_lower_bound: u64,
+    pub rebuild_confidence: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub candidate_id: Option<String>,
+}
+
+/// Detailed inspection view for a single developer artifact.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DeveloperArtifactDetailV1 {
+    pub schema_version: String,
+    pub artifact_id: String,
+    pub project_id: String,
+    pub project_name: String,
+    pub display_name: String,
+    pub display_path: String,
+    pub ecosystem: String,
+    pub artifact_kind: String,
+    pub logical_bytes: u64,
+    pub allocated_bytes: u64,
+    pub confirmed_reclaim_lower_bound: u64,
+    pub estimated_reclaim: u64,
+    pub physical_sharing_uncertainty: bool,
+    pub rebuild_evidence: RebuildEvidenceV1,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub candidate_id: Option<String>,
+    pub observed_at: String,
+}
+
+/// Compact summary of a developer project.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DeveloperProjectSummaryV1 {
+    pub project_id: String,
+    pub display_name: String,
+    pub display_path: String,
+    pub primary_ecosystem: String,
+    pub all_ecosystems: Vec<String>,
+    pub artifacts_count: usize,
+    pub total_logical_bytes: u64,
+    pub total_allocated_bytes: u64,
+    pub rebuild_confidence: String,
+    pub active_state: String,
+}
+
+/// Detailed inspection view of a developer project including all its artifacts.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DeveloperProjectDetailV1 {
+    pub schema_version: String,
+    pub project_id: String,
+    pub display_name: String,
+    pub display_path: String,
+    pub primary_ecosystem: String,
+    pub all_ecosystems: Vec<String>,
+    pub manifest_paths: Vec<String>,
+    pub lockfile_paths: Vec<String>,
+    pub artifacts: Vec<DeveloperArtifactSummaryV1>,
+    pub total_logical_bytes: u64,
+    pub total_allocated_bytes: u64,
+    pub rebuild_confidence: String,
+    pub active_state: String,
+}
+
+/// Supported coverage and unclassified directory metrics.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DeveloperArtifactCoverageV1 {
+    pub supported_ecosystems: Vec<String>,
+    pub unclassified_candidate_directories: usize,
+    pub skipped_items: usize,
+}
+
+/// High-level analysis overview of developer artifacts across an authorized root.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DeveloperArtifactAnalysisV1 {
+    pub schema_version: String,
+    pub generation_id: String,
+    pub root_id: String,
+    pub root_path: String,
+    pub observed_at: String,
+    pub total_projects: usize,
+    pub total_artifacts: usize,
+    pub total_logical_bytes: u64,
+    pub total_allocated_bytes: u64,
+    pub projects: Vec<DeveloperProjectSummaryV1>,
+    pub coverage: DeveloperArtifactCoverageV1,
+}
+
+/// Bounded paginated list of developer artifacts.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DeveloperArtifactPageV1 {
+    pub schema_version: String,
+    pub generation_id: String,
+    pub root_id: String,
+    pub artifacts: Vec<DeveloperArtifactSummaryV1>,
+    pub total_count: usize,
+    pub offset: usize,
+    pub limit: usize,
+    pub has_more: bool,
+}

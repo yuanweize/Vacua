@@ -49,6 +49,54 @@ public struct RiskBadge: View {
     }
 }
 
+// MARK: - Rebuild Confidence Badge
+
+public struct RebuildConfidenceBadge: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+
+    public let confidence: String
+
+    public init(confidence: String) {
+        self.confidence = confidence
+    }
+
+    public var body: some View {
+        let normalized = confidence.lowercased()
+        let (color, text, symbol): (Color, String, String) = {
+            switch normalized {
+            case "verified":
+                return (.indigo, "Verified evidence", "checkmark.seal.fill")
+            case "strong":
+                return (.blue, "Strong evidence", "checkmark.circle.fill")
+            case "partial":
+                return (.orange, "Partial evidence", "exclamationmark.circle.fill")
+            case "unknown":
+                return (.secondary, "Unknown evidence", "questionmark.circle.fill")
+            default:
+                return (.secondary, "\(confidence.capitalized) evidence", "info.circle")
+            }
+        }()
+
+        HStack(spacing: 3) {
+            Image(systemName: symbol)
+                .font(.system(size: 9, weight: .semibold))
+            Text(text)
+                .font(.caption2.weight(.semibold))
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2.5)
+        .background(color.opacity(colorScheme == .dark ? 0.22 : 0.12))
+        .foregroundStyle(color)
+        .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .stroke(differentiateWithoutColor ? color : color.opacity(0.3), lineWidth: 1)
+        )
+        .accessibilityLabel(Text("Rebuild confidence: \(text)"))
+    }
+}
+
 // MARK: - Category Badge
 
 public struct CategoryBadge: View {

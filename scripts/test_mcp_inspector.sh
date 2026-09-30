@@ -40,6 +40,15 @@ echo "IDENTICAL_DUPLICATE_BYTES_9876543210" > "$ROOT_DIR/Duplicates/dup_2.bin"
 SNAP_ID="$("$FIXTURE_GEN_BIN" "$ROOT_DIR" "$DB_DIR/index.db")"
 echo "Seeded snapshot ID: $SNAP_ID"
 
+# Seed a developer project
+mkdir -p "$ROOT_DIR/SampleCargoProject/src"
+mkdir -p "$ROOT_DIR/SampleCargoProject/target/debug"
+echo '[package]' > "$ROOT_DIR/SampleCargoProject/Cargo.toml"
+echo 'name = "sample-crate"' >> "$ROOT_DIR/SampleCargoProject/Cargo.toml"
+echo '# lock' > "$ROOT_DIR/SampleCargoProject/Cargo.lock"
+echo 'fn main() {}' > "$ROOT_DIR/SampleCargoProject/src/main.rs"
+echo 'compiled bytes' > "$ROOT_DIR/SampleCargoProject/target/debug/app"
+
 # Create a clean shell wrapper so inspector-cli doesn't misparse vacua-mcp arguments
 WRAPPER_SCRIPT="$FIXTURE_DIR/run_vacua_mcp.sh"
 cat << EOF > "$WRAPPER_SCRIPT"
@@ -54,6 +63,9 @@ grep -q "vacua_get_capabilities" "$FIXTURE_DIR/tools.json"
 grep -q "vacua_storage_summary" "$FIXTURE_DIR/tools.json"
 grep -q "vacua_list_candidates" "$FIXTURE_DIR/tools.json"
 grep -q "vacua_list_duplicates" "$FIXTURE_DIR/tools.json"
+grep -q "vacua_analyze_developer_artifacts" "$FIXTURE_DIR/tools.json"
+grep -q "vacua_list_developer_artifacts" "$FIXTURE_DIR/tools.json"
+grep -q "vacua_get_developer_artifact" "$FIXTURE_DIR/tools.json"
 
 echo "2. Checking resources/list..."
 npx -y "$INSPECTOR_PKG" --cli "$WRAPPER_SCRIPT" --method resources/list --format json > "$FIXTURE_DIR/resources.json"
@@ -66,6 +78,7 @@ grep -q "vacua://candidate/{candidate_id}" "$FIXTURE_DIR/templates.json"
 grep -q "vacua://snapshot/{snapshot_id}" "$FIXTURE_DIR/templates.json"
 grep -q "vacua://duplicate/{group_id}" "$FIXTURE_DIR/templates.json"
 grep -q "vacua://application/{application_id}" "$FIXTURE_DIR/templates.json"
+grep -q "vacua://developer-artifact/{artifact_id}" "$FIXTURE_DIR/templates.json"
 
 echo "4. Checking prompts/list..."
 npx -y "$INSPECTOR_PKG" --cli "$WRAPPER_SCRIPT" --method prompts/list --format json > "$FIXTURE_DIR/prompts.json"
@@ -122,6 +135,29 @@ if [[ -n "$APP_ID" ]]; then
     npx -y "$INSPECTOR_PKG" --cli "$WRAPPER_SCRIPT" --method resources/read --uri "vacua://application/$APP_ID" --format json > "$FIXTURE_DIR/read_app.json"
     grep -q "$APP_ID" "$FIXTURE_DIR/read_app.json"
     grep -q "vacua.mcp.application-detail.v1" "$FIXTURE_DIR/read_app.json"
+fi
+
+echo "12. Calling vacua_analyze_developer_artifacts..."
+npx -y "$INSPECTOR_PKG" --cli "$WRAPPER_SCRIPT" --method tools/call --tool-name vacua_analyze_developer_artifacts --format json > "$FIXTURE_DIR/analyze_art.json"
+grep -q "vacua.mcp.developer-artifact-analysis.v1" "$FIXTURE_DIR/analyze_art.json"
+grep -q "SampleCargoProject" "$FIXTURE_DIR/analyze_art.json"
+
+echo "13. Calling vacua_list_developer_artifacts..."
+npx -y "$INSPECTOR_PKG" --cli "$WRAPPER_SCRIPT" --method tools/call --tool-name vacua_list_developer_artifacts --format json > "$FIXTURE_DIR/list_art.json"
+grep -q "vacua.mcp.developer-artifact-page.v1" "$FIXTURE_DIR/list_art.json"
+ART_ID=$(grep -o '"artifact_id":"devart_[^"]*"' "$FIXTURE_DIR/list_art.json" | head -n1 | cut -d'"' -f4 || true)
+
+if [[ -n "$ART_ID" ]]; then
+    echo "14. Calling vacua_get_developer_artifact for $ART_ID..."
+    npx -y "$INSPECTOR_PKG" --cli "$WRAPPER_SCRIPT" --method tools/call --tool-name vacua_get_developer_artifact --tool-args-json "{\"artifact_id\":\"$ART_ID\"}" --format json > "$FIXTURE_DIR/get_art.json"
+    grep -q "vacua.mcp.developer-artifact-detail.v1" "$FIXTURE_DIR/get_art.json"
+    grep -q "rebuild_evidence" "$FIXTURE_DIR/get_art.json"
+    grep -q "cargo build" "$FIXTURE_DIR/get_art.json"
+
+    echo "15. Verifying ResourceTemplate: vacua://developer-artifact/$ART_ID..."
+    npx -y "$INSPECTOR_PKG" --cli "$WRAPPER_SCRIPT" --method resources/read --uri "vacua://developer-artifact/$ART_ID" --format json > "$FIXTURE_DIR/read_art.json"
+    grep -q "$ART_ID" "$FIXTURE_DIR/read_art.json"
+    grep -q "vacua.mcp.developer-artifact-detail.v1" "$FIXTURE_DIR/read_art.json"
 fi
 
 echo "=== All Inspector Protocol Verification Steps Passed! ==="

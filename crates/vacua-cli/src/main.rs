@@ -7,6 +7,14 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use chrono::Utc;
+use vacua_api::dto::{
+    DeveloperArtifactAnalysisV1, DeveloperArtifactCoverageV1, DeveloperArtifactDetailV1,
+    DeveloperProjectSummaryV1, RebuildEvidenceV1,
+};
+use vacua_artifacts::{
+    ArtifactPersistence, DeveloperArtifact, DeveloperArtifactScanner, DeveloperEcosystem,
+    DeveloperProject, RebuildConfidence,
+};
 use vacua_core::allocation::AllocationInfo;
 use vacua_core::candidate::Candidate;
 use vacua_core::cost::{CleanupSimulation, ReclaimCost};
@@ -250,6 +258,59 @@ enum Commands {
 
         #[arg(long, help = "Force refresh storage tree generation from live scan")]
         refresh: bool,
+    },
+
+    #[command(about = "Discover and analyze developer project artifacts and rebuild evidence")]
+    Artifacts {
+        #[command(subcommand)]
+        action: Option<ArtifactsSubcommand>,
+
+        #[arg(default_value = ".", help = "Target root path to inspect")]
+        path: PathBuf,
+
+        #[arg(
+            long,
+            help = "Filter by developer ecosystem (e.g. rust, xcode, node, python)"
+        )]
+        ecosystem: Option<String>,
+
+        #[arg(long, help = "Minimum allocated size threshold (e.g. 10M, 1G)")]
+        min_size: Option<String>,
+
+        #[arg(
+            long,
+            help = "Filter by reconstruction confidence (verified, strong, partial, unknown)"
+        )]
+        confidence: Option<String>,
+
+        #[arg(long, default_value_t = 50, help = "Maximum items to display")]
+        limit: usize,
+
+        #[arg(
+            long,
+            help = "Force refresh developer artifact analysis from live scan"
+        )]
+        refresh: bool,
+
+        #[arg(long, help = "Inspect full details of a specific artifact ID")]
+        show: Option<String>,
+
+        #[arg(long, help = "Display project-level summary table")]
+        projects: bool,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum ArtifactsSubcommand {
+    #[command(about = "Inspect full details of a specific developer artifact")]
+    Show {
+        #[arg(help = "Developer Artifact ID (e.g. devart_...)")]
+        id: String,
+    },
+    #[command(about = "List discovered developer projects and aggregate storage")]
+    Projects {
+        #[arg(default_value = ".", help = "Target root path to inspect")]
+        path: PathBuf,
     },
 }
 
@@ -505,6 +566,43 @@ fn main() {
             depth,
             refresh,
         } => handle_tree(&path, metric, limit, depth, cli.json, refresh),
+        Commands::Artifacts {
+            action,
+            path,
+            ecosystem,
+            min_size,
+            confidence,
+            limit,
+            refresh,
+            show,
+            projects,
+        } => {
+            let show_id = show.or_else(|| {
+                if let Some(ArtifactsSubcommand::Show { id }) = &action {
+                    Some(id.clone())
+                } else {
+                    None
+                }
+            });
+            let show_projects =
+                projects || matches!(action, Some(ArtifactsSubcommand::Projects { .. }));
+            let target_path = if let Some(ArtifactsSubcommand::Projects { path: p }) = &action {
+                p
+            } else {
+                &path
+            };
+            handle_artifacts(
+                target_path,
+                ecosystem.as_deref(),
+                min_size.as_deref(),
+                confidence.as_deref(),
+                limit,
+                refresh,
+                show_id.as_deref(),
+                show_projects,
+                cli.json,
+            );
+        }
     }
 }
 
@@ -3203,4 +3301,390 @@ fn handle_duplicates_cache_prune(json_mode: bool) {
             pruned
         );
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn handle_artifacts(
+    target_path: &Path,
+    ecosystem: Option<&str>,
+    min_size: Option<&str>,
+    confidence: Option<&str>,
+    limit: usize,
+    refresh: bool,
+    show_id: Option<&str>,
+    _projects_mode: bool,
+    json_mode: bool,
+) {
+    let canonical = match target_path.canonicalize() {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Error resolving target path {:?}: {}", target_path, e);
+            std::process::exit(1);
+        }
+    };
+    let root_id = blake3::hash(canonical.to_string_lossy().as_bytes()).to_hex()[..16].to_string();
+
+    let db_path = default_index_path();
+    let mut db = match IndexDatabase::open(&db_path) {
+        Ok(db) => db,
+        Err(e) => {
+            eprintln!("Error opening index database: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    if let Some(art_id) = show_id {
+        handle_artifacts_show(&db, art_id, json_mode);
+        return;
+    }
+
+    let latest_gen = if refresh {
+        None
+    } else {
+        ArtifactPersistence::get_latest_ready_generation(db.conn(), &root_id)
+            .ok()
+            .flatten()
+    };
+
+    let canonical_lossy = canonical.to_string_lossy().to_string();
+    let gen = match latest_gen {
+        Some(g) if g.root_path == canonical_lossy => g,
+        _ => {
+            let scanner = DeveloperArtifactScanner::new(&canonical, &root_id);
+            let new_gen = match scanner.scan() {
+                Ok(g) => g,
+                Err(e) => {
+                    eprintln!("Error scanning developer artifacts: {}", e);
+                    std::process::exit(1);
+                }
+            };
+            if let Err(e) = ArtifactPersistence::publish_generation(db.conn_mut(), &new_gen) {
+                eprintln!("Error persisting developer artifact generation: {}", e);
+                std::process::exit(1);
+            }
+            new_gen
+        }
+    };
+
+    let eco_filter = ecosystem.and_then(DeveloperEcosystem::from_str_name);
+    let min_size_bytes = match min_size {
+        Some(s) => match parse_size(s) {
+            Ok(bytes) => Some(bytes),
+            Err(e) => {
+                eprintln!("Invalid --min-size: {}", e);
+                std::process::exit(1);
+            }
+        },
+        None => None,
+    };
+    let conf_filter = confidence.and_then(RebuildConfidence::from_str_name);
+
+    let mut filtered_projects = Vec::new();
+    for proj in gen.projects {
+        if let Some(eco) = eco_filter {
+            if !proj.all_ecosystems.contains(&eco) && proj.primary_ecosystem != eco {
+                continue;
+            }
+        }
+        if let Some(conf) = conf_filter {
+            if proj.rebuild_confidence != conf {
+                continue;
+            }
+        }
+        if let Some(min_b) = min_size_bytes {
+            if proj.total_allocated_bytes < min_b {
+                continue;
+            }
+        }
+        filtered_projects.push(proj);
+    }
+
+    let total_allocated: u64 = filtered_projects
+        .iter()
+        .map(|p| p.total_allocated_bytes)
+        .sum();
+    let total_logical: u64 = filtered_projects
+        .iter()
+        .map(|p| p.total_logical_bytes)
+        .sum();
+    let total_artifacts: usize = filtered_projects.iter().map(|p| p.artifacts.len()).sum();
+
+    if json_mode {
+        let analysis = DeveloperArtifactAnalysisV1 {
+            schema_version: "v1".to_string(),
+            generation_id: gen.generation_id,
+            root_id: gen.root_id,
+            root_path: gen.root_path,
+            observed_at: chrono::DateTime::<Utc>::from_timestamp(gen.observed_at, 0)
+                .map(|t| t.to_rfc3339())
+                .unwrap_or_else(|| Utc::now().to_rfc3339()),
+            total_projects: filtered_projects.len(),
+            total_artifacts,
+            total_logical_bytes: total_logical,
+            total_allocated_bytes: total_allocated,
+            projects: filtered_projects
+                .iter()
+                .map(|p| DeveloperProjectSummaryV1 {
+                    project_id: p.project_id.as_str().to_string(),
+                    display_name: p.display_name.clone(),
+                    display_path: p.display_path.clone(),
+                    primary_ecosystem: p.primary_ecosystem.as_str().to_string(),
+                    all_ecosystems: p
+                        .all_ecosystems
+                        .iter()
+                        .map(|e| e.as_str().to_string())
+                        .collect(),
+                    artifacts_count: p.artifacts.len(),
+                    total_logical_bytes: p.total_logical_bytes,
+                    total_allocated_bytes: p.total_allocated_bytes,
+                    rebuild_confidence: p.rebuild_confidence.as_str().to_string(),
+                    active_state: p.active_state.as_str().to_string(),
+                })
+                .collect(),
+            coverage: DeveloperArtifactCoverageV1 {
+                supported_ecosystems: gen
+                    .coverage
+                    .supported_ecosystems
+                    .iter()
+                    .map(|e| e.as_str().to_string())
+                    .collect(),
+                unclassified_candidate_directories: gen.coverage.unclassified_candidate_directories,
+                skipped_items: gen.coverage.skipped_items,
+            },
+        };
+        println!("{}", serde_json::to_string_pretty(&analysis).unwrap());
+        return;
+    }
+
+    println!("Developer Artifacts");
+    println!("────────────────────────────────────────────────────────────────────────");
+    if filtered_projects.is_empty() {
+        println!("No supported developer artifacts were found in the selected root.");
+    } else {
+        println!(
+            "{:<28} {:<16} {:>12}   {:<18}",
+            "Project", "Ecosystem", "Allocated", "Rebuild Evidence"
+        );
+        println!("────────────────────────────────────────────────────────────────────────");
+        for proj in &filtered_projects {
+            let eco_str = proj
+                .all_ecosystems
+                .iter()
+                .map(|e| e.display_name())
+                .collect::<Vec<_>>()
+                .join("/");
+            let alloc_str = format_bytes(proj.total_allocated_bytes);
+            let conf_str = proj.rebuild_confidence.display_name();
+            println!(
+                "{:<28} {:<16} {:>12}   {:<18}",
+                proj.display_name, eco_str, alloc_str, conf_str
+            );
+        }
+        println!("────────────────────────────────────────────────────────────────────────");
+        println!(
+            "Potential generated storage observed: {}",
+            format_bytes(total_allocated)
+        );
+        println!(
+            "Observed across {} projects ({} artifacts)",
+            filtered_projects.len(),
+            total_artifacts
+        );
+        println!("Note: Physical APFS allocation is reported. Generated state does not imply immediate deletion authority.");
+
+        let mut all_artifacts: Vec<(&DeveloperProject, &DeveloperArtifact)> = Vec::new();
+        for p in &filtered_projects {
+            for a in &p.artifacts {
+                all_artifacts.push((p, a));
+            }
+        }
+        all_artifacts.sort_by_key(|b| std::cmp::Reverse(b.1.allocated_bytes));
+        if !all_artifacts.is_empty() {
+            println!("\nTop Discovered Artifacts (showing up to {}):", limit);
+            for (_, art) in all_artifacts.iter().take(limit) {
+                println!(
+                    "  • {:<20} {:>10}  [{}]  ({})",
+                    art.display_name,
+                    format_bytes(art.allocated_bytes),
+                    art.artifact_id.as_str(),
+                    art.rebuild_evidence
+                        .reconstruction_confidence
+                        .display_name()
+                );
+            }
+            println!("\nRun `vacua artifacts show <artifact-id>` for detailed reconstruction evidence and rationale.");
+        }
+    }
+}
+
+fn handle_artifacts_show(db: &IndexDatabase, artifact_id: &str, json_mode: bool) {
+    let art = match ArtifactPersistence::get_artifact(db.conn(), artifact_id) {
+        Ok(Some(a)) => a,
+        Ok(None) => {
+            eprintln!("Developer artifact not found: {}", artifact_id);
+            std::process::exit(1);
+        }
+        Err(e) => {
+            eprintln!("Error querying developer artifact: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let proj_name: String = db
+        .conn()
+        .query_row(
+            "SELECT display_name FROM developer_projects WHERE project_id = ?1 LIMIT 1",
+            rusqlite::params![art.project_id.as_str()],
+            |row| row.get(0),
+        )
+        .unwrap_or_else(|_| "Unknown Project".to_string());
+
+    if json_mode {
+        let detail = DeveloperArtifactDetailV1 {
+            schema_version: "v1".to_string(),
+            artifact_id: art.artifact_id.as_str().to_string(),
+            project_id: art.project_id.as_str().to_string(),
+            project_name: proj_name,
+            display_name: art.display_name.clone(),
+            display_path: art.display_path.clone(),
+            ecosystem: art.ecosystem.as_str().to_string(),
+            artifact_kind: art.artifact_kind.as_str().to_string(),
+            logical_bytes: art.logical_bytes,
+            allocated_bytes: art.allocated_bytes,
+            confirmed_reclaim_lower_bound: art.confirmed_reclaim_lower_bound,
+            estimated_reclaim: art.estimated_reclaim,
+            physical_sharing_uncertainty: art.physical_sharing_uncertainty,
+            rebuild_evidence: RebuildEvidenceV1 {
+                manifest_present: art.rebuild_evidence.manifest_present,
+                manifest_path: art.rebuild_evidence.manifest_path.clone(),
+                lockfile_present: art.rebuild_evidence.lockfile_present,
+                lockfile_path: art.rebuild_evidence.lockfile_path.clone(),
+                known_artifact_convention: art.rebuild_evidence.known_artifact_convention,
+                project_root_known: art.rebuild_evidence.project_root_known,
+                toolchain_identified: art.rebuild_evidence.toolchain_identified.clone(),
+                active_project_state: art
+                    .rebuild_evidence
+                    .active_project_state
+                    .as_str()
+                    .to_string(),
+                reconstruction_confidence: art
+                    .rebuild_evidence
+                    .reconstruction_confidence
+                    .as_str()
+                    .to_string(),
+                rebuild_command_template: art.rebuild_evidence.rebuild_command_template.clone(),
+                reasons: art.rebuild_evidence.reasons.clone(),
+            },
+            candidate_id: art.candidate_id.clone(),
+            observed_at: Utc::now().to_rfc3339(),
+        };
+        println!("{}", serde_json::to_string_pretty(&detail).unwrap());
+        return;
+    }
+
+    println!("Developer Artifact Detail: {}", art.artifact_id.as_str());
+    println!("────────────────────────────────────────────────────────────────────────");
+    println!("Name:                         {}", art.display_name);
+    println!(
+        "Kind:                         {}",
+        art.artifact_kind.display_name()
+    );
+    println!(
+        "Ecosystem:                    {}",
+        art.ecosystem.display_name()
+    );
+    println!(
+        "Project:                      {} ({})",
+        proj_name,
+        art.project_id.as_str()
+    );
+    println!("Display Path:                 {}", art.display_path);
+    println!();
+    println!("Storage Truth:");
+    println!(
+        "  Logical Bytes:              {} ({})",
+        art.logical_bytes,
+        format_bytes(art.logical_bytes)
+    );
+    println!(
+        "  Allocated Blocks:           {} ({})",
+        art.allocated_bytes,
+        format_bytes(art.allocated_bytes)
+    );
+    println!(
+        "  Estimated Reclaim:          {}",
+        format_bytes(art.estimated_reclaim)
+    );
+    println!(
+        "  Physical Extent Sharing:    {}",
+        if art.physical_sharing_uncertainty {
+            "Uncertain (APFS extent sharing possible)"
+        } else {
+            "None"
+        }
+    );
+    println!();
+    println!("Rebuild Evidence:");
+    println!(
+        "  Reconstruction Confidence:  {}",
+        art.rebuild_evidence
+            .reconstruction_confidence
+            .display_name()
+    );
+    println!(
+        "  Project Root Known:         {}",
+        if art.rebuild_evidence.project_root_known {
+            "Yes"
+        } else {
+            "No"
+        }
+    );
+    println!(
+        "  Manifest Present:           {}",
+        if art.rebuild_evidence.manifest_present {
+            "Yes"
+        } else {
+            "No"
+        }
+    );
+    println!(
+        "  Lockfile Present:           {}",
+        if art.rebuild_evidence.lockfile_present {
+            "Yes"
+        } else {
+            "No"
+        }
+    );
+    println!(
+        "  Known Artifact Convention:  {}",
+        if art.rebuild_evidence.known_artifact_convention {
+            "Yes"
+        } else {
+            "No"
+        }
+    );
+    println!(
+        "  Toolchain Identified:       {}",
+        art.rebuild_evidence
+            .toolchain_identified
+            .as_deref()
+            .unwrap_or("No")
+    );
+    println!(
+        "  Active Project State:       {}",
+        art.rebuild_evidence.active_project_state.display_name()
+    );
+    println!();
+    println!("Classification Rationale:");
+    for reason in &art.rebuild_evidence.reasons {
+        println!("  • {}", reason);
+    }
+    println!();
+    println!("Suggested Rebuild Command (Informational Template):");
+    println!("  {}", art.ecosystem.default_rebuild_template());
+    if let Some(cand_id) = &art.candidate_id {
+        println!();
+        println!("Associated Review Candidate:  {}", cand_id);
+    }
+    println!("────────────────────────────────────────────────────────────────────────");
 }

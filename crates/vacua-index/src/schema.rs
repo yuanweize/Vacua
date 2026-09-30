@@ -1,7 +1,7 @@
 use rusqlite::Connection;
 use thiserror::Error;
 
-pub const CURRENT_SCHEMA_VERSION: u32 = 5;
+pub const CURRENT_SCHEMA_VERSION: u32 = 6;
 
 #[derive(Error, Debug)]
 pub enum SchemaError {
@@ -269,6 +269,73 @@ pub fn run_migrations(conn: &mut Connection) -> std::result::Result<(), SchemaEr
         )?;
 
         tx.pragma_update(None, "user_version", 5)?;
+        tx.commit()?;
+    }
+
+    if current_version < 6 {
+        let tx = conn.transaction()?;
+
+        tx.execute_batch(
+            r#"
+            -- Developer artifact generations
+            CREATE TABLE IF NOT EXISTS developer_artifact_generations (
+                generation_id TEXT PRIMARY KEY,
+                root_path TEXT NOT NULL,
+                root_id TEXT NOT NULL,
+                observed_at INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                projects_count INTEGER NOT NULL,
+                artifacts_count INTEGER NOT NULL,
+                total_logical_bytes INTEGER NOT NULL,
+                total_allocated_bytes INTEGER NOT NULL,
+                coverage_json TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_devart_gen_root ON developer_artifact_generations(root_id, observed_at DESC);
+
+            -- Developer projects
+            CREATE TABLE IF NOT EXISTS developer_projects (
+                generation_id TEXT NOT NULL,
+                project_id TEXT NOT NULL,
+                root_relative_path BLOB NOT NULL,
+                display_name TEXT NOT NULL,
+                display_path TEXT NOT NULL,
+                primary_ecosystem TEXT NOT NULL,
+                ecosystems_json TEXT NOT NULL,
+                manifest_paths_json TEXT NOT NULL,
+                lockfile_paths_json TEXT NOT NULL,
+                artifacts_count INTEGER NOT NULL,
+                total_logical_bytes INTEGER NOT NULL,
+                total_allocated_bytes INTEGER NOT NULL,
+                rebuild_confidence TEXT NOT NULL,
+                active_state TEXT NOT NULL,
+                PRIMARY KEY (generation_id, project_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_devproj_gen_alloc ON developer_projects(generation_id, total_allocated_bytes DESC);
+
+            -- Developer artifacts
+            CREATE TABLE IF NOT EXISTS developer_artifacts (
+                generation_id TEXT NOT NULL,
+                artifact_id TEXT NOT NULL,
+                project_id TEXT NOT NULL,
+                root_relative_path BLOB NOT NULL,
+                display_name TEXT NOT NULL,
+                display_path TEXT NOT NULL,
+                ecosystem TEXT NOT NULL,
+                artifact_kind TEXT NOT NULL,
+                logical_bytes INTEGER NOT NULL,
+                allocated_bytes INTEGER NOT NULL,
+                confirmed_reclaim_lower_bound INTEGER NOT NULL,
+                rebuild_confidence TEXT NOT NULL,
+                evidence_json TEXT NOT NULL,
+                candidate_id TEXT,
+                PRIMARY KEY (generation_id, artifact_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_devart_gen_alloc ON developer_artifacts(generation_id, allocated_bytes DESC);
+            CREATE INDEX IF NOT EXISTS idx_devart_gen_proj ON developer_artifacts(generation_id, project_id);
+            "#,
+        )?;
+
+        tx.pragma_update(None, "user_version", 6)?;
         tx.commit()?;
     }
 

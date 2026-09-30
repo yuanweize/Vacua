@@ -3,8 +3,12 @@ import os
 import plistlib
 import uuid
 
+_id_counter = 0
+
 def gen_id():
-    return uuid.uuid4().hex[:24].upper()
+    global _id_counter
+    _id_counter += 1
+    return uuid.uuid5(uuid.NAMESPACE_DNS, f"vacua.v0.8.id.{_id_counter}").hex[:24].upper()
 
 def main():
     proj_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "apps", "macos"))
@@ -81,6 +85,8 @@ def main():
         ("Vacua/Features/Candidates/CleanupProposalSheet.swift", "CleanupProposalSheet.swift"),
         ("Vacua/Features/Duplicates/DuplicatesView.swift", "DuplicatesView.swift"),
         ("Vacua/Features/Applications/ApplicationsView.swift", "ApplicationsView.swift"),
+        ("Vacua/Features/DeveloperArtifacts/DeveloperArtifactsModel.swift", "DeveloperArtifactsModel.swift"),
+        ("Vacua/Features/DeveloperArtifacts/DeveloperArtifactsView.swift", "DeveloperArtifactsView.swift"),
         ("Vacua/Features/Snapshots/SnapshotsView.swift", "SnapshotsView.swift"),
         ("Vacua/Features/Settings/SettingsView.swift", "SettingsView.swift"),
         ("Vacua/Features/StorageMap/StorageMapModel.swift", "StorageMapModel.swift"),
@@ -515,7 +521,7 @@ def main():
 \t\t\t\t\t"$(inherited)",
 \t\t\t\t\t"@executable_path/../Frameworks",
 \t\t\t\t);
-\t\t\t\tMARKETING_VERSION = 0.7.1;
+\t\t\t\tMARKETING_VERSION = 0.8.0;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = io.github.yuanweize.vacua;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSWIFT_EMIT_LOC_STRINGS = YES;
@@ -537,7 +543,7 @@ def main():
 \t\t\t\t\t"$(inherited)",
 \t\t\t\t\t"@executable_path/../Frameworks",
 \t\t\t\t);
-\t\t\t\tMARKETING_VERSION = 0.7.1;
+\t\t\t\tMARKETING_VERSION = 0.8.0;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = io.github.yuanweize.vacua;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSWIFT_EMIT_LOC_STRINGS = YES;
@@ -552,7 +558,7 @@ def main():
 \t\t\t\tCODE_SIGN_STYLE = Manual;
 \t\t\t\tCURRENT_PROJECT_VERSION = 1;
 \t\t\t\tGENERATE_INFOPLIST_FILE = YES;
-\t\t\t\tMARKETING_VERSION = 0.7.1;
+\t\t\t\tMARKETING_VERSION = 0.8.0;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = io.github.yuanweize.vacua.VacuaTests;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSWIFT_EMIT_LOC_STRINGS = NO;
@@ -568,7 +574,7 @@ def main():
 \t\t\t\tCODE_SIGN_STYLE = Manual;
 \t\t\t\tCURRENT_PROJECT_VERSION = 1;
 \t\t\t\tGENERATE_INFOPLIST_FILE = YES;
-\t\t\t\tMARKETING_VERSION = 0.7.1;
+\t\t\t\tMARKETING_VERSION = 0.8.0;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = io.github.yuanweize.vacua.VacuaTests;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSWIFT_EMIT_LOC_STRINGS = NO;
@@ -583,7 +589,7 @@ def main():
 \t\t\t\tCODE_SIGN_STYLE = Manual;
 \t\t\t\tCURRENT_PROJECT_VERSION = 1;
 \t\t\t\tGENERATE_INFOPLIST_FILE = YES;
-\t\t\t\tMARKETING_VERSION = 0.7.1;
+\t\t\t\tMARKETING_VERSION = 0.8.0;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = io.github.yuanweize.vacua.VacuaUITests;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSWIFT_EMIT_LOC_STRINGS = NO;
@@ -598,7 +604,7 @@ def main():
 \t\t\t\tCODE_SIGN_STYLE = Manual;
 \t\t\t\tCURRENT_PROJECT_VERSION = 1;
 \t\t\t\tGENERATE_INFOPLIST_FILE = YES;
-\t\t\t\tMARKETING_VERSION = 0.7.1;
+\t\t\t\tMARKETING_VERSION = 0.8.0;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = io.github.yuanweize.vacua.VacuaUITests;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSWIFT_EMIT_LOC_STRINGS = NO;

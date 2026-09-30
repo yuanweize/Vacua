@@ -21,6 +21,10 @@ public enum VacuaSchemas {
     public static let storageTreeAnalysisV1 = "vacua.mcp.storage-tree-analysis.v1"
     public static let storageTreePageV1 = "vacua.mcp.storage-tree-page.v1"
     public static let storageTreeNodeDetailV1 = "vacua.mcp.storage-tree-node-detail.v1"
+    public static let developerArtifactAnalysisV1 = "vacua.mcp.developer-artifact-analysis.v1"
+    public static let developerArtifactPageV1 = "vacua.mcp.developer-artifact-page.v1"
+    public static let developerArtifactDetailV1 = "vacua.mcp.developer-artifact-detail.v1"
+    public static let developerProjectDetailV1 = "vacua.mcp.developer-project-detail.v1"
 }
 
 // MARK: - Filter Enums
@@ -498,5 +502,122 @@ public struct StorageTreeNodeDetailV1: Codable, Sendable, Equatable {
     public let hardlink_info: String?
     public let allocation_semantics: String
     public let delta: StorageTreeDeltaV1?
+}
+
+// MARK: - Developer Artifact Intelligence Models
+
+public struct RebuildEvidenceV1: Codable, Sendable, Equatable {
+    public let manifest_present: Bool
+    public let manifest_path: String?
+    public let lockfile_present: Bool
+    public let lockfile_path: String?
+    public let known_artifact_convention: Bool
+    public let project_root_known: Bool
+    public let toolchain_identified: String?
+    public let active_project_state: String
+    public let reconstruction_confidence: String
+    public let rebuild_command_template: String?
+    public let reasons: [String]
+}
+
+public struct DeveloperArtifactSummaryV1: Codable, Sendable, Identifiable, Equatable {
+    public var id: String { artifact_id }
+
+    public let artifact_id: String
+    public let project_id: String
+    public let display_name: String
+    public let display_path: String
+    public let ecosystem: String
+    public let artifact_kind: String
+    public let logical_bytes: UInt64
+    public let allocated_bytes: UInt64
+    public let confirmed_reclaim_lower_bound: UInt64
+    public let rebuild_confidence: String
+    public let candidate_id: String?
+}
+
+public struct DeveloperArtifactDetailV1: Codable, Sendable, Identifiable, Equatable {
+    public var id: String { artifact_id }
+
+    public let schema_version: String
+    public let artifact_id: String
+    public let project_id: String
+    public let project_name: String
+    public let display_name: String
+    public let display_path: String
+    public let ecosystem: String
+    public let artifact_kind: String
+    public let logical_bytes: UInt64
+    public let allocated_bytes: UInt64
+    public let confirmed_reclaim_lower_bound: UInt64
+    public let estimated_reclaim: UInt64
+    public let physical_sharing_uncertainty: Bool
+    public let rebuild_evidence: RebuildEvidenceV1
+    public let candidate_id: String?
+    public let observed_at: String
+}
+
+public struct DeveloperProjectSummaryV1: Codable, Sendable, Identifiable, Equatable {
+    public var id: String { project_id }
+
+    public let project_id: String
+    public let display_name: String
+    public let display_path: String
+    public let primary_ecosystem: String
+    public let all_ecosystems: [String]
+    public let artifacts_count: Int
+    public let total_logical_bytes: UInt64
+    public let total_allocated_bytes: UInt64
+    public let rebuild_confidence: String
+    public let active_state: String
+}
+
+public struct DeveloperProjectDetailV1: Codable, Sendable, Identifiable, Equatable {
+    public var id: String { project_id }
+
+    public let schema_version: String
+    public let project_id: String
+    public let display_name: String
+    public let display_path: String
+    public let primary_ecosystem: String
+    public let all_ecosystems: [String]
+    public let manifest_paths: [String]
+    public let lockfile_paths: [String]
+    public let artifacts: [DeveloperArtifactSummaryV1]
+    public let total_logical_bytes: UInt64
+    public let total_allocated_bytes: UInt64
+    public let rebuild_confidence: String
+    public let active_state: String
+}
+
+public struct DeveloperArtifactCoverageV1: Codable, Sendable, Equatable {
+    public let supported_ecosystems: [String]
+    public let unclassified_candidate_directories: Int
+    public let skipped_items: Int
+}
+
+public struct DeveloperArtifactAnalysisV1: Codable, Sendable, Equatable {
+    public let schema_version: String
+    public let generation_id: String
+    public let root_id: String
+    public let root_path: String
+    public let observed_at: String
+    public let total_projects: Int
+    public let total_artifacts: Int
+    public let total_logical_bytes: UInt64
+    public let total_allocated_bytes: UInt64
+    public let projects: [DeveloperProjectSummaryV1]
+    public let coverage: DeveloperArtifactCoverageV1
+}
+
+public struct DeveloperArtifactPageV1: Codable, Sendable, Equatable {
+    public let schema_version: String
+    public let generation_id: String
+    public let root_id: String
+    public let artifacts: [DeveloperArtifactSummaryV1]
+    public let total_count: Int
+    public let offset: Int
+    public let limit: Int
+    public let has_more: Bool
 }
 

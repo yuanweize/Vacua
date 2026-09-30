@@ -1,0 +1,60 @@
+{
+  "schema_version": "vacua.mcp.developer-artifact-page.v1",
+  "generation_id": "gen_devart_1727740000",
+  "root_id": "root-macos-user-workspace",
+  "artifacts": [
+    {
+      "artifact_id": "devart_7b8a9c0d1e2f3a4b",
+      "project_id": "devproj_1a2b3c4d5e6f7a8b",
+      "display_name": "target",
+      "display_path": "target",
+      "ecosystem": "rust_cargo",
+      "artifact_kind": "build_output",
+      "logical_bytes": 4294967296,
+      "allocated_bytes": 4831838208,
+      "confirmed_reclaim_lower_bound": 4831838208,
+      "rebuild_confidence": "strong",
+      "candidate_id": "cand-rust-target-01"
+    },
+    {
+      "artifact_id": "devart_5c6d7e8f9a0b1c2d",
+      "project_id": "devproj_9f8e7d6c5b4a3a2b",
+      "display_name": "node_modules",
+      "display_path": "web-client/node_modules",
+      "ecosystem": "node",
+      "artifact_kind": "dependency_tree",
+      "logical_bytes": 1288490188,
+      "allocated_bytes": 1610612736,
+      "confirmed_reclaim_lower_bound": 1610612736,
+      "rebuild_confidence": "verified"
+    },
+    {
+      "artifact_id": "devart_3e4f5a6b7c8d9e0f",
+      "project_id": "devproj_8a7b6c5d4e3f2a1b",
+      "display_name": ".venv",
+      "display_path": "ai-tools/.venv",
+      "ecosystem": "python",
+      "artifact_kind": "virtual_environment",
+      "logical_bytes": 858993459,
+      "allocated_bytes": 1073741824,
+      "confirmed_reclaim_lower_bound": 1073741824,
+      "rebuild_confidence": "strong"
+    },
+    {
+      "artifact_id": "devart_0f1e2d3c4b5a6f7e",
+      "project_id": "devproj_4b5a6f7e8d9c0b1a",
+      "display_name": "build",
+      "display_path": "legacy-lib/build",
+      "ecosystem": "unknown",
+      "artifact_kind": "other_generated",
+      "logical_bytes": 268435456,
+      "allocated_bytes": 335544320,
+      "confirmed_reclaim_lower_bound": 335544320,
+      "rebuild_confidence": "partial"
+    }
+  ],
+  "total_count": 4,
+  "offset": 0,
+  "limit": 50,
+  "has_more": false
+}

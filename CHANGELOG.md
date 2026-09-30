@@ -5,6 +5,64 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-10-01
+
+Developer Artifact Intelligence Center, Apache-2.0 Consolidation & Release Preflight Hardening: Introduces deterministic developer project discovery and rebuild evidence modeling (`crates/vacua-artifacts`), single-license Apache-2.0 consolidation across all crates and packaging, capability-isolated MCP tools, native Developer Artifacts Center in SwiftUI, and release-discipline preflight gates.
+
+### Added
+
+- **Deterministic Developer Artifact Engine (`crates/vacua-artifacts`)**:
+  - Independent workspace crate for developer project discovery and artifact intelligence.
+  - Typed ecosystem enum: `Xcode`, `SwiftPM`, `RustCargo`, `Node`, `Python`, `Gradle`, `Maven`, `CMake`, `Unknown`.
+  - Typed artifact kinds: `BuildOutput`, `DependencyTree`, `DependencyCache`, `CompilerCache`, `Index`, `GeneratedIntermediate`, `TestOutput`, `CoverageOutput`, `VirtualEnvironment`, `PackageDownloadCache`, `OtherGenerated`.
+  - Evidence-backed rebuild confidence model (`Verified`, `Strong`, `Partial`, `Unknown`) distinguishing manifest presence from lockfile evidence without making unprovable bit-for-bit reproducibility claims.
+  - Stable, opaque, domain-separated BLAKE3 identifiers (`devproj_...`, `devart_...`) derived from root-relative raw Unix bytes.
+  - Safety & False-Positive Controls: Bounded metadata inspection (<= 1 MiB), dataless cloud protection, symlink escape rejection, monorepo/nested precedence handling, zero double-counting.
+  - Zero Toolchain Execution: Never executes `cargo`, `npm`, `pip`, `gradle`, `cmake`, `swift`, or arbitrary shell scripts.
+  - Critical False-Positive Gate: Confirmed 0 false positives across 10,000 deceptive directories named `build`/`target`/`dist` without project manifests.
+  - SQLite persistence in `vacua-index` database (Migration 6) with atomic generations (`building` -> `ready`) and deterministic pagination.
+- **Machine API DTOs & Cross-Language Contracts (`vacua-api`, `VacuaClient`)**:
+  - 8 versioned DTOs: `DeveloperArtifactAnalysisV1`, `DeveloperProjectSummaryV1`, `DeveloperProjectDetailV1`, `DeveloperArtifactSummaryV1`, `DeveloperArtifactDetailV1`, `RebuildEvidenceV1`, `DeveloperArtifactPageV1`, `DeveloperArtifactCoverageV1`.
+  - Generated JSON schemas (`schemas/mcp/developer-artifact-*.schema.json`) and automated schema drift tests.
+  - Deterministic cross-language JSON fixtures in `fixtures/api/` verified by both Rust and Swift contract tests.
+- **CLI Commands (`vacua artifacts`)**:
+  - `vacua artifacts <path>` with `--ecosystem`, `--min-size`, `--confidence`, `--limit`, `--refresh`, and `--json`.
+  - Subcommands `vacua artifacts show <artifact-id>` and `vacua artifacts projects`.
+  - Structured overview table reporting project, ecosystem, allocated bytes, and rebuild evidence without deceptive "safe to delete" claims.
+- **Capability-Isolated MCP Tools (`vacua-mcp`)**:
+  - 3 tools: `vacua_analyze_developer_artifacts` (readOnlyHint: false, destructiveHint: false), `vacua_list_developer_artifacts` (readOnlyHint: true), `vacua_get_developer_artifact` (readOnlyHint: true).
+  - Resource template `vacua://developer-artifact/{artifact_id}`.
+  - Verified dependency boundary: zero link to `vacua-executor`, zero deletion authority.
+  - MCP Inspector test suite updated and passing 15/15 checks.
+- **Native Developer Artifact Center in `Vacua.app`**:
+  - Sidebar destination under Analysis (`wrench.and.screwdriver`).
+  - Non-destructive idle state: requires explicit user "Analyze Developer Artifacts" click with clear cost and zero-execution disclosure.
+  - Master-detail project grouping and detailed artifact inspector (Storage truth, Rebuild evidence, Lockfile evidence, Informational command templates).
+  - Candidate cross-reference: "Review in Candidates" button if candidate exists.
+  - **Zero Clean/Delete/Trash buttons**: strictly analyze-only.
+  - Accessible design supporting VoiceOver, Light/Dark modes, and Differentiate Without Color (`RebuildConfidenceBadge`).
+- **Release-Discipline & Preflight Automation**:
+  - Permanent release preflight script (`scripts/release-preflight.sh`) and GitHub Actions workflow (`.github/workflows/release-preflight.yml`).
+  - Authoritative 8-source version alignment gate (`scripts/check-version-alignment.sh`) preventing regressions like forgotten sub-CLI versions.
+  - Documented immutable release tag engineering discipline in `docs/RELEASE_PROCESS.md`.
+  - Reproducible benchmark suite (`scripts/benchmark-developer-artifacts.py`) and verified raw benchmark results (`benchmarks/developer-artifacts-v0.8.0.json`).
+
+### Changed
+
+- **Single Project License Consolidation (Apache-2.0)**:
+  - Relicensed Vacua to pure **Apache License 2.0** (`Apache-2.0`).
+  - Audited 100% commit history (single author Weize Yuan; zero third-party code relicensed).
+  - Replaced dual `LICENSE-MIT` and `LICENSE-APACHE` with single canonical `LICENSE`.
+  - Updated Cargo workspace, all project-owned crates, and Homebrew formula template.
+  - Added `deny.toml` and automated CI license consistency check (`scripts/check-license-alignment.sh`).
+- **Documentation Reality Alignment**:
+  - Audited `docs/qualification/v0.7.1-release.md` and corrected digests to match live public GitHub Release assets.
+  - Updated `README.md` and `FEATURE_REALITY_MATRIX.md` to reflect shipped status of Native App, Storage Map, and Developer Artifacts.
+  - Clarified on-device Apple Intelligence runtime requirements: requires macOS 26.0+ (`#available(macOS 26.0, *)`), supported Apple Silicon hardware, and system model availability.
+  - Modernized `ROADMAP.md` removing stale execution references and establishing Phases 6 and 7.
+
+---
+
 ## [0.7.1] - 2026-09-30
 
 Native macOS Product Design, App Icon & UX Hardening: Elevates Vacua into a visually coherent, recognizable, accessible, production-grade native macOS product while maintaining strict truth boundaries and zero-destructive execution safety.

@@ -26,6 +26,7 @@ vacua-executor = { path = "../vacua-executor" }
 vacua-content = { path = "../vacua-content" }
 vacua-tree = { path = "../vacua-tree" }
 vacua-api = { path = "../vacua-api" }
+vacua-artifacts = { path = "../vacua-artifacts" }
 clap = { workspace = true }
 clap_complete = { workspace = true }
 chrono = { workspace = true }
