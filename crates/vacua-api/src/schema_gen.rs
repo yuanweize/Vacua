@@ -104,6 +104,38 @@ pub fn generate_all_schemas() -> BTreeMap<&'static str, Value> {
         "storage-tree-node-detail-v1.schema.json",
         serde_json::to_value(schema_for!(StorageTreeNodeDetailV1)).unwrap(),
     );
+    map.insert(
+        "developer-artifact-analysis-v1.schema.json",
+        serde_json::to_value(schema_for!(DeveloperArtifactAnalysisV1)).unwrap(),
+    );
+    map.insert(
+        "developer-project-summary-v1.schema.json",
+        serde_json::to_value(schema_for!(DeveloperProjectSummaryV1)).unwrap(),
+    );
+    map.insert(
+        "developer-project-detail-v1.schema.json",
+        serde_json::to_value(schema_for!(DeveloperProjectDetailV1)).unwrap(),
+    );
+    map.insert(
+        "developer-artifact-summary-v1.schema.json",
+        serde_json::to_value(schema_for!(DeveloperArtifactSummaryV1)).unwrap(),
+    );
+    map.insert(
+        "developer-artifact-detail-v1.schema.json",
+        serde_json::to_value(schema_for!(DeveloperArtifactDetailV1)).unwrap(),
+    );
+    map.insert(
+        "rebuild-evidence-v1.schema.json",
+        serde_json::to_value(schema_for!(RebuildEvidenceV1)).unwrap(),
+    );
+    map.insert(
+        "developer-artifact-coverage-v1.schema.json",
+        serde_json::to_value(schema_for!(DeveloperArtifactCoverageV1)).unwrap(),
+    );
+    map.insert(
+        "developer-artifact-page-v1.schema.json",
+        serde_json::to_value(schema_for!(DeveloperArtifactPageV1)).unwrap(),
+    );
 
     map
 }

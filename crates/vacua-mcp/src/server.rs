@@ -179,6 +179,58 @@ pub struct GetStorageNodeParams {
     pub compare_snapshot_id: Option<String>,
 }
 
+#[derive(Debug, Clone, Deserialize, JsonSchema, Default)]
+pub struct AnalyzeDeveloperArtifactsParams {
+    #[schemars(
+        description = "Optional root identifier configured on server (defaults to primary root)."
+    )]
+    pub root_id: Option<String>,
+    #[schemars(
+        description = "Force full live metadata rescan even if cached generation exists (default: false)."
+    )]
+    pub force_refresh: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema, Default)]
+pub struct ListDeveloperArtifactsParams {
+    #[schemars(
+        description = "Optional root identifier configured on server (defaults to primary root)."
+    )]
+    pub root_id: Option<String>,
+    #[schemars(
+        description = "Optional generation ID to query (defaults to latest ready generation)."
+    )]
+    pub generation_id: Option<String>,
+    #[schemars(
+        description = "Filter by ecosystem: 'rust_cargo', 'swift_pm', 'xcode', 'node', 'python', 'gradle', 'maven', 'cmake'."
+    )]
+    pub ecosystem: Option<String>,
+    #[schemars(
+        description = "Filter by artifact kind: 'build_output', 'dependency_tree', 'dependency_cache', 'compiler_cache', etc."
+    )]
+    pub kind: Option<String>,
+    #[schemars(
+        description = "Filter by rebuild confidence: 'verified', 'strong', 'partial', 'unknown'."
+    )]
+    pub confidence: Option<String>,
+    #[schemars(
+        description = "Filter artifacts belonging to a specific opaque project ID (e.g. 'devproj_...')."
+    )]
+    pub project_id: Option<String>,
+    #[schemars(description = "Minimum allocated storage in bytes to include.")]
+    pub min_allocated_bytes: Option<u64>,
+    #[schemars(description = "Maximum number of artifacts to return (default: 50, max: 200).")]
+    pub limit: Option<usize>,
+    #[schemars(description = "Pagination offset (default: 0).")]
+    pub offset: Option<usize>,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+pub struct GetDeveloperArtifactParams {
+    #[schemars(description = "Opaque developer artifact identifier (e.g. 'devart_...').")]
+    pub artifact_id: String,
+}
+
 pub fn to_mcp_error(err: VacuaErrorResponse) -> McpError {
     McpError::new(
         match err.code {
@@ -580,6 +632,79 @@ impl VacuaMcpServer {
             .map(Json)
             .map_err(to_mcp_error)
     }
+
+    #[tool(
+        name = "vacua_analyze_developer_artifacts",
+        description = "Scan an authorized root for developer projects, build outputs, package caches, and dependency state with causal rebuild evidence.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            open_world_hint = false,
+            title = "Analyze Developer Artifacts"
+        )
+    )]
+    pub async fn analyze_developer_artifacts(
+        &self,
+        params: Parameters<AnalyzeDeveloperArtifactsParams>,
+    ) -> Result<Json<DeveloperArtifactAnalysisV1>, McpError> {
+        self.service
+            .analyze_developer_artifacts(params.0.root_id.as_deref(), params.0.force_refresh)
+            .await
+            .map(Json)
+            .map_err(to_mcp_error)
+    }
+
+    #[tool(
+        name = "vacua_list_developer_artifacts",
+        description = "Query bounded, deterministically sorted developer artifacts from a ready analysis generation with ecosystem and confidence filters.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            open_world_hint = false,
+            title = "List Developer Artifacts"
+        )
+    )]
+    pub async fn list_developer_artifacts(
+        &self,
+        params: Parameters<ListDeveloperArtifactsParams>,
+    ) -> Result<Json<DeveloperArtifactPageV1>, McpError> {
+        self.service
+            .list_developer_artifacts(
+                params.0.root_id.as_deref(),
+                params.0.generation_id.as_deref(),
+                params.0.ecosystem.as_deref(),
+                params.0.kind.as_deref(),
+                params.0.confidence.as_deref(),
+                params.0.project_id.as_deref(),
+                params.0.min_allocated_bytes,
+                params.0.limit,
+                params.0.offset,
+            )
+            .await
+            .map(Json)
+            .map_err(to_mcp_error)
+    }
+
+    #[tool(
+        name = "vacua_get_developer_artifact",
+        description = "Inspect full deterministic rebuild evidence, manifest context, storage truth, and non-executed rebuild template for a developer artifact.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            open_world_hint = false,
+            title = "Get Developer Artifact Detail"
+        )
+    )]
+    pub async fn get_developer_artifact(
+        &self,
+        params: Parameters<GetDeveloperArtifactParams>,
+    ) -> Result<Json<DeveloperArtifactDetailV1>, McpError> {
+        self.service
+            .get_developer_artifact(&params.0.artifact_id)
+            .await
+            .map(Json)
+            .map_err(to_mcp_error)
+    }
 }
 
 #[tool_handler(router = self.tool_router)]
@@ -639,6 +764,14 @@ impl ServerHandler for VacuaMcpServer {
                 "Vacua Application Evidence",
             )
             .with_description("Application bundle residue and evidence graph evaluation")
+            .with_mime_type("application/json"),
+            ResourceTemplate::new(
+                "vacua://developer-artifact/{artifact_id}",
+                "Vacua Developer Artifact Detail",
+            )
+            .with_description(
+                "Deterministic rebuild evidence and causal metadata for a developer artifact",
+            )
             .with_mime_type("application/json"),
         ];
         Ok(ListResourceTemplatesResult::with_all_items(templates))
@@ -742,6 +875,25 @@ impl ServerHandler for VacuaMcpServer {
                 .await
                 .map_err(to_mcp_error)?;
             let json = serde_json::to_string_pretty(&group)
+                .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+            return Ok(
+                ReadResourceResult::new(vec![ResourceContents::TextResourceContents {
+                    uri: uri.to_string(),
+                    mime_type: Some("application/json".to_string()),
+                    text: json,
+                    meta: None,
+                }])
+                .into(),
+            );
+        }
+
+        if let Some(art_id) = uri.strip_prefix("vacua://developer-artifact/") {
+            let art = self
+                .service
+                .get_developer_artifact(art_id)
+                .await
+                .map_err(to_mcp_error)?;
+            let json = serde_json::to_string_pretty(&art)
                 .map_err(|e| McpError::internal_error(e.to_string(), None))?;
             return Ok(
                 ReadResourceResult::new(vec![ResourceContents::TextResourceContents {

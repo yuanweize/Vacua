@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Compact summary of a single developer artifact for listings and project grouping.",
+  "properties": {
+    "allocated_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "artifact_id": {
+      "type": "string"
+    },
+    "artifact_kind": {
+      "type": "string"
+    },
+    "candidate_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "confirmed_reclaim_lower_bound": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "display_name": {
+      "type": "string"
+    },
+    "display_path": {
+      "type": "string"
+    },
+    "ecosystem": {
+      "type": "string"
+    },
+    "logical_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "rebuild_confidence": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "project_id",
+    "display_name",
+    "display_path",
+    "ecosystem",
+    "artifact_kind",
+    "logical_bytes",
+    "allocated_bytes",
+    "confirmed_reclaim_lower_bound",
+    "rebuild_confidence"
+  ],
+  "title": "DeveloperArtifactSummaryV1",
+  "type": "object"
+}

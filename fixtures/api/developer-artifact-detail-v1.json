@@ -1,0 +1,35 @@
+{
+  "schema_version": "vacua.mcp.developer-artifact-detail.v1",
+  "artifact_id": "devart_7b8a9c0d1e2f3a4b",
+  "project_id": "devproj_1a2b3c4d5e6f7a8b",
+  "project_name": "Vacua",
+  "display_name": "target",
+  "display_path": "target",
+  "ecosystem": "rust_cargo",
+  "artifact_kind": "build_output",
+  "logical_bytes": 4294967296,
+  "allocated_bytes": 4831838208,
+  "confirmed_reclaim_lower_bound": 4831838208,
+  "estimated_reclaim": 4831838208,
+  "physical_sharing_uncertainty": true,
+  "rebuild_evidence": {
+    "manifest_present": true,
+    "manifest_path": "Cargo.toml",
+    "lockfile_present": true,
+    "lockfile_path": "Cargo.lock",
+    "known_artifact_convention": true,
+    "project_root_known": true,
+    "toolchain_identified": "Rust Cargo",
+    "active_project_state": "active",
+    "reconstruction_confidence": "strong",
+    "rebuild_command_template": "cargo build",
+    "reasons": [
+      "Associated with Rust Cargo project at Vacua",
+      "Manifest present: Cargo.toml",
+      "Lockfile detected: Cargo.lock",
+      "Workflow artifacts fully reconstructable via project toolchain and lockfile."
+    ]
+  },
+  "candidate_id": "cand-rust-target-01",
+  "observed_at": "2026-10-01T00:00:00Z"
+}

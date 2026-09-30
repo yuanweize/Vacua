@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Comprehensive, evidence-based causal rebuild model for developer artifacts.",
+  "properties": {
+    "active_project_state": {
+      "type": "string"
+    },
+    "known_artifact_convention": {
+      "type": "boolean"
+    },
+    "lockfile_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lockfile_present": {
+      "type": "boolean"
+    },
+    "manifest_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "manifest_present": {
+      "type": "boolean"
+    },
+    "project_root_known": {
+      "type": "boolean"
+    },
+    "reasons": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "rebuild_command_template": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reconstruction_confidence": {
+      "type": "string"
+    },
+    "toolchain_identified": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "manifest_present",
+    "lockfile_present",
+    "known_artifact_convention",
+    "project_root_known",
+    "active_project_state",
+    "reconstruction_confidence",
+    "reasons"
+  ],
+  "title": "RebuildEvidenceV1",
+  "type": "object"
+}

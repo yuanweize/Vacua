@@ -175,4 +175,55 @@ struct ContractTests {
         #expect(detail.percentage_of_root == 38.17427385892116)
         #expect(detail.delta?.change_kind == "grown")
     }
+
+    @Test("Decode DeveloperArtifactAnalysisV1 fixture")
+    func testDeveloperArtifactAnalysisFixture() throws {
+        let data = try loadFixtureData(named: "developer-artifact-analysis-v1.json")
+        let analysis = try JSONDecoder().decode(DeveloperArtifactAnalysisV1.self, from: data)
+        #expect(analysis.schema_version == VacuaSchemas.developerArtifactAnalysisV1)
+        #expect(analysis.total_projects == 4)
+        #expect(analysis.total_artifacts == 5)
+        #expect(analysis.projects.count == 4)
+        #expect(analysis.projects[0].primary_ecosystem == "rust_cargo")
+        #expect(analysis.coverage.supported_ecosystems.contains("rust_cargo"))
+        #expect(analysis.coverage.supported_ecosystems.contains("xcode"))
+        #expect(analysis.coverage.supported_ecosystems.contains("node"))
+        #expect(analysis.coverage.supported_ecosystems.contains("python"))
+    }
+
+    @Test("Decode DeveloperArtifactDetailV1 fixture")
+    func testDeveloperArtifactDetailFixture() throws {
+        let data = try loadFixtureData(named: "developer-artifact-detail-v1.json")
+        let detail = try JSONDecoder().decode(DeveloperArtifactDetailV1.self, from: data)
+        #expect(detail.schema_version == VacuaSchemas.developerArtifactDetailV1)
+        #expect(detail.artifact_id == "devart_7b8a9c0d1e2f3a4b")
+        #expect(detail.ecosystem == "rust_cargo")
+        #expect(detail.artifact_kind == "build_output")
+        #expect(detail.rebuild_evidence.manifest_present == true)
+        #expect(detail.rebuild_evidence.lockfile_present == true)
+        #expect(detail.rebuild_evidence.reconstruction_confidence == "strong")
+        #expect(detail.rebuild_evidence.rebuild_command_template == "cargo build")
+    }
+
+    @Test("Decode DeveloperProjectDetailV1 fixture")
+    func testDeveloperProjectDetailFixture() throws {
+        let data = try loadFixtureData(named: "developer-project-detail-v1.json")
+        let detail = try JSONDecoder().decode(DeveloperProjectDetailV1.self, from: data)
+        #expect(detail.schema_version == VacuaSchemas.developerProjectDetailV1)
+        #expect(detail.project_id == "devproj_1a2b3c4d5e6f7a8b")
+        #expect(detail.artifacts.count == 2)
+        #expect(detail.manifest_paths.contains("Cargo.toml"))
+    }
+
+    @Test("Decode DeveloperArtifactPageV1 fixture")
+    func testDeveloperArtifactPageFixture() throws {
+        let data = try loadFixtureData(named: "developer-artifact-page-v1.json")
+        let page = try JSONDecoder().decode(DeveloperArtifactPageV1.self, from: data)
+        #expect(page.schema_version == VacuaSchemas.developerArtifactPageV1)
+        #expect(page.artifacts.count == 4)
+        #expect(page.artifacts[0].ecosystem == "rust_cargo")
+        #expect(page.artifacts[1].ecosystem == "node")
+        #expect(page.artifacts[2].ecosystem == "python")
+        #expect(page.artifacts[3].ecosystem == "unknown")
+    }
 }

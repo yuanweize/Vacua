@@ -64,6 +64,28 @@ public protocol VacuaEngineClient: Sendable {
         nodeId: String,
         compareSnapshotId: String?
     ) async throws -> StorageTreeNodeDetailV1
+
+    // MARK: - Developer Artifacts
+    func analyzeDeveloperArtifacts(
+        rootId: String?,
+        forceRefresh: Bool?
+    ) async throws -> DeveloperArtifactAnalysisV1
+
+    func listDeveloperArtifacts(
+        rootId: String?,
+        generationId: String?,
+        ecosystem: String?,
+        kind: String?,
+        confidence: String?,
+        projectId: String?,
+        minAllocatedBytes: UInt64?,
+        limit: Int?,
+        offset: Int?
+    ) async throws -> DeveloperArtifactPageV1
+
+    func developerArtifactDetail(
+        artifactId: String
+    ) async throws -> DeveloperArtifactDetailV1
 }
 
 /// Whitelisted, narrow command service for non-destructive operations.

@@ -89,6 +89,8 @@ struct ContentView: View {
                     DuplicatesView(model: model)
                 case .applications:
                     ApplicationsView(model: model)
+                case .developerArtifacts:
+                    DeveloperArtifactsView(model: model.developerArtifactsModel)
                 case .snapshots:
                     SnapshotsView(model: model)
                 }

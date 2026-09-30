@@ -54,7 +54,8 @@ for pattern in "${FORBIDDEN_PATTERNS[@]}"; do
       'apple/' \
       'packaging/' \
       'scripts/' \
-      'README.md' >/dev/null 2>&1; then
+      'README.md' \
+      ':(exclude)scripts/check-license-alignment.sh' >/dev/null 2>&1; then
     echo "FAIL: Forbidden legacy license pattern '${pattern}' found in project metadata or code!" >&2
     git grep -n -E "${pattern}" -- \
       'Cargo.toml' \
@@ -63,7 +64,8 @@ for pattern in "${FORBIDDEN_PATTERNS[@]}"; do
       'apple/' \
       'packaging/' \
       'scripts/' \
-      'README.md' >&2
+      'README.md' \
+      ':(exclude)scripts/check-license-alignment.sh' >&2
     exit 1
   fi
 done

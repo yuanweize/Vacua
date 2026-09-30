@@ -85,7 +85,21 @@ The development of Vacua is divided into 7 distinct, sequential phases. Per our 
 - [x] Storage Snapshot Browser & point-in-time snapshot list.
 - [x] Real Storage Snapshot Diff UI with Rust subtree delta rollups and horizontal delta chart.
 - [x] Application Residue & Orphan Explorer with server-side query filtering.
-- [ ] Application destructive management (deferred to v0.7.0 explicit execution boundary).
+- [x] Developer Artifact Center (deterministic rebuild evidence, ecosystem detection, strictly non-destructive).
 - [~] Observed storage access diagnostics (non-authoritative heuristic; no fake TCC claim).
-- [ ] Developer Artifact Center.
+
+---
+
+## Phase 6: Apple Intelligence Runtime Qualification & Grounded Reasoning
+- [ ] On-device runtime qualification of `SystemLanguageModel` on eligible Apple Silicon hardware.
+- [ ] Grounded storage reasoning bridging snapshots, tree attribution, and developer artifacts.
+- [ ] Prompt evaluation and regression suite (`tests/intelligence/prompts/`) for system model updates.
 - [ ] Local-only Bayesian preference adaptation (Beta-Bernoulli category preferences).
+
+---
+
+## Phase 7: Human-Controlled Native Execution Boundary
+- [ ] Explicit human-controlled confirmation modal and full preflight in Native GUI.
+- [ ] Reversible movement to macOS Trash via native Objective-C runtime FFI with SHA-256 journal verification.
+- [ ] Strict isolation from AI/MCP: Foundation Models and MCP servers retain zero execution authority.
+- [ ] Developer ID signing and Apple notarization pipeline.

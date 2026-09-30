@@ -1,0 +1,151 @@
+{
+  "$defs": {
+    "DeveloperArtifactCoverageV1": {
+      "description": "Supported coverage and unclassified directory metrics.",
+      "properties": {
+        "skipped_items": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "supported_ecosystems": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "unclassified_candidate_directories": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "supported_ecosystems",
+        "unclassified_candidate_directories",
+        "skipped_items"
+      ],
+      "type": "object"
+    },
+    "DeveloperProjectSummaryV1": {
+      "description": "Compact summary of a developer project.",
+      "properties": {
+        "active_state": {
+          "type": "string"
+        },
+        "all_ecosystems": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "artifacts_count": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "display_path": {
+          "type": "string"
+        },
+        "primary_ecosystem": {
+          "type": "string"
+        },
+        "project_id": {
+          "type": "string"
+        },
+        "rebuild_confidence": {
+          "type": "string"
+        },
+        "total_allocated_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "total_logical_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "project_id",
+        "display_name",
+        "display_path",
+        "primary_ecosystem",
+        "all_ecosystems",
+        "artifacts_count",
+        "total_logical_bytes",
+        "total_allocated_bytes",
+        "rebuild_confidence",
+        "active_state"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "High-level analysis overview of developer artifacts across an authorized root.",
+  "properties": {
+    "coverage": {
+      "$ref": "#/$defs/DeveloperArtifactCoverageV1"
+    },
+    "generation_id": {
+      "type": "string"
+    },
+    "observed_at": {
+      "type": "string"
+    },
+    "projects": {
+      "items": {
+        "$ref": "#/$defs/DeveloperProjectSummaryV1"
+      },
+      "type": "array"
+    },
+    "root_id": {
+      "type": "string"
+    },
+    "root_path": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "total_allocated_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "total_artifacts": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "total_logical_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "total_projects": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "generation_id",
+    "root_id",
+    "root_path",
+    "observed_at",
+    "total_projects",
+    "total_artifacts",
+    "total_logical_bytes",
+    "total_allocated_bytes",
+    "projects",
+    "coverage"
+  ],
+  "title": "DeveloperArtifactAnalysisV1",
+  "type": "object"
+}

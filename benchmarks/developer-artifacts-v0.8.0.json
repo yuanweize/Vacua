@@ -1,0 +1,71 @@
+{
+  "benchmark_version": "0.8.0",
+  "timestamp": "2026-09-30T22:39:49Z",
+  "system_info": {
+    "soc": "Apple M4",
+    "ram": "16 GB",
+    "os": "macOS 27.0 (Build 26A428)",
+    "filesystem": "APFS (Apple File System)",
+    "git_sha": "3fd7547"
+  },
+  "workloads": {
+    "workload_a_100_rust": {
+      "description": "100 independent Rust Cargo projects",
+      "analysis_time_sec": 0.265,
+      "peak_rss_mb": 10.0,
+      "projects_discovered": 100,
+      "artifacts_discovered": 100,
+      "expected_projects": 100,
+      "expected_artifacts": 100,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "warm_query_latency_ms": 10.99
+    },
+    "workload_b_500_mixed": {
+      "description": "500 mixed projects (Rust, SwiftPM, Node, Python, Gradle, Maven)",
+      "analysis_time_sec": 0.136,
+      "peak_rss_mb": 12.8,
+      "projects_discovered": 500,
+      "artifacts_discovered": 650,
+      "expected_projects": 500,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "warm_query_latency_ms": 35.15
+    },
+    "workload_c_large_node": {
+      "description": "Large Node dependency tree (heavy node_modules, .next, dist rollup)",
+      "analysis_time_sec": 0.015,
+      "peak_rss_mb": 9.0,
+      "projects_discovered": 1,
+      "artifacts_discovered": 3,
+      "expected_projects": 1,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "warm_query_latency_ms": 8.82
+    },
+    "workload_d_nested_monorepo": {
+      "description": "Nested monorepo (Node parent + Rust & Node packages)",
+      "analysis_time_sec": 0.011,
+      "peak_rss_mb": 9.0,
+      "projects_discovered": 3,
+      "artifacts_discovered": 3,
+      "expected_projects": 3,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "warm_query_latency_ms": 9.89
+    },
+    "workload_e_10k_misleading_dirs": {
+      "description": "10,000 misleading directories named build/dist/target/out without manifests (False Positive Gate)",
+      "analysis_time_sec": 0.725,
+      "peak_rss_mb": 8.9,
+      "projects_discovered": 0,
+      "artifacts_discovered": 0,
+      "expected_projects": 0,
+      "expected_artifacts": 0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "warm_query_latency_ms": 9.19,
+      "unclassified_candidate_directories": 5716
+    }
+  }
+}

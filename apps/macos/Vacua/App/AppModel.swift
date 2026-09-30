@@ -9,6 +9,7 @@ public enum NavigationItem: String, CaseIterable, Identifiable, Sendable {
     case candidates = "Candidates"
     case duplicates = "Duplicates"
     case applications = "Applications"
+    case developerArtifacts = "Developer Artifacts"
     case snapshots = "Snapshots"
 
     public var id: String { rawValue }
@@ -20,6 +21,7 @@ public enum NavigationItem: String, CaseIterable, Identifiable, Sendable {
         case .candidates: return VacuaSymbols.candidates
         case .duplicates: return VacuaSymbols.duplicates
         case .applications: return VacuaSymbols.applications
+        case .developerArtifacts: return VacuaSymbols.developerArtifacts
         case .snapshots: return VacuaSymbols.snapshots
         }
     }
@@ -29,7 +31,7 @@ public enum NavigationItem: String, CaseIterable, Identifiable, Sendable {
     }
 
     public static var analysisItems: [NavigationItem] {
-        [.candidates, .duplicates, .applications, .snapshots]
+        [.candidates, .duplicates, .applications, .developerArtifacts, .snapshots]
     }
 }
 
@@ -70,6 +72,7 @@ public final class AppModel {
     public var candidatesState: LoadState<[CandidateSummaryV1]> = .idle
     public var duplicatesState: LoadState<[DuplicateGroupSummaryV1]> = .idle
     public var applicationsState: LoadState<[ApplicationSummaryV1]> = .idle
+    public var developerArtifactsModel: DeveloperArtifactsModel = DeveloperArtifactsModel()
     public var snapshotsState: LoadState<[SnapshotSummaryV1]> = .idle
     public var snapshotDiffState: LoadState<SnapshotDiffV1> = .idle
     
@@ -141,6 +144,7 @@ public final class AppModel {
         self.activeRootPath = supervisor.currentRootPath
         self.activeRootDisplayName = (supervisor.currentRootPath as NSString).lastPathComponent
         self.storageMapModel.setAppModel(self)
+        self.developerArtifactsModel.setAppModel(self)
     }
     
     private var hasStartedEngine = false
@@ -185,6 +189,8 @@ public final class AppModel {
             await loadDuplicates(force: true)
         case .applications:
             await loadApplications(force: true)
+        case .developerArtifacts:
+            await developerArtifactsModel.analyzeDeveloperArtifacts(forceRefresh: true)
         case .snapshots:
             await loadSnapshots(force: true)
         }

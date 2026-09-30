@@ -106,3 +106,38 @@ When assisting a user with storage pressure or disk investigation:
   - `IndependentBlocks`: Distinct physical storage blocks allocated. Real space reclaimable.
   - `ApfsClone`: Shares storage blocks via APFS copy-on-write clone. Eventual reclaim is 0 unless all copies are removed.
   - `Hardlink`: Same inode. Deleting one entry does not reclaim blocks if link count > 1.
+
+---
+
+## 4. Developer Artifact Intelligence
+
+Vacua v0.8.0 introduces the Developer Artifact Intelligence Center, modeling causal relationships between software projects and their generated artifacts (build outputs, dependency trees, package caches, compiler caches).
+
+### Critical Invariant for Agents
+
+> **Artifact analysis is not deletion authority.**
+>
+> Discovering that an artifact is generated or rebuildable does **not** grant permission to delete it. Rebuildable does not mean free to rebuild (rebuilding incurs CPU time, compilation latency, network bandwidth, and potential dependency/environment drift).
+
+### Generated vs Source Data
+- **Protected Source Code**: Source code, git directories (`.git`), signing keys, lockfiles (`Cargo.lock`, `package-lock.json`), and project manifests (`Cargo.toml`, `package.json`, `Package.swift`) are strictly protected and never classified as generated artifacts.
+- **Generated Artifacts**: Build directories (`target/`, `.build/`, `dist/`), compiler caches, dependency trees (`node_modules/`), and virtual environments (`.venv/`) associated with verifiable project evidence.
+- **Context Required**: A folder named `build` or `target` without associated project manifests is rejected as an unproven generic folder to prevent catastrophic false positives.
+
+### Rebuild Evidence & Confidence Levels
+- **Rebuild Evidence**: Based on deterministic filesystem signals:
+  - Project manifest present (e.g. `Cargo.toml`, `package.json`, `Package.swift`)
+  - Lockfile present (e.g. `Cargo.lock`, `package-lock.json`, `Package.resolved`)
+  - Toolchain identified
+  - Standard directory convention
+  - Active project state (active vs dormant)
+- **Confidence Levels**:
+  - `Verified` / `Strong`: Full project manifest and lockfile detected; standard workflow convention.
+  - `Partial`: Manifest present but missing lockfile or non-standard configuration.
+  - `Unknown`: Unproven association or unsupported ecosystem.
+- **Informational Templates Only**: Suggested rebuild commands (e.g. `cargo build`, `npm run build`, `swift build`) are non-executed reference templates. Agents must **never** interpolate untrusted strings or execute shell build commands on behalf of the user.
+
+### MCP Tools for Developer Artifacts
+- `vacua_analyze_developer_artifacts`: Scan and build/retrieve deterministic generation of developer projects and artifacts (`readOnlyHint: false, destructiveHint: false`).
+- `vacua_list_developer_artifacts`: Bounded pagination and filtering by ecosystem, artifact kind, and rebuild confidence (`readOnlyHint: true`).
+- `vacua_get_developer_artifact`: Full inspection of storage truth, causal evidence, classification rationale, and uncertainty (`readOnlyHint: true`).

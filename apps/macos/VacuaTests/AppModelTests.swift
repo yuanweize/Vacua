@@ -248,6 +248,77 @@ struct BatchSnapshotDeltaTests {
         // Overview and Storage Map symbols
         #expect(VacuaSymbols.overview == "gauge.open.with.lines.needle.33percent")
         #expect(VacuaSymbols.storageMap == "rectangle.3.group")
+
+        // Developer Artifacts symbol and navigation placement
+        #expect(VacuaSymbols.developerArtifacts == "wrench.and.screwdriver")
+        #expect(NavigationItem.analysisItems.contains(.developerArtifacts))
+        #expect(NavigationItem.developerArtifacts.iconName == VacuaSymbols.developerArtifacts)
+    }
+
+    @Test("Verify DeveloperArtifactsModel ecosystem filtering")
+    @MainActor
+    func testDeveloperArtifactsModelFiltering() {
+        let model = DeveloperArtifactsModel()
+        let proj1 = DeveloperProjectSummaryV1(
+            project_id: "p1",
+            display_name: "RustProject",
+            display_path: "~/code/rust",
+            primary_ecosystem: "RustCargo",
+            all_ecosystems: ["RustCargo"],
+            artifacts_count: 2,
+            total_logical_bytes: 1000,
+            total_allocated_bytes: 2000,
+            rebuild_confidence: "strong",
+            active_state: "inactive"
+        )
+        let proj2 = DeveloperProjectSummaryV1(
+            project_id: "p2",
+            display_name: "NodeProject",
+            display_path: "~/code/node",
+            primary_ecosystem: "Node",
+            all_ecosystems: ["Node"],
+            artifacts_count: 1,
+            total_logical_bytes: 3000,
+            total_allocated_bytes: 4000,
+            rebuild_confidence: "verified",
+            active_state: "active"
+        )
+        let analysis = DeveloperArtifactAnalysisV1(
+            schema_version: "1.0.0",
+            generation_id: "gen-1",
+            root_id: "root-1",
+            root_path: "/Users/test",
+            observed_at: "2026-10-01T00:00:00Z",
+            total_projects: 2,
+            total_artifacts: 3,
+            total_logical_bytes: 4000,
+            total_allocated_bytes: 6000,
+            projects: [proj1, proj2],
+            coverage: DeveloperArtifactCoverageV1(
+                supported_ecosystems: ["RustCargo", "Node"],
+                unclassified_candidate_directories: 0,
+                skipped_items: 0
+            )
+        )
+        model.analysisState = .loaded(analysis)
+
+        // All filter
+        model.selectedEcosystem = nil
+        #expect(model.filteredProjects.count == 2)
+
+        // Rust filter
+        model.selectedEcosystem = "RustCargo"
+        #expect(model.filteredProjects.count == 1)
+        #expect(model.filteredProjects.first?.display_name == "RustProject")
+
+        // Node filter
+        model.selectedEcosystem = "Node"
+        #expect(model.filteredProjects.count == 1)
+        #expect(model.filteredProjects.first?.display_name == "NodeProject")
+
+        // Non-existent filter
+        model.selectedEcosystem = "Python"
+        #expect(model.filteredProjects.isEmpty)
     }
 }
 

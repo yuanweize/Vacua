@@ -189,7 +189,14 @@ For the formal safety proof and threat model, see [SAFETY.md](SAFETY.md) and [do
 
 ## Apple Intelligence Status
 
-Vacua features an optional native Swift helper that bridges Apple Foundation Models on supported Apple Silicon Macs running macOS Sequoia or newer.
+Vacua features an optional native Swift helper that bridges Apple Foundation Models on supported Apple Silicon Macs.
+
+> [!IMPORTANT]
+> **Runtime Availability Truth**:
+> - **Vacua Application Minimum**: macOS 15.0+ (Sequoia or newer).
+> - **Foundation Models API**: Compiled conditionally under `#available(macOS 26.0, *)`.
+> - **Real On-Device Neural Inference**: Requires an Apple Intelligence-eligible device, supported locale/region, Apple Intelligence toggled on in System Settings, and system model weights fully downloaded.
+> - **Runtime Authority**: Vacua queries Apple's official `SystemLanguageModel.availability` API directly. It never assumes eligibility based solely on marketing hardware names. When models are unavailable, unready, or unsupported, Vacua falls back deterministically.
 
 ```text
 Optional on-device intent translation using Apple Foundation Models.
@@ -212,7 +219,7 @@ Apple Intelligence Status
 ──────────────────────────────────────────────────
 Provider Requested: Apple On-Device (Foundation Models)
 Provider Used:      deterministic-fallback (or apple-on-device)
-Model Availability: modelNotReady (or available)
+Model Availability: modelNotReady (or available / deviceNotEligible)
 Network Egress:     No (Strict on-device inference)
 Role:               Intent translation (NL -> StructuredIntent)
 Execution:          Forbidden (Zero deletion authority)
@@ -225,27 +232,30 @@ Execution:          Forbidden (Zero deletion authority)
 
 | Capability | Engine | Mode | Status |
 | :--- | :--- | :--- | :--- |
-| **Filesystem Scanning** | Rust | Offline / Deterministic | Shipped (v0.1.0) |
-| **APFS Extent Accounting** | Rust | Offline / Deterministic | Shipped (v0.1.0) |
-| **Evidence & Risk Engine** | Rust | Offline / Deterministic | Shipped (v0.1.0) |
-| **Immutable Cleanup Planner** | Rust | Offline / Deterministic | Shipped (v0.1.0) |
-| **TOCTOU Safe Executor** | Rust | Offline / Reversible Trash | Shipped (v0.1.0) |
-| **SQLite Transaction Journal** | Rust | Offline / Local Audit | Shipped (v0.1.0) |
-| **Apple Intent Translation** | Swift | Optional On-Device / Fallback | Shipped (v0.1.0) |
+| **Filesystem Scanning** | Rust | Offline / Deterministic | SHIPPED (v0.1.0) |
+| **APFS Extent Accounting** | Rust | Offline / Deterministic | SHIPPED (v0.1.0) |
+| **Evidence & Risk Engine** | Rust | Offline / Deterministic | SHIPPED (v0.1.0) |
+| **Immutable Cleanup Planner** | Rust | Offline / Deterministic | SHIPPED (v0.1.0) |
+| **TOCTOU Safe Executor** | Rust | Offline / Reversible Trash | SHIPPED (v0.1.0) |
+| **SQLite Transaction Journal** | Rust | Offline / Local Audit | SHIPPED (v0.1.0) |
+| **Content Duplicate Intelligence** | Rust | Offline / BLAKE3 Staged Pipeline | SHIPPED (v0.5.0) |
+| **Agent MCP Server** | Rust (`rmcp`) | Stdio / Propose-Only / Isolated | SHIPPED (v0.5.1 / v0.8.0) |
+| **Hierarchical Storage Map** | Rust / Swift | Subtree Rollup & Treemap GUI | SHIPPED (v0.7.0) |
+| **Native SwiftUI App** | Swift | Desktop Interface (Proposal-Only) | SHIPPED (v0.7.0) |
+| **Developer Artifacts Center** | Rust / Swift | Deterministic Rebuild Intelligence | SHIPPED (v0.8.0) |
+| **Apple Neural Inference** | Swift | On-Device Foundation Models | IMPLEMENTED / Awaiting eligible-hardware runtime qualification |
 | **Cloud AI / Telemetry** | None | Disabled / Zero Network Egress | Never / Excluded |
-| **Agent MCP Server** | Rust (`rmcp`) | Stdio / Propose-Only / Isolated | Hardened (v0.5.1) |
-| **Native SwiftUI GUI** | Swift | Desktop Interface | Planned (Phase 5) |
 
 ---
 
 ## Agent & MCP Interface (`vacua-mcp`)
 
-Vacua v0.5.1 provides an authoritative, capability-isolated, policy-hardened Model Context Protocol (MCP) server:
+Vacua provides an authoritative, capability-isolated, policy-hardened Model Context Protocol (MCP) server:
 
 ```text
                     ┌── CLI (`vacua`)
 Vacua Domain Core ──┼── MCP Server (`vacua-mcp`, stdio)
-                    └── future SwiftUI
+                    └── Native SwiftUI App (`Vacua.app`)
 
 vacua-mcp ──X──► vacua-executor (NO DEPENDENCY PATH, ZERO DELETION AUTHORITY)
 ```
@@ -280,6 +290,7 @@ The MCP interface allows external AI environments (**Claude Desktop**, **Cursor*
 | `vacua ask "<query>"` | Evidence-grounded natural language storage reasoning query engine |
 | `vacua candidates <path>` | List classified cleanup candidates (`--risk safe\|review\|caution`) |
 | `vacua explain <id>` | Inspect detailed evidence vector and rebuild effects for a candidate |
+| `vacua artifacts <path>` | Inspect developer projects, generated artifacts, and rebuild evidence |
 | `vacua plan <path> [--simulate]` | Compile immutable cleanup plan or simulate consequences without modifying disk |
 | `vacua execute <plan> [--dry-run]`| Safely execute an approved cleanup plan with live TOCTOU guards via native Trash |
 | `vacua history [show <tx_id>]` | View past cleanup transactions and itemized audit records |

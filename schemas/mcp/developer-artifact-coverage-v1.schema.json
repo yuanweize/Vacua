@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Supported coverage and unclassified directory metrics.",
+  "properties": {
+    "skipped_items": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "supported_ecosystems": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "unclassified_candidate_directories": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "supported_ecosystems",
+    "unclassified_candidate_directories",
+    "skipped_items"
+  ],
+  "title": "DeveloperArtifactCoverageV1",
+  "type": "object"
+}

@@ -18,3 +18,7 @@ pub const SCHEMA_HISTORY_VERIFICATION_V1: &str = "vacua.mcp.history-verification
 pub const SCHEMA_STORAGE_TREE_ANALYSIS_V1: &str = "vacua.mcp.storage-tree-analysis.v1";
 pub const SCHEMA_STORAGE_TREE_PAGE_V1: &str = "vacua.mcp.storage-tree-page.v1";
 pub const SCHEMA_STORAGE_TREE_NODE_DETAIL_V1: &str = "vacua.mcp.storage-tree-node-detail.v1";
+pub const SCHEMA_DEVELOPER_ARTIFACT_ANALYSIS_V1: &str = "vacua.mcp.developer-artifact-analysis.v1";
+pub const SCHEMA_DEVELOPER_ARTIFACT_PAGE_V1: &str = "vacua.mcp.developer-artifact-page.v1";
+pub const SCHEMA_DEVELOPER_ARTIFACT_DETAIL_V1: &str = "vacua.mcp.developer-artifact-detail.v1";
+pub const SCHEMA_DEVELOPER_PROJECT_DETAIL_V1: &str = "vacua.mcp.developer-project-detail.v1";

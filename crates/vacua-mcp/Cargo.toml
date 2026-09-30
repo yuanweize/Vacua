@@ -26,6 +26,7 @@ vacua-rules = { path = "../vacua-rules" }
 vacua-content = { path = "../vacua-content" }
 vacua-plan = { path = "../vacua-plan" }
 vacua-tree = { path = "../vacua-tree" }
+vacua-artifacts = { path = "../vacua-artifacts" }
 
 rmcp = { version = "3.5.0", default-features = false, features = ["server", "client", "macros", "schemars", "transport-io", "transport-child-process"] }
 tokio = { version = "1", features = ["full"] }
@@ -38,6 +39,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 chrono = { workspace = true }
 thiserror = { workspace = true }
 blake3 = { workspace = true }
+rusqlite = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
