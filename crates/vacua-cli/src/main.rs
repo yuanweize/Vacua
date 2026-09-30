@@ -662,13 +662,7 @@ fn handle_tree(
             max_depth: depth,
         };
 
-        print_tree_level(
-            &ctx,
-            &children,
-            &remainder,
-            root_metric_val,
-            1,
-        );
+        print_tree_level(&ctx, &children, &remainder, root_metric_val, 1);
     }
 }
 
@@ -730,13 +724,7 @@ fn print_tree_level(
                 ctx.limit as u32,
                 0,
             ) {
-                print_tree_level(
-                    ctx,
-                    &sub_children,
-                    &sub_rem,
-                    child_val,
-                    current_depth + 1,
-                );
+                print_tree_level(ctx, &sub_children, &sub_rem, child_val, current_depth + 1);
             }
         }
     }
