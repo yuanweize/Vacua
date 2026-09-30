@@ -119,4 +119,16 @@ jobs:
       - name: Test App Packaging Pipeline
         run: ./scripts/package-macos-app.sh
 
+  release-integrity:
+    name: Release Integrity & Supply-Chain Guard
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run Release Integrity Test Suite
+        run: ./scripts/test-release-integrity.sh
+
 

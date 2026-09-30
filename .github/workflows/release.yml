@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   release-darwin-arm64:
@@ -15,11 +17,65 @@ jobs:
     steps:
       - name: Checkout Tag
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify Tag Identity & Release Preflights
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Target Release Version: ${VERSION}"
+          echo "GITHUB_REF_NAME: ${GITHUB_REF_NAME}"
+          echo "GITHUB_SHA: ${GITHUB_SHA}"
+
+          # 1. Verify tag commit identity: Tag dereferences to current GITHUB_SHA
+          TAG_COMMIT="$(git rev-list -n 1 "${GITHUB_REF_NAME}^{commit}")"
+          echo "Tag Commit: ${TAG_COMMIT}"
+          if [ "${TAG_COMMIT}" != "${GITHUB_SHA}" ]; then
+            echo "Error: Tag commit (${TAG_COMMIT}) does not match GITHUB_SHA (${GITHUB_SHA})" >&2
+            exit 1
+          fi
+
+          # 2. Version <-> Tag gate
+          CARGO_VER=$(grep -m 1 '^version = ' Cargo.toml | cut -d '"' -f 2)
+          if [ "${CARGO_VER}" != "${VERSION}" ]; then
+            echo "Error: Cargo workspace version (${CARGO_VER}) != ${VERSION}" >&2
+            exit 1
+          fi
+
+          APP_PBX_VER=$(grep -m 1 'MARKETING_VERSION = ' apps/macos/Vacua.xcodeproj/project.pbxproj | awk '{print $3}' | tr -d ';')
+          if [ "${APP_PBX_VER}" != "${VERSION}" ]; then
+            echo "Error: Vacua.xcodeproj MARKETING_VERSION (${APP_PBX_VER}) != ${VERSION}" >&2
+            exit 1
+          fi
+
+          SWIFT_INTEL_VER=$(grep -m 1 'static let version = ' apple/VacuaIntelligence/Sources/VacuaIntelligence/VacuaIntelligenceCLI.swift | cut -d '"' -f 2)
+          if [ "${SWIFT_INTEL_VER}" != "${VERSION}" ]; then
+            echo "Error: VacuaIntelligenceCLI version (${SWIFT_INTEL_VER}) != ${VERSION}" >&2
+            exit 1
+          fi
+
+          # 3. Clean tree check
+          if ! git diff --quiet || ! git diff --cached --quiet; then
+            echo "Error: Checkout working tree is dirty" >&2
+            exit 1
+          fi
+
+          # 4. Existing-release guard: Fail if published non-draft release already exists
+          if gh release view "${GITHUB_REF_NAME}" --json isDraft > /tmp/release_status.json 2>/dev/null; then
+            IS_DRAFT=$(grep '"isDraft":' /tmp/release_status.json | head -n 1 | awk '{print $2}' | tr -d ',')
+            if [ "${IS_DRAFT}" = "false" ]; then
+              echo "Error: Release for ${GITHUB_REF_NAME} is already published! Refusing to overwrite or clobber." >&2
+              exit 1
+            fi
+          fi
 
       - name: Inspect Toolchain
         run: |
           xcodebuild -version 2>/dev/null || true
           swift --version
+          rustc --version
 
       - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -35,10 +91,14 @@ jobs:
           swift run foundation-models-proof
 
       - name: Assemble Distribution Packages
+        env:
+          VACUA_GIT_SHA: ${{ github.sha }}
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
+          VERSION="${GITHUB_REF_NAME#v}"
+          export VACUA_GIT_SHA="${GITHUB_SHA}"
           ./scripts/package-release.sh "${VERSION}"
           ./scripts/package-macos-app.sh "${VERSION}"
+          ./scripts/generate-release-manifest.sh "${VERSION}"
 
       - name: Release Smoke Test Outside Repository
         run: |
@@ -46,9 +106,11 @@ jobs:
           tar -xzf dist/vacua-v*-aarch64-apple-darwin.tar.gz -C /tmp/vacua-ci-smoke
           SMOKE_DIR=$(ls -d /tmp/vacua-ci-smoke/vacua-v*-aarch64-apple-darwin)
           "${SMOKE_DIR}/bin/vacua" --version
+          "${SMOKE_DIR}/bin/vacua" --build-info
           "${SMOKE_DIR}/bin/vacua" doctor
           "${SMOKE_DIR}/bin/vacua" intelligence status
           "${SMOKE_DIR}/bin/vacua-mcp" --version
+          "${SMOKE_DIR}/bin/vacua-mcp" --build-info
           "${SMOKE_DIR}/bin/vacua-mcp" --self-test
           npx -y @modelcontextprotocol/inspector@2.8.0 --cli "${SMOKE_DIR}/bin/vacua-mcp" --method tools/list --format json | grep -q "vacua_get_capabilities"
           npx -y @modelcontextprotocol/inspector@2.8.0 --cli "${SMOKE_DIR}/bin/vacua-mcp" --method tools/call --tool-name vacua_get_capabilities --format json | grep -q '"mutation_authority":false'
@@ -59,35 +121,81 @@ jobs:
             exit 1
           }
 
-      - name: Create GitHub Release
-        id: create_release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            dist/*.tar.gz
-            dist/*.tar.gz.sha256
-            dist/*.zip
-            dist/*.zip.sha256
-            dist/SHA256SUMS
-          draft: false
-          prerelease: false
-          generate_release_notes: true
+      - name: Local Release Integrity Preflight
+        run: |
+          ./scripts/verify-release-integrity.sh "${GITHUB_REF_NAME}" --local-dir dist
 
-      - name: Update Homebrew Tap Formula (Automated or Manual Notice)
+      - name: Generate Artifact Attestations
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/RELEASE_MANIFEST.json
+
+      - name: Create Draft Release & Upload Assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          # Create draft release if not exists
+          if ! gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release create "${GITHUB_REF_NAME}" \
+              --title "${GITHUB_REF_NAME}" \
+              --draft \
+              --generate-notes
+          fi
+
+          # Upload assets without clobber
+          gh release upload "${GITHUB_REF_NAME}" \
+            dist/*.tar.gz \
+            dist/*.tar.gz.sha256 \
+            dist/*.zip \
+            dist/*.zip.sha256 \
+            dist/RELEASE_MANIFEST.json \
+            dist/SHA256SUMS
+
+      - name: Publish Draft Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Publish the release atomically
+          gh release edit "${GITHUB_REF_NAME}" --draft=false
+
+      - name: Download & Verify Public Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Wait a few seconds for CDN propagation
+          sleep 5
+          ./scripts/verify-release-integrity.sh "${GITHUB_REF_NAME}"
+
+      - name: Update Homebrew Tap Formula (Downstream Verification)
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          FINAL_SHA=$(cat "dist/vacua-v${VERSION}-aarch64-apple-darwin.tar.gz.sha256" | awk '{print $1}')
+          VERSION="${GITHUB_REF_NAME#v}"
+          # Re-download exact published CLI asset to compute verified sha
+          DOWNLOAD_URL="https://github.com/yuanweize/vacua/releases/download/v${VERSION}/vacua-v${VERSION}-aarch64-apple-darwin.tar.gz"
+          curl -sSL -o /tmp/downloaded-vacua.tar.gz "${DOWNLOAD_URL}"
+          DOWNLOADED_SHA=$(shasum -a 256 /tmp/downloaded-vacua.tar.gz | awk '{print $1}')
+          LOCAL_SHA=$(cat "dist/vacua-v${VERSION}-aarch64-apple-darwin.tar.gz.sha256" | awk '{print $1}')
+
+          if [ "${DOWNLOADED_SHA}" != "${LOCAL_SHA}" ]; then
+            echo "CRITICAL: Downloaded public asset SHA (${DOWNLOADED_SHA}) does not match local build SHA (${LOCAL_SHA})!" >&2
+            exit 1
+          fi
+
           if [ -n "$HOMEBREW_TAP_TOKEN" ]; then
-            echo "Updating Homebrew tap with Version=${VERSION}, SHA=${FINAL_SHA}"
+            echo "Updating Homebrew tap with Version=${VERSION}, SHA=${DOWNLOADED_SHA}"
             git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/yuanweize/homebrew-tap.git" /tmp/homebrew-tap
-            sed -i '' -E "s|url \".*\"|url \"https://github.com/yuanweize/vacua/releases/download/v${VERSION}/vacua-v${VERSION}-aarch64-apple-darwin.tar.gz\"|" /tmp/homebrew-tap/Formula/vacua.rb
-            sed -i '' -E "s|sha256 \".*\"|sha256 \"${FINAL_SHA}\"|" /tmp/homebrew-tap/Formula/vacua.rb
+            sed -i '' -E "s|url \".*\"|url \"${DOWNLOAD_URL}\"|" /tmp/homebrew-tap/Formula/vacua.rb
+            sed -i '' -E "s|sha256 \".*\"|sha256 \"${DOWNLOADED_SHA}\"|" /tmp/homebrew-tap/Formula/vacua.rb
             git -C /tmp/homebrew-tap config user.name "github-actions[bot]"
             git -C /tmp/homebrew-tap config user.email "github-actions[bot]@users.noreply.github.com"
             git -C /tmp/homebrew-tap commit -am "chore(vacua): release v${VERSION}"
             git -C /tmp/homebrew-tap push origin main
           else
-            echo "::notice title=Manual Homebrew Tap Update Required::HOMEBREW_TAP_TOKEN secret is not set. Please update yuanweize/homebrew-tap/Formula/vacua.rb with Version=${VERSION} and SHA=${FINAL_SHA}."
+            echo "::notice title=Manual Homebrew Tap Update Required::HOMEBREW_TAP_TOKEN secret is not set. Please update yuanweize/homebrew-tap/Formula/vacua.rb with Version=${VERSION} and SHA=${DOWNLOADED_SHA}."
           fi
