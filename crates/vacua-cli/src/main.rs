@@ -567,7 +567,7 @@ fn handle_tree(
                 .find(|n| n.kind == StorageNodeKind::Root)
                 .unwrap();
             let new_gen = StorageTreeGeneration {
-                generation_id: format!("stg_{}_{}", &root_id, Utc::now().timestamp_millis()),
+                generation_id: format!("stg_{}_{}", root_id, Utc::now().timestamp_millis()),
                 root_path: canonical.clone(),
                 root_id: root_id.clone(),
                 observed_at: Utc::now().timestamp(),

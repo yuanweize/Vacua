@@ -77,10 +77,17 @@ def main():
         ("Vacua/Features/Applications/ApplicationsView.swift", "ApplicationsView.swift"),
         ("Vacua/Features/Snapshots/SnapshotsView.swift", "SnapshotsView.swift"),
         ("Vacua/Features/Settings/SettingsView.swift", "SettingsView.swift"),
+        ("Vacua/Features/StorageMap/StorageMapModel.swift", "StorageMapModel.swift"),
+        ("Vacua/Features/StorageMap/StorageMapToolbar.swift", "StorageMapToolbar.swift"),
+        ("Vacua/Features/StorageMap/StorageMapView.swift", "StorageMapView.swift"),
+        ("Vacua/Features/StorageMap/StorageNodeInspector.swift", "StorageNodeInspector.swift"),
+        ("Vacua/Features/StorageMap/TreemapLayout.swift", "TreemapLayout.swift"),
+        ("Vacua/Features/StorageMap/TreemapView.swift", "TreemapView.swift"),
     ]
 
     test_files = [
         ("VacuaTests/AppModelTests.swift", "AppModelTests.swift"),
+        ("VacuaTests/TreemapLayoutTests.swift", "TreemapLayoutTests.swift"),
     ]
 
     uitest_files = [
