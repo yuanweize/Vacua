@@ -1,0 +1,83 @@
+{
+  "$defs": {
+    "ArtifactChecksumV1": {
+      "description": "Release artifact entry in the release manifest.",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "sha256"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Machine-verifiable release manifest.",
+  "properties": {
+    "artifacts": {
+      "items": {
+        "$ref": "#/$defs/ArtifactChecksumV1"
+      },
+      "type": "array"
+    },
+    "git_commit": {
+      "type": "string"
+    },
+    "github_run_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repository": {
+      "type": "string"
+    },
+    "rustc_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "swift_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "tag": {
+      "type": "string"
+    },
+    "target": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "xcode_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "version",
+    "tag",
+    "git_commit",
+    "repository",
+    "target",
+    "artifacts"
+  ],
+  "title": "ReleaseManifestV1",
+  "type": "object"
+}
