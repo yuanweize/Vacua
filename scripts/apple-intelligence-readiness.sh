@@ -65,6 +65,7 @@ MODEL_AVAILABLE=false
 RAW_AVAILABILITY="unknown"
 FALLBACK_REASON=""
 PROVIDER_USED="deterministic-fallback"
+GENERATION_SUCCEEDED=false
 
 if [ -n "${INTEL_CLI}" ]; then
   STATUS_JSON=$("${INTEL_CLI}" status 2>/dev/null || echo "{}")
@@ -78,6 +79,15 @@ if [ -n "${INTEL_CLI}" ]; then
       APPLE_INTELLIGENCE_ENABLED=true
       MODEL_READY=true
       MODEL_AVAILABLE=true
+
+      # Verify end-to-end neural generation through parse path
+      PARSE_JSON=$("${INTEL_CLI}" parse "explain developer artifacts" 2>/dev/null || echo "{}")
+      PARSE_PROVIDER=$(echo "${PARSE_JSON}" | python3 -c 'import sys, json; print(json.load(sys.stdin).get("provider_used", ""))' 2>/dev/null || echo "")
+      PARSE_SUCCEEDED=$(echo "${PARSE_JSON}" | python3 -c 'import sys, json; print(str(json.load(sys.stdin).get("generation_succeeded", False)).lower())' 2>/dev/null || echo "false")
+      if [ "${PARSE_PROVIDER}" = "apple-system" ] && [ "${PARSE_SUCCEEDED}" = "true" ]; then
+        GENERATION_SUCCEEDED=true
+        PROVIDER_USED="apple-system"
+      fi
       ;;
     "deviceNotEligible")
       DEVICE_ELIGIBLE=false
@@ -108,7 +118,7 @@ fi
 
 # 7. Compute Granular Overall State
 QUALIFICATION_STATE="UNKNOWN"
-if [ "${MODEL_AVAILABLE}" = true ] && [ "${PROVIDER_USED}" = "apple-system" ]; then
+if [ "${MODEL_AVAILABLE}" = true ] && [ "${PROVIDER_USED}" = "apple-system" ] && [ "${GENERATION_SUCCEEDED}" = true ]; then
   QUALIFICATION_STATE="RUNTIME_VERIFIED"
 elif [ "${SDK_AVAILABLE}" = true ]; then
   QUALIFICATION_STATE="IMPLEMENTED / Awaiting eligible-hardware runtime qualification"
@@ -118,34 +128,45 @@ fi
 
 # 8. Render Output
 if [ "${JSON_MODE}" = true ]; then
-  cat <<EOF
-{
-  "schema": "vacua.apple-intelligence.readiness.v1",
-  "system_info": {
-    "architecture": "${ARCH}",
-    "os_name": "${OS_NAME}",
-    "os_version": "${OS_VERSION}",
-    "os_build": "${OS_BUILD}",
-    "xcode_version": "${XCODE_VERSION}",
-    "developer_dir": "${XCODE_SELECT_PATH}"
-  },
-  "readiness_matrix": {
-    "SDK_AVAILABLE": ${SDK_AVAILABLE},
-    "OS_SUPPORTED": ${OS_SUPPORTED},
-    "DEVICE_ELIGIBLE": ${DEVICE_ELIGIBLE},
-    "APPLE_INTELLIGENCE_ENABLED": ${APPLE_INTELLIGENCE_ENABLED},
-    "MODEL_READY": ${MODEL_READY},
-    "MODEL_AVAILABLE": ${MODEL_AVAILABLE}
-  },
-  "runtime_probe": {
-    "raw_availability": "${RAW_AVAILABILITY}",
-    "fallback_reason": "${FALLBACK_REASON}",
-    "provider_used": "${PROVIDER_USED}",
-    "compile_proof": "${COMPILE_PROOF_OUTPUT}"
-  },
-  "qualification_state": "${QUALIFICATION_STATE}"
+  export ARCH OS_NAME OS_VERSION OS_BUILD XCODE_VERSION XCODE_SELECT_PATH
+  export SDK_AVAILABLE OS_SUPPORTED DEVICE_ELIGIBLE APPLE_INTELLIGENCE_ENABLED MODEL_READY MODEL_AVAILABLE
+  export RAW_AVAILABILITY FALLBACK_REASON PROVIDER_USED COMPILE_PROOF_OUTPUT GENERATION_SUCCEEDED QUALIFICATION_STATE
+
+  python3 -c '
+import os, json
+
+def to_bool(val):
+    return str(val).lower() == "true"
+
+data = {
+    "schema": "vacua.apple-intelligence.readiness.v1",
+    "system_info": {
+        "architecture": os.environ.get("ARCH", ""),
+        "os_name": os.environ.get("OS_NAME", ""),
+        "os_version": os.environ.get("OS_VERSION", ""),
+        "os_build": os.environ.get("OS_BUILD", ""),
+        "xcode_version": os.environ.get("XCODE_VERSION", "").strip(),
+        "developer_dir": os.environ.get("XCODE_SELECT_PATH", "")
+    },
+    "readiness_matrix": {
+        "SDK_AVAILABLE": to_bool(os.environ.get("SDK_AVAILABLE", "false")),
+        "OS_SUPPORTED": to_bool(os.environ.get("OS_SUPPORTED", "false")),
+        "DEVICE_ELIGIBLE": to_bool(os.environ.get("DEVICE_ELIGIBLE", "false")),
+        "APPLE_INTELLIGENCE_ENABLED": to_bool(os.environ.get("APPLE_INTELLIGENCE_ENABLED", "false")),
+        "MODEL_READY": to_bool(os.environ.get("MODEL_READY", "false")),
+        "MODEL_AVAILABLE": to_bool(os.environ.get("MODEL_AVAILABLE", "false"))
+    },
+    "runtime_probe": {
+        "raw_availability": os.environ.get("RAW_AVAILABILITY", ""),
+        "fallback_reason": os.environ.get("FALLBACK_REASON", ""),
+        "provider_used": os.environ.get("PROVIDER_USED", ""),
+        "generation_succeeded": to_bool(os.environ.get("GENERATION_SUCCEEDED", "false")),
+        "compile_proof": os.environ.get("COMPILE_PROOF_OUTPUT", "")
+    },
+    "qualification_state": os.environ.get("QUALIFICATION_STATE", "")
 }
-EOF
+print(json.dumps(data, indent=2))
+'
 else
   echo "================================================================================"
   echo "Vacua — Apple Intelligence Readiness Probe"
@@ -172,6 +193,7 @@ else
   echo "  - API Availability Enum:     ${RAW_AVAILABILITY}"
   echo "  - Fallback Reason:           ${FALLBACK_REASON}"
   echo "  - Active Intelligence Engine: ${PROVIDER_USED}"
+  echo "  - Neural Token Generation:   ${GENERATION_SUCCEEDED}"
   echo ""
   echo "Overall Qualification State:"
   echo "  >>> ${QUALIFICATION_STATE} <<<"

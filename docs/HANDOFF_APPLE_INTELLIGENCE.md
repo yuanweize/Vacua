@@ -175,12 +175,14 @@ swift run --package-path apple/VacuaIntelligence foundation-models-proof
 ## 7. Current Apple Intelligence Status & Hardware Ineligibility
 
 ### What is Implemented (`apple/VacuaIntelligence`)
+
 1. **Compilation Proof**: `FoundationModelsProof` imports `FoundationModels` without errors when compiled on Xcode 26+ / macOS 26+ SDKs.
 2. **Guided Generation**: `@Generable` struct `GeneratedCleanupIntent` in `Models.swift` specifies structured extraction schema for natural language intent.
 3. **Availability Probe**: `AppleOnDeviceProvider.checkAvailability()` interrogates `SystemLanguageModel.default.availability` using real Apple enum cases (`.available`, `.unavailable(.deviceNotEligible)`, `.unavailable(.appleIntelligenceNotEnabled)`, `.unavailable(.modelNotReady)`).
 4. **Deterministic Fallback**: If Apple Foundation Models is unavailable or ineligible, queries are processed by `DeterministicIntentParser` and `DeterministicGroundedSummarizer`.
 
 ### Why Runtime Qualification is Pending
+
 The development workstation used to produce `v0.8.0` was not eligible for Apple Foundation Models runtime inference (`SystemLanguageModel.availability` returned `deviceNotEligible`).  
 In strict compliance with our truthfulness policy:
 - **Status**: `IMPLEMENTED / Awaiting eligible-hardware runtime qualification`.
@@ -194,6 +196,7 @@ In strict compliance with our truthfulness policy:
 When continuing development on an Apple Intelligence-capable Mac:
 
 ### Minimum Hardware & Environment Requirements
+
 - **Hardware**: Apple Silicon Mac (M1/M2/M3/M4 or later) officially supported for Apple Intelligence.
 - **Operating System**: macOS with Apple Intelligence support (macOS 26.0+).
 - **Apple Intelligence Configuration**:
@@ -205,17 +208,23 @@ When continuing development on an Apple Intelligence-capable Mac:
   - Homebrew.
 
 ### Step-by-Step Qualification Workflow
+
 1. Clone and enter repo:
+
    ```bash
    git clone https://github.com/yuanweize/vacua.git
    cd vacua
    git checkout main
    ```
+
 2. Execute the readiness probe:
+
    ```bash
    ./scripts/apple-intelligence-readiness.sh
    ```
+
    Verify that the output transitions from `IMPLEMENTED / Awaiting eligible-hardware runtime qualification` to `RUNTIME_VERIFIED`:
+
    ```text
    Apple SystemLanguageModel Runtime Availability:
      - [SDK_AVAILABLE]:             true
@@ -226,12 +235,15 @@ When continuing development on an Apple Intelligence-capable Mac:
      - [MODEL_AVAILABLE]:           true
    Active Intelligence Engine: apple-system
    ```
+
 3. Test FoundationModels CLI commands:
+
    ```bash
    swift run --package-path apple/VacuaIntelligence foundation-models-proof
    vacua intelligence status
    vacua intelligence parse "find and summarize my unused node_modules and target directories"
    ```
+
 4. Confirm `provider_used` reports `apple-system` and genuine on-device neural token generation succeeds.
 
 ---
@@ -240,11 +252,11 @@ When continuing development on an Apple Intelligence-capable Mac:
 
 Inspect and understand these files before modifying AI capabilities:
 
-1. [`apple/VacuaIntelligence/Package.swift`](file:///Users/yuanweize/我的文档/服务器/GITHUB/vacua/apple/VacuaIntelligence/Package.swift): Defines Swift package dependencies and executable targets.
-2. [`apple/VacuaIntelligence/Sources/VacuaIntelligence/AppleOnDeviceProvider.swift`](file:///Users/yuanweize/我的文档/服务器/GITHUB/vacua/apple/VacuaIntelligence/Sources/VacuaIntelligence/AppleOnDeviceProvider.swift): Core provider implementing `SystemLanguageModel` sessions and availability checks.
-3. [`apple/VacuaIntelligence/Sources/VacuaIntelligence/Models.swift`](file:///Users/yuanweize/我的文档/服务器/GITHUB/vacua/apple/VacuaIntelligence/Sources/VacuaIntelligence/Models.swift): Contains `@Generable` structured generation definitions and domain intent models.
-4. [`apple/VacuaIntelligence/Sources/VacuaIntelligence/VacuaIntelligenceCLI.swift`](file:///Users/yuanweize/我的文档/服务器/GITHUB/vacua/apple/VacuaIntelligence/Sources/VacuaIntelligence/VacuaIntelligenceCLI.swift): CLI entry point for `vacua-intelligence` helper executable.
-5. [`apple/VacuaIntelligence/Sources/FoundationModelsProof/main.swift`](file:///Users/yuanweize/我的文档/服务器/GITHUB/vacua/apple/VacuaIntelligence/Sources/FoundationModelsProof/main.swift): Standalone compile-time probe confirming framework availability.
+1. [`apple/VacuaIntelligence/Package.swift`](../apple/VacuaIntelligence/Package.swift): Defines Swift package dependencies and executable targets.
+2. [`apple/VacuaIntelligence/Sources/VacuaIntelligence/AppleOnDeviceProvider.swift`](../apple/VacuaIntelligence/Sources/VacuaIntelligence/AppleOnDeviceProvider.swift): Core provider implementing `SystemLanguageModel` sessions and availability checks.
+3. [`apple/VacuaIntelligence/Sources/VacuaIntelligence/Models.swift`](../apple/VacuaIntelligence/Sources/VacuaIntelligence/Models.swift): Contains `@Generable` structured generation definitions and domain intent models.
+4. [`apple/VacuaIntelligence/Sources/VacuaIntelligence/VacuaIntelligenceCLI.swift`](../apple/VacuaIntelligence/Sources/VacuaIntelligence/VacuaIntelligenceCLI.swift): CLI entry point for `vacua-intelligence` helper executable.
+5. [`apple/VacuaIntelligence/Sources/FoundationModelsProof/main.swift`](../apple/VacuaIntelligence/Sources/FoundationModelsProof/main.swift): Standalone compile-time probe confirming framework availability.
 
 ---
 
@@ -266,10 +278,12 @@ Do not blindly preserve initial API assumptions when the current Apple SDK provi
 
 ## 11. Next Recommended Milestone: v0.9
 
-### Recommended Milestone Scope:
-# v0.9 — Apple Foundation Models Runtime & Grounded Intelligence
+### Recommended Milestone Scope
 
-### Priority Work Items:
+**v0.9 — Apple Foundation Models Runtime & Grounded Intelligence**
+
+### Priority Work Items
+
 1. **Real Hardware Runtime Qualification**: Complete `apple-system` end-to-end qualification on eligible Mac hardware.
 2. **Grounded Developer Artifact Explanations**: Feed deterministic `RebuildEvidence` from `vacua-artifacts` into `LanguageModelSession` to generate explainable, natural language trade-off summaries.
 3. **Storage Map & Delta Reasoning**: Enable guided analysis of Treemap snapshots, answering queries like *"Why did my disk drop 15 GB since last Tuesday?"* using strictly deterministic tree delta facts.
