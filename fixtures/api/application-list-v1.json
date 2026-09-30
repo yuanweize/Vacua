@@ -11,12 +11,10 @@
     {
       "application_id": "com.spotify.client",
       "app_name": "Spotify",
-      "display_path": null,
       "installed": false,
       "orphan_confidence": "high"
     }
   ],
   "total_count": 2,
-  "limit": 50,
-  "next_cursor": null
+  "limit": 50
 }

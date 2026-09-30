@@ -14,65 +14,140 @@ public struct DuplicatesView: View {
             // Duplicate Groups List
             VStack(spacing: 0) {
                 HStack {
-                    Text("\(model.duplicateGroups.count) Duplicate Groups")
+                    Text("\(model.duplicateGroups.count) Duplicate Groups\(model.hasMoreDuplicates ? " (more available)" : "")")
                         .font(.subheadline.weight(.medium))
                     Spacer()
+                    if model.duplicatesState.isLoading {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
                 
                 Divider()
                 
-                if model.duplicateGroups.isEmpty && !model.isLoading {
-                    VStack(spacing: 8) {
-                        Image(systemName: "doc.on.doc")
-                            .font(.largeTitle)
-                            .foregroundStyle(.tertiary)
-                        Text("No Duplicates Detected")
+                switch model.duplicatesState {
+                case .idle:
+                    unstartedState
+                case .loading(let prev) where (prev?.isEmpty ?? true):
+                    VStack(spacing: 12) {
+                        ProgressView()
+                        Text("Computing BLAKE3 content hashes…")
                             .font(.headline)
-                        Text("No identical file sets found within the active root.")
+                        Text("Reading file extents to verify byte-identical duplicates.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    List(model.duplicateGroups, selection: $selectedGroupId) { group in
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Text("\(group.member_count) identical copies")
-                                    .font(.headline)
-                                Spacer()
-                                Text(group.logical_duplicate_bytes.formatted(.byteCount(style: .file)))
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(.blue)
+                case .failed(let msg, let prev) where (prev?.isEmpty ?? true):
+                    VStack(spacing: 12) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.largeTitle)
+                            .foregroundStyle(.orange)
+                        Text("Analysis Failed")
+                            .font(.headline)
+                        Text(msg)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button("Retry Analysis") {
+                            Task { await model.loadDuplicates(force: true) }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .padding(.top, 4)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(24)
+                default:
+                    if model.duplicateGroups.isEmpty {
+                        VStack(spacing: 8) {
+                            Image(systemName: "doc.on.doc")
+                                .font(.largeTitle)
+                                .foregroundStyle(.tertiary)
+                            Text("No Duplicates Detected")
+                                .font(.headline)
+                            Text("No identical file sets found within the active root.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Button("Re-analyze") {
+                                Task { await model.loadDuplicates(force: true) }
+                            }
+                            .buttonStyle(.bordered)
+                            .padding(.top, 8)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        VStack(spacing: 0) {
+                            List(model.duplicateGroups, selection: $selectedGroupId) { group in
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack {
+                                        Text("\(group.member_count) identical copies")
+                                            .font(.headline)
+                                        Spacer()
+                                        Text(group.logical_duplicate_bytes.formatted(.byteCount(style: .file)))
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(.blue)
+                                    }
+                                    
+                                    HStack(spacing: 12) {
+                                        HStack(spacing: 4) {
+                                            Text("APFS Private:")
+                                                .foregroundStyle(.secondary)
+                                            apfsPrivateStatusView(
+                                                knownMembers: group.kernel_private_bytes_known_members,
+                                                unknownMembers: group.kernel_private_bytes_unknown_members,
+                                                bytes: group.kernel_private_bytes
+                                            )
+                                        }
+                                        
+                                        Spacer()
+                                        
+                                        Text("Lower Bound: \(group.confirmed_reclaim_lower_bound.formatted(.byteCount(style: .file)))")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .font(.caption)
+                                }
+                                .padding(.vertical, 4)
+                                .tag(group.id)
+                            }
+                            .listStyle(.inset(alternatesRowBackgrounds: true))
+                            .onChange(of: selectedGroupId) { _, newId in
+                                if let grp = model.duplicateGroups.first(where: { $0.id == newId }) {
+                                    Task { await model.selectDuplicateGroup(grp) }
+                                }
+                            }
+                            .onChange(of: model.duplicateGroups) { _, newGroups in
+                                if let selId = selectedGroupId, !newGroups.contains(where: { $0.id == selId }) {
+                                    selectedGroupId = nil
+                                    model.selectedDuplicateGroup = nil
+                                    model.selectedDuplicateDetail = nil
+                                }
                             }
                             
-                            HStack(spacing: 12) {
-                                HStack(spacing: 4) {
-                                    Text("APFS Private:")
-                                        .foregroundStyle(.secondary)
-                                    apfsPrivateStatusView(
-                                        knownMembers: group.kernel_private_bytes_known_members,
-                                        unknownMembers: group.kernel_private_bytes_unknown_members,
-                                        bytes: group.kernel_private_bytes
-                                    )
+                            // Pagination Footer
+                            if model.hasMoreDuplicates {
+                                Divider()
+                                HStack {
+                                    Spacer()
+                                    Button {
+                                        Task { await model.loadMoreDuplicates() }
+                                    } label: {
+                                        if model.isLoadingNextDuplicatesPage {
+                                            ProgressView()
+                                                .controlSize(.small)
+                                        } else {
+                                            Text("Load More Duplicates…")
+                                                .font(.caption)
+                                        }
+                                    }
+                                    .buttonStyle(.link)
+                                    .disabled(model.isLoadingNextDuplicatesPage)
+                                    Spacer()
                                 }
-                                
-                                Spacer()
-                                
-                                Text("Lower Bound: \(group.confirmed_reclaim_lower_bound.formatted(.byteCount(style: .file)))")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                                .padding(.vertical, 8)
+                                .background(Color(NSColor.controlBackgroundColor))
                             }
-                            .font(.caption)
-                        }
-                        .padding(.vertical, 4)
-                        .tag(group.id)
-                    }
-                    .listStyle(.inset(alternatesRowBackgrounds: true))
-                    .onChange(of: selectedGroupId) { _, newId in
-                        if let grp = model.duplicateGroups.first(where: { $0.id == newId }) {
-                            Task { await model.selectDuplicateGroup(grp) }
                         }
                     }
                 }
@@ -97,10 +172,75 @@ public struct DuplicatesView: View {
             }
         }
         .navigationTitle("Duplicate Files")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    Task { await model.loadDuplicates(force: true) }
+                } label: {
+                    Label("Analyze Duplicates", systemImage: "sparkle.magnifyingglass")
+                }
+                .disabled(model.duplicatesState.isLoading)
+            }
+        }
     }
     
     private var currentSelectedGroup: DuplicateGroupSummaryV1? {
         model.duplicateGroups.first(where: { $0.id == selectedGroupId })
+    }
+    
+    // MARK: - Unstarted Idle State with Truth & Privacy Explanations
+    
+    private var unstartedState: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "doc.on.doc")
+                .font(.system(size: 48))
+                .foregroundStyle(.blue)
+            
+            VStack(spacing: 6) {
+                Text("Exact Duplicate Analysis")
+                    .font(.title2.weight(.bold))
+                Text("Vacua verifies byte-identical content using staged BLAKE3 cryptographic hashing. Large directories may require significant disk reads.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 440)
+            }
+            
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "lock.shield.fill")
+                        .foregroundStyle(.green)
+                    Text("File contents never leave this Mac and are not returned to or stored by the UI.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "internaldrive.fill")
+                        .foregroundStyle(.blue)
+                    Text("APFS copy-on-write clone copies share physical blocks. Deleting clones may reclaim 0 bytes.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(14)
+            .background(Color.secondary.opacity(0.06))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .frame(maxWidth: 440)
+            
+            Button {
+                Task { await model.loadDuplicates(force: true) }
+            } label: {
+                Label("Analyze Duplicates", systemImage: "play.circle.fill")
+                    .font(.headline)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .padding(.top, 8)
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
     @ViewBuilder
@@ -184,6 +324,9 @@ public struct DuplicatesView: View {
                     }
                     .listStyle(.bordered(alternatesRowBackgrounds: true))
                 }
+            } else if model.selectedDuplicateGroup != nil {
+                ProgressView("Loading copies…")
+                    .controlSize(.small)
             }
             
             Spacer()

@@ -25,6 +25,5 @@
       "estimated_bytes": 2147483648
     }
   ],
-  "proposal_status": "PROPOSAL_ONLY_NOT_EXECUTABLE_VIA_MCP",
-  "serialized_plan": null
+  "proposal_status": "PROPOSAL_ONLY_NOT_EXECUTABLE_VIA_MCP"
 }

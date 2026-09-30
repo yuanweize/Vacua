@@ -17,8 +17,8 @@ struct VacuaApp: App {
         .commands {
             SidebarCommands()
             CommandGroup(replacing: .newItem) {
-                Button("Refresh All") {
-                    Task { await model.refreshAll() }
+                Button("Refresh") {
+                    Task { await model.refreshCurrentView() }
                 }
                 .keyboardShortcut("r", modifiers: .command)
             }

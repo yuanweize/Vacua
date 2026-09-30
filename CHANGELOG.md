@@ -15,10 +15,16 @@ Phase 5: Native SwiftUI macOS App Foundation & Storage Intelligence UI: First-pa
   - Modern `NavigationSplitView` architecture with Sidebar navigation: Overview, Candidates, Duplicates, Applications, Snapshots, and Settings.
   - Storage Pressure Overview: APFS physical allocation breakdown (Used, Free, Purgeable), Swift Charts storage visualization, and guaranteed physical reclaim lower bounds vs estimated upper bounds.
   - Cleanup Candidates Table & Inspector: Filterable by risk level (`Safe`, `Caution`, `Review`, `Protected`) and category; deep inspector displaying full multi-signal evidence graphs, rebuild consequences, and reclaim bounds.
-  - Duplicates Intelligence with Physical APFS Truth: Clone awareness displaying shared vs independent extents; explicitly marks unmeasured APFS private storage as "Unknown" rather than faking 0.
-  - Application Residue Explorer: Discloses installed applications and potential residual data without false assumptions.
-  - APFS Snapshot Browser: Enumerates local snapshots, creation dates, and retained physical blocks.
-  - Transparent Settings & Security Diagnostics: Configurable allowed root directories via `NSOpenPanel`; displays engine connection state and honestly explains macOS Full Disk Access requirements.
+  - Duplicates Intelligence with Physical APFS Truth: Explicit user-initiated BLAKE3 analysis with disk read warning; clone awareness displaying shared vs independent extents; explicitly marks unmeasured APFS private storage as "Unknown".
+  - Application Residue Explorer: Discloses installed applications and potential residual data with server-side query filtering and lazy graph building.
+  - Storage Snapshot Browser & Real Diff UI: Enumerates point-in-time storage metadata observations and executes real differential analysis via `vacua_diff_snapshots`, surfacing recursive subtree deltas and horizontal delta charts without client size recalculation.
+  - Transparent Settings & Security Diagnostics: Configurable allowed root directories via `NSOpenPanel`; root switching automatically cancels in-flight tasks and invalidates state; displays engine connection state and honestly explains macOS Full Disk Access requirements.
+- **Lazy Runtime Architecture & State Safety**:
+  - Cheap startup: Engine handshake only queries capabilities and volume summary; zero duplicate hashing or candidate scanning at launch.
+  - Per-feature `LoadState` (`.idle`, `.loading`, `.loaded`, `.failed`) preserving previous successful data during background refreshes.
+  - Cursor-aware pagination ("Load More…") for Candidates, Duplicates, Applications, and Snapshots.
+  - Selection and in-flight request cancellation preventing race conditions and stale detail presentation.
+  - OSLog privacy: Private interpolation for all paths and error details; production child process strictly uses `--path-disclosure home-relative`.
 - **Strict Proposal-Only Safety Model**:
   - The native app and its bundled helper have strictly zero deletion privileges.
   - No `rm`, `unlink`, `trash`, `emptyTrash`, or shell execution code is present or linked.

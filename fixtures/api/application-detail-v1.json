@@ -2,7 +2,6 @@
   "schema_version": "vacua.mcp.application-detail.v1",
   "application_id": "com.spotify.client",
   "app_name": "Spotify",
-  "display_path": null,
   "installed": false,
   "orphan_confidence": "high",
   "artifact_count": 2,
