@@ -24,6 +24,7 @@ vacua-plan = { path = "../vacua-plan" }
 vacua-index = { path = "../vacua-index" }
 vacua-executor = { path = "../vacua-executor" }
 vacua-content = { path = "../vacua-content" }
+vacua-api = { path = "../vacua-api" }
 clap = { workspace = true }
 clap_complete = { workspace = true }
 chrono = { workspace = true }

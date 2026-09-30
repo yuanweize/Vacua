@@ -71,11 +71,23 @@ struct Cli {
         help = "Perform internal initialization self-test and exit"
     )]
     self_test: bool,
+
+    #[arg(
+        long = "build-info",
+        help = "Display build identity and provenance information (JSON)"
+    )]
+    build_info: bool,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
+
+    if cli.build_info {
+        let info = vacua_api::get_build_info();
+        println!("{}", serde_json::to_string_pretty(&info).unwrap());
+        return Ok(());
+    }
 
     let disclosure_mode =
         PathDisclosureMode::parse(&cli.path_disclosure).unwrap_or(PathDisclosureMode::HomeRelative);

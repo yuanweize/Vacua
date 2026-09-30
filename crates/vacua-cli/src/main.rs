@@ -31,8 +31,14 @@ struct Cli {
     #[arg(long, global = true, help = "Output machine-readable JSON")]
     json: bool,
 
+    #[arg(
+        long,
+        help = "Display build identity and provenance information (JSON)"
+    )]
+    build_info: bool,
+
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
@@ -202,6 +208,15 @@ enum Commands {
         #[arg(value_enum, help = "Target shell")]
         shell: Shell,
     },
+
+    #[command(
+        name = "build-info",
+        about = "Display build identity and provenance information"
+    )]
+    BuildInfo {
+        #[arg(long, help = "Output machine-readable JSON")]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -347,7 +362,36 @@ struct ScanOutput {
 fn main() {
     let cli = Cli::parse();
 
-    match cli.command {
+    if cli.build_info {
+        let info = vacua_api::get_build_info();
+        println!("{}", serde_json::to_string_pretty(&info).unwrap());
+        return;
+    }
+
+    let command = match cli.command {
+        Some(cmd) => cmd,
+        None => {
+            let mut cmd = Cli::command();
+            let _ = cmd.print_help();
+            println!();
+            return;
+        }
+    };
+
+    match command {
+        Commands::BuildInfo { json } => {
+            let info = vacua_api::get_build_info();
+            if json || cli.json {
+                println!("{}", serde_json::to_string_pretty(&info).unwrap());
+            } else {
+                println!("Vacua Build Information");
+                println!("=======================");
+                println!("Version:    {}", info.version);
+                println!("Git Commit: {}", info.git_commit);
+                println!("Target:     {}", info.target);
+                println!("Profile:    {}", info.profile);
+            }
+        }
         Commands::Scan {
             path,
             depth,
