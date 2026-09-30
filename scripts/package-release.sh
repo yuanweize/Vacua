@@ -75,8 +75,7 @@ echo "--- Generating shell completions ---"
 "${PKG_DIR}/bin/vacua" completions fish > "${PKG_DIR}/share/fish/vendor_completions.d/vacua.fish"
 
 # 5. Copy Licenses and Metadata
-cp "${REPO_ROOT}/LICENSE-MIT" "${PKG_DIR}/"
-cp "${REPO_ROOT}/LICENSE-APACHE" "${PKG_DIR}/"
+cp "${REPO_ROOT}/LICENSE" "${PKG_DIR}/"
 
 cat <<EOF > "${PKG_DIR}/README.txt"
 Vacua v${VERSION}

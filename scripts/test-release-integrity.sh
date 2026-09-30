@@ -41,6 +41,19 @@ if ALLOW_DIRTY=1 "${REPO_ROOT}/scripts/package-release.sh" "0.99.99" >/dev/null 
 fi
 echo "PASS: package-release.sh rejected mismatched release version."
 
+# Test 3b: Regression test - VacuaIntelligenceCLI version mismatch detected
+echo "--- Test 3b: Regression Test - VacuaIntelligenceCLI Version Mismatch Invariant ---"
+SWIFT_CLI_FILE="${REPO_ROOT}/apple/VacuaIntelligence/Sources/VacuaIntelligence/VacuaIntelligenceCLI.swift"
+cp "${SWIFT_CLI_FILE}" "${SWIFT_CLI_FILE}.bak"
+sed -i '' 's/static let version = .*/static let version = "0.0.0-forgotten"/' "${SWIFT_CLI_FILE}"
+if "${REPO_ROOT}/scripts/check-version-alignment.sh" >/dev/null 2>&1; then
+  mv "${SWIFT_CLI_FILE}.bak" "${SWIFT_CLI_FILE}"
+  echo "FAIL: check-version-alignment.sh failed to catch forgotten VacuaIntelligenceCLI version!" >&2
+  exit 1
+fi
+mv "${SWIFT_CLI_FILE}.bak" "${SWIFT_CLI_FILE}"
+echo "PASS: check-version-alignment.sh reliably caught mismatched VacuaIntelligenceCLI version."
+
 # Test 4: Manifest schema & integrity test
 echo "--- Test 4: Release Manifest Verification Invariants ---"
 # Create mock dist archives to test manifest generation and verification

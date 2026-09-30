@@ -16,7 +16,7 @@
   <a href="https://github.com/yuanweize/vacua/actions/workflows/ci.yml"><img src="https://github.com/yuanweize/vacua/actions/workflows/ci.yml/badge.svg" alt="CI Status"></a>
   <a href="https://github.com/yuanweize/vacua/releases"><img src="https://img.shields.io/github/v/release/yuanweize/vacua?color=blue&label=release" alt="Release"></a>
   <a href="https://github.com/yuanweize/homebrew-tap"><img src="https://img.shields.io/badge/homebrew-yuanweize%2Ftap%2Fvacua-orange" alt="Homebrew"></a>
-  <a href="LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT%20%2F%20Apache--2.0-blue" alt="License"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
   <img src="https://img.shields.io/badge/platform-macOS%20%C2%B7%20Apple%20Silicon-lightgrey" alt="Platform">
 </p>
 
@@ -367,8 +367,4 @@ cp apple/VacuaIntelligence/.build/release/vacua-intelligence target/release/
 
 ## License
 
-Dual-licensed under either:
-- **MIT License** ([LICENSE-MIT](LICENSE-MIT))
-- **Apache License, Version 2.0** ([LICENSE-APACHE](LICENSE-APACHE))
-
-at your option.
+Licensed under the **Apache License, Version 2.0** ([LICENSE](LICENSE)).

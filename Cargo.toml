@@ -19,7 +19,7 @@ resolver = "2"
 version = "0.7.1"
 edition = "2021"
 authors = ["Weize Yuan <iyuanweize@gmail.com>", "Vacua Contributors"]
-license = "MIT OR Apache-2.0"
+license = "Apache-2.0"
 repository = "https://github.com/yuanweize/vacua"
 homepage = "https://github.com/yuanweize/vacua"
 

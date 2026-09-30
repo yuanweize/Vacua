@@ -30,6 +30,7 @@ test -f "${APP_PATH}/Contents/Info.plist" || { echo "Missing Info.plist"; exit 1
 test -f "${APP_PATH}/Contents/MacOS/Vacua" || { echo "Missing MacOS/Vacua executable"; exit 1; }
 test -f "${APP_PATH}/Contents/Helpers/vacua" || { echo "Missing Helpers/vacua"; exit 1; }
 test -f "${APP_PATH}/Contents/Helpers/vacua-mcp" || { echo "Missing Helpers/vacua-mcp"; exit 1; }
+test -f "${APP_PATH}/Contents/Resources/LICENSE" || { echo "Missing Contents/Resources/LICENSE"; exit 1; }
 
 echo "Verifying bundled helpers and build provenance identity..."
 "${APP_PATH}/Contents/Helpers/vacua-mcp" --self-test

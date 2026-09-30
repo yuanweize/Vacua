@@ -95,9 +95,9 @@ public struct SettingsView: View {
                         Text("Version \(appVersionWithCommit)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Text("Licensed under Apache-2.0")
+                        Link("Apache License 2.0", destination: URL(string: "https://github.com/yuanweize/vacua/blob/main/LICENSE")!)
                             .font(.caption2)
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(.secondary)
                     }
                     
                     Spacer()

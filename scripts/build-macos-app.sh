@@ -57,7 +57,13 @@ cp "${MCP_BIN}" "${HELPERS_DIR}/vacua-mcp"
 cp "${VACUA_BIN}" "${HELPERS_DIR}/vacua"
 chmod +x "${HELPERS_DIR}/vacua-mcp" "${HELPERS_DIR}/vacua"
 
-# 4. Ad-hoc codesign app bundle
+# 5. Embed project license into Contents/Resources
+echo "--- Embedding project license ---"
+RESOURCES_DIR="${OUTPUT_APP}/Contents/Resources"
+mkdir -p "${RESOURCES_DIR}"
+cp "${REPO_ROOT}/LICENSE" "${RESOURCES_DIR}/LICENSE"
+
+# 6. Ad-hoc codesign app bundle
 echo "--- Ad-hoc signing Vacua.app ---"
 codesign --force --deep --sign - "${OUTPUT_APP}"
 
