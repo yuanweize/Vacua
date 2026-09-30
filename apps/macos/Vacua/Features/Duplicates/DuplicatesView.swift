@@ -33,49 +33,32 @@ public struct DuplicatesView: View {
                 case .loading(let prev) where (prev?.isEmpty ?? true):
                     VStack(spacing: 12) {
                         ProgressView()
-                        Text("Computing BLAKE3 content hashes…")
+                        Text("Verifying file content locally…")
                             .font(.headline)
-                        Text("Reading file extents to verify byte-identical duplicates.")
+                        Text("Comparing candidate file extents to detect byte-identical duplicates.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .failed(let msg, let prev) where (prev?.isEmpty ?? true):
-                    VStack(spacing: 12) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.largeTitle)
-                            .foregroundStyle(.orange)
-                        Text("Analysis Failed")
-                            .font(.headline)
-                        Text(msg)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Button("Retry Analysis") {
+                    VacuaErrorState(
+                        title: "Duplicate Analysis Failed",
+                        message: msg,
+                        retryAction: {
                             Task { await model.loadDuplicates(force: true) }
                         }
-                        .buttonStyle(.borderedProminent)
-                        .padding(.top, 4)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(24)
+                    )
                 default:
                     if model.duplicateGroups.isEmpty {
-                        VStack(spacing: 8) {
-                            Image(systemName: "doc.on.doc")
-                                .font(.largeTitle)
-                                .foregroundStyle(.tertiary)
-                            Text("No Duplicates Detected")
-                                .font(.headline)
-                            Text("No identical file sets found within the active root.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Button("Re-analyze") {
+                        VacuaEmptyState(
+                            symbol: VacuaSymbols.duplicates,
+                            title: "No Duplicates Detected",
+                            message: "No byte-identical files were found within the active storage root.",
+                            actionTitle: "Re-analyze",
+                            action: {
                                 Task { await model.loadDuplicates(force: true) }
                             }
-                            .buttonStyle(.bordered)
-                            .padding(.top, 8)
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        )
                     } else {
                         VStack(spacing: 0) {
                             List(model.duplicateGroups, selection: $selectedGroupId) { group in
@@ -199,7 +182,7 @@ public struct DuplicatesView: View {
             VStack(spacing: 6) {
                 Text("Exact Duplicate Analysis")
                     .font(.title2.weight(.bold))
-                Text("Vacua verifies byte-identical content using staged BLAKE3 cryptographic hashing. Large directories may require significant disk reads.")
+                Text("Vacua verifies exact content locally using staged hashes. Comparing large folders may require disk reads.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

@@ -1,5 +1,36 @@
 {
   "$defs": {
+    "StorageTreeDeltaV1": {
+      "description": "Observed storage delta between a tree node and a baseline snapshot.",
+      "properties": {
+        "allocated_delta_bytes": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "change_kind": {
+          "type": "string"
+        },
+        "file_count_delta": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "logical_delta_bytes": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "node_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "node_id",
+        "allocated_delta_bytes",
+        "logical_delta_bytes",
+        "file_count_delta",
+        "change_kind"
+      ],
+      "type": "object"
+    },
     "StorageTreeNodeV1": {
       "description": "Compact node summary within a hierarchical storage tree.",
       "properties": {
@@ -125,6 +156,15 @@
   "properties": {
     "generation_id": {
       "type": "string"
+    },
+    "item_deltas": {
+      "items": {
+        "$ref": "#/$defs/StorageTreeDeltaV1"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
     },
     "items": {
       "items": {

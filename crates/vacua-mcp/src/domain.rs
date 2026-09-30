@@ -1469,6 +1469,7 @@ impl VacuaDomainService {
     }
 
     /// Retrieve bounded storage tree child nodes with remainder accounting.
+    #[allow(clippy::too_many_arguments)]
     pub fn get_storage_map(
         &self,
         root_id: &str,
@@ -1477,6 +1478,7 @@ impl VacuaDomainService {
         metric: Option<&str>,
         limit: Option<usize>,
         offset: Option<usize>,
+        compare_snapshot_id: Option<&str>,
     ) -> Result<StorageTreePageV1, VacuaErrorResponse> {
         let root = self.policy.get_root(Some(root_id))?;
         let db = self.open_index().ok_or_else(|| {
@@ -1543,6 +1545,22 @@ impl VacuaDomainService {
         let parent_full = root.canonical_path.join(rel_parent.as_ref());
         parent_dto.display_path = self.policy.format_path(&parent_full);
 
+        let item_deltas = if let Some(snap_id) = compare_snapshot_id {
+            if let Ok(Some(snapshot)) = db.get_snapshot(snap_id) {
+                if let Ok(deltas) =
+                    StorageTreeEngine::compare_nodes_with_snapshot(&gen, &snapshot, &children)
+                {
+                    Some(deltas.into_iter().map(|d| d.to_dto()).collect())
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         let items: Vec<StorageTreeNodeV1> = children
             .into_iter()
             .map(|c| {
@@ -1581,6 +1599,7 @@ impl VacuaDomainService {
             offset: offset_val as usize,
             remainder: remainder.to_dto(),
             next_cursor,
+            item_deltas,
         })
     }
 

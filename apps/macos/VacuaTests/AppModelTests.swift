@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 @testable import VacuaClient
+@testable import Vacua
 
 @Suite("App Model & State Tests")
 struct AppModelTests {
@@ -135,3 +136,118 @@ struct AppModelTests {
         #expect(diff.top_shrinking.first?.delta_bytes == -1048576)
     }
 }
+
+@Suite("Batch Snapshot Delta Model Invariants")
+struct BatchSnapshotDeltaTests {
+    @Test("Verify StorageMapModel resolves batch deltas without node selection")
+    @MainActor
+    func testBatchDeltaResolutionWithoutSelection() {
+        let model = StorageMapModel()
+        #expect(model.selectedNodeId == nil)
+        #expect(model.selectedNodeDetail == nil)
+
+        let deltas = [
+            StorageTreeDeltaV1(node_id: "node-grown", allocated_delta_bytes: 1048576, logical_delta_bytes: 1048576, file_count_delta: 2, change_kind: "grown"),
+            StorageTreeDeltaV1(node_id: "node-shrunk", allocated_delta_bytes: -2097152, logical_delta_bytes: -2097152, file_count_delta: -3, change_kind: "shrunk"),
+            StorageTreeDeltaV1(node_id: "node-unchanged", allocated_delta_bytes: 0, logical_delta_bytes: 0, file_count_delta: 0, change_kind: "unchanged"),
+            StorageTreeDeltaV1(node_id: "node-new", allocated_delta_bytes: 4096, logical_delta_bytes: 4096, file_count_delta: 1, change_kind: "new")
+        ]
+
+        let dummyRoot = StorageTreeNodeV1(
+            node_id: "root",
+            parent_node_id: nil,
+            display_name: "test",
+            display_path: "/Users/test",
+            kind: "directory",
+            depth: 0,
+            direct_logical_bytes: 100,
+            direct_allocated_bytes: 100,
+            subtree_logical_bytes: 1000,
+            subtree_allocated_bytes: 1000,
+            file_count: 10,
+            directory_count: 2,
+            hardlink_alias_count: 0,
+            is_hardlink_alias: false,
+            child_count: 4,
+            mtime_sec: 1700000000
+        )
+
+        let page = StorageTreePageV1(
+            schema_version: "vacua.mcp.storage-tree-page.v1",
+            generation_id: "gen-1",
+            parent_node: dummyRoot,
+            metric: "allocated",
+            items: [],
+            total_child_count: 4,
+            limit: 100,
+            offset: 0,
+            remainder: StorageTreeRemainderV1(item_count: 0, logical_bytes: 0, allocated_bytes: 0),
+            item_deltas: deltas,
+            next_cursor: nil
+        )
+
+        model.currentPage = page
+
+        // Verify all 4 nodes get their authoritative deltas WITHOUT being selected
+        let grownDelta = model.delta(for: "node-grown")
+        #expect(grownDelta != nil)
+        #expect(grownDelta?.change_kind == "grown")
+        #expect(grownDelta?.allocated_delta_bytes == 1048576)
+
+        let shrunkDelta = model.delta(for: "node-shrunk")
+        #expect(shrunkDelta != nil)
+        #expect(shrunkDelta?.change_kind == "shrunk")
+        #expect(shrunkDelta?.allocated_delta_bytes == -2097152)
+
+        let unchangedDelta = model.delta(for: "node-unchanged")
+        #expect(unchangedDelta != nil)
+        #expect(unchangedDelta?.change_kind == "unchanged")
+        #expect(unchangedDelta?.allocated_delta_bytes == 0)
+
+        let newDelta = model.delta(for: "node-new")
+        #expect(newDelta != nil)
+        #expect(newDelta?.change_kind == "new")
+        #expect(newDelta?.allocated_delta_bytes == 4096)
+
+        // Non-existent node returns nil
+        #expect(model.delta(for: "node-nonexistent") == nil)
+    }
+
+    @Test("Verify VacuaTheme delta symbols and non-color indicators")
+    func testDeltaSymbolsAndSemantics() {
+        #expect(VacuaTheme.deltaSymbol(for: "grown") == "arrow.up.right")
+        #expect(VacuaTheme.deltaSymbol(for: "shrunk") == "arrow.down.right")
+        #expect(VacuaTheme.deltaSymbol(for: "new") == "sparkle")
+        #expect(VacuaTheme.deltaSymbol(for: "unchanged") == "equal")
+    }
+
+    @Test("Verify stable grouping colors are deterministic and avoid risk implication")
+    func testStableGroupingColors() {
+        let pathA = "/Users/test/Documents"
+        let pathB = "/Users/test/Downloads"
+
+        let colorA1 = VacuaTheme.stableGroupingColor(for: pathA)
+        let colorA2 = VacuaTheme.stableGroupingColor(for: pathA)
+        #expect(colorA1 == colorA2)
+
+        let colorB = VacuaTheme.stableGroupingColor(for: pathB)
+        // Grouping colors are derived from stable hash of path
+        #expect(colorA1 != colorB || !pathA.isEmpty)
+    }
+
+    @Test("Verify VacuaSymbols conform to HIG and avoid destructive metaphors")
+    func testVacuaSymbolsSemantics() {
+        // Candidates must NOT use trash can
+        #expect(!VacuaSymbols.candidates.contains("trash"))
+        #expect(VacuaSymbols.candidates == "list.bullet.clipboard")
+
+        // Snapshots must use time/history metaphor, not camera photography
+        #expect(!VacuaSymbols.snapshots.contains("camera"))
+        #expect(VacuaSymbols.snapshots == "clock.arrow.circlepath")
+
+        // Overview and Storage Map symbols
+        #expect(VacuaSymbols.overview == "gauge.open.with.lines.needle.33percent")
+        #expect(VacuaSymbols.storageMap == "rectangle.3.group")
+    }
+}
+

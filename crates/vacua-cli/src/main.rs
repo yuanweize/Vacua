@@ -638,6 +638,7 @@ fn handle_tree(
             limit,
             offset: 0,
             remainder: remainder.to_dto(),
+            item_deltas: None,
             next_cursor: None,
         };
         println!("{}", serde_json::to_string_pretty(&page_dto).unwrap());

@@ -476,6 +476,7 @@ public struct StorageTreePageV1: Codable, Sendable, Equatable {
     public let limit: Int
     public let offset: Int
     public let remainder: StorageTreeRemainderV1
+    public let item_deltas: [StorageTreeDeltaV1]?
     public let next_cursor: String?
 }
 

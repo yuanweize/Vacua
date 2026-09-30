@@ -10,20 +10,26 @@ public enum NavigationItem: String, CaseIterable, Identifiable, Sendable {
     case duplicates = "Duplicates"
     case applications = "Applications"
     case snapshots = "Snapshots"
-    case settings = "Settings"
 
     public var id: String { rawValue }
     
     public var iconName: String {
         switch self {
-        case .overview: return "gauge.with.needle"
-        case .storageMap: return "square.split.2x2"
-        case .candidates: return "list.bullet.rectangle"
-        case .duplicates: return "doc.on.doc"
-        case .applications: return "app.badge"
-        case .snapshots: return "camera.metering.matrix"
-        case .settings: return "gearshape"
+        case .overview: return VacuaSymbols.overview
+        case .storageMap: return VacuaSymbols.storageMap
+        case .candidates: return VacuaSymbols.candidates
+        case .duplicates: return VacuaSymbols.duplicates
+        case .applications: return VacuaSymbols.applications
+        case .snapshots: return VacuaSymbols.snapshots
         }
+    }
+
+    public static var coreItems: [NavigationItem] {
+        [.overview, .storageMap]
+    }
+
+    public static var analysisItems: [NavigationItem] {
+        [.candidates, .duplicates, .applications, .snapshots]
     }
 }
 
@@ -181,8 +187,6 @@ public final class AppModel {
             await loadApplications(force: true)
         case .snapshots:
             await loadSnapshots(force: true)
-        case .settings:
-            break
         }
     }
     

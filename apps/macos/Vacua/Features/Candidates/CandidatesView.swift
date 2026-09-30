@@ -199,16 +199,14 @@ public struct CandidatesView: View {
     // MARK: - Empty State
     
     private var emptyState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "checkmark.circle")
-                .font(.system(size: 40))
-                .foregroundStyle(.secondary)
-            Text("No candidates matching current filter")
-                .font(.headline)
-            Text("Adjust risk filter or select another root directory in Settings.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        VacuaEmptyState(
+            symbol: VacuaSymbols.candidates,
+            title: "No Cleanup Candidates",
+            message: "No unreferenced or isolated caches match the current filter in this root.",
+            actionTitle: "Refresh Candidates",
+            action: {
+                Task { await model.loadCandidates(force: true) }
+            }
+        )
     }
 }

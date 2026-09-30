@@ -20,7 +20,7 @@ public final class MCPVacuaEngineClient: VacuaEngineClient, @unchecked Sendable 
             ],
             "clientInfo": [
                 "name": "vacua-app",
-                "version": "0.7.0"
+                "version": "0.7.1"
             ]
         ]
 
@@ -229,7 +229,8 @@ public final class MCPVacuaEngineClient: VacuaEngineClient, @unchecked Sendable 
         nodeId: String?,
         metric: String?,
         limit: Int?,
-        offset: Int?
+        offset: Int?,
+        compareSnapshotId: String? = nil
     ) async throws -> StorageTreePageV1 {
         var args: [String: Any] = [
             "root_id": rootId,
@@ -239,6 +240,7 @@ public final class MCPVacuaEngineClient: VacuaEngineClient, @unchecked Sendable 
         if let metric { args["metric"] = metric }
         if let limit { args["limit"] = limit }
         if let offset { args["offset"] = offset }
+        if let compareSnapshotId { args["compare_snapshot_id"] = compareSnapshotId }
         return try await callTool(
             name: "vacua_get_storage_map",
             arguments: args,

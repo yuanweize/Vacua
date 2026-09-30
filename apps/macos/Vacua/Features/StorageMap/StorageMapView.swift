@@ -57,26 +57,13 @@ public struct StorageMapView: View {
                 }
 
             case .error(let errorMsg):
-                VStack(spacing: 12) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.largeTitle)
-                        .foregroundStyle(.orange)
-                    Text("Storage Analysis Failed")
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                    Text(errorMsg)
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
-
-                    Button("Try Again") {
+                VacuaErrorState(
+                    title: "Storage Analysis Failed",
+                    message: errorMsg,
+                    retryAction: {
                         Task { await model.analyzeStorageMap(forceRefresh: true) }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .padding(.top, 8)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                )
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
@@ -89,79 +76,67 @@ struct StorageMapIdleView: View {
     let onAnalyze: () -> Void
 
     var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "square.split.2x2")
-                .font(.system(size: 56))
-                .foregroundStyle(.tint)
-
-            VStack(spacing: 6) {
-                Text("Visual Storage Map")
-                    .font(.title)
-                    .fontWeight(.bold)
-
-                Text("Analyze the selected storage root to build a hierarchical view of logical and allocated storage.")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 460)
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Label("Deterministic hardlink-aware allocation attribution", systemImage: "link")
-                Label("APFS clone extent sharing transparency", systemImage: "square.on.square")
-                Label("Interactive Squarified Treemap drill-down", systemImage: "arrow.down.forward.and.arrow.up.backward")
-                Label("Point-in-time snapshot growth & shrink overlays", systemImage: "chart.line.uptrend.xyaxis")
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .padding(.vertical, 8)
-
-            Button(action: onAnalyze) {
-                Label("Analyze Storage Map", systemImage: "arrow.triangle.2.circlepath")
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
+        VacuaEmptyState(
+            symbol: VacuaSymbols.storageMap,
+            title: "Storage Map",
+            message: "Analyze the active storage root to build an interactive treemap explaining where disk capacity is actually allocated.",
+            actionTitle: "Analyze Storage Map",
+            action: onAnalyze
+        )
     }
 }
 
 // MARK: - Snapshot Delta Legend
 
 struct SnapshotDeltaLegendView: View {
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+
     var body: some View {
         HStack(spacing: 16) {
-            Text("Delta Legend:")
-                .font(.caption2)
-                .fontWeight(.bold)
+            Text("Delta Overlay:")
+                .font(.caption2.weight(.bold))
                 .foregroundStyle(.secondary)
 
-            LegendItem(color: .red.opacity(0.6), label: "Grown")
-            LegendItem(color: .green.opacity(0.6), label: "Shrunk")
-            LegendItem(color: .purple.opacity(0.6), label: "New Since Snapshot")
-            LegendItem(color: .gray.opacity(0.4), label: "Unchanged")
+            LegendItem(
+                color: VacuaTheme.deltaColor(for: "grown"),
+                symbol: VacuaSymbols.deltaGrown,
+                label: "Grown"
+            )
+            LegendItem(
+                color: VacuaTheme.deltaColor(for: "shrunk"),
+                symbol: VacuaSymbols.deltaShrunk,
+                label: "Shrunk"
+            )
+            LegendItem(
+                color: VacuaTheme.deltaColor(for: "new"),
+                symbol: VacuaSymbols.deltaNew,
+                label: "New"
+            )
+            LegendItem(
+                color: VacuaTheme.deltaColor(for: "unchanged"),
+                symbol: VacuaSymbols.deltaUnchanged,
+                label: "Unchanged"
+            )
 
             Spacer()
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 4)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.6))
         Divider()
     }
 }
 
 struct LegendItem: View {
     let color: Color
+    let symbol: String
     let label: String
 
     var body: some View {
         HStack(spacing: 4) {
-            Circle()
-                .fill(color)
-                .frame(width: 8, height: 8)
+            Image(systemName: symbol)
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(color)
             Text(label)
                 .font(.caption2)
                 .foregroundStyle(.secondary)

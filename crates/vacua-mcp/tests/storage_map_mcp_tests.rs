@@ -64,6 +64,7 @@ async fn test_analyze_and_query_storage_map_mcp() {
             Some("allocated"),
             Some(10),
             Some(0),
+            None,
         )
         .expect("Query root children page should succeed");
 
@@ -110,6 +111,7 @@ async fn test_analyze_and_query_storage_map_mcp() {
         Some("allocated"),
         Some(10),
         Some(0),
+        None,
     );
     assert!(stale_err.is_err());
     let err = stale_err.unwrap_err();
@@ -156,6 +158,7 @@ async fn test_generational_pruning_keeps_latest_two() {
         None,
         Some(10),
         Some(0),
+        None,
     );
     assert!(
         q3.is_ok(),
@@ -170,6 +173,7 @@ async fn test_generational_pruning_keeps_latest_two() {
         None,
         Some(10),
         Some(0),
+        None,
     );
     assert!(
         q2.is_ok(),
@@ -184,6 +188,7 @@ async fn test_generational_pruning_keeps_latest_two() {
         None,
         Some(10),
         Some(0),
+        None,
     );
     assert!(q1.is_err(), "Oldest generation a1 should be pruned");
     assert_eq!(
@@ -203,5 +208,140 @@ fn test_vacua_mcp_dependency_boundary_storage_tree() {
     assert!(
         !stdout.contains("vacua-executor"),
         "CRITICAL: vacua-mcp must NEVER depend on vacua-executor"
+    );
+}
+
+#[tokio::test]
+async fn test_storage_map_page_snapshot_deltas() {
+    let temp_dir = TempDir::new().unwrap();
+    let root_path = temp_dir.path().join("test_home");
+    let dir_a = root_path.join("folderA");
+    let dir_b = root_path.join("folderB");
+    let dir_c = root_path.join("folderC");
+    let dir_d = root_path.join("folderD");
+    fs::create_dir_all(&dir_a).unwrap();
+    fs::create_dir_all(&dir_b).unwrap();
+    fs::create_dir_all(&dir_c).unwrap();
+    fs::create_dir_all(&dir_d).unwrap();
+
+    // folderA: 3000 bytes (will grow compared to baseline 1000)
+    fs::write(dir_a.join("fileA.dat"), vec![0u8; 3000]).unwrap();
+    // folderB: 500 bytes (will shrink compared to baseline 5000)
+    fs::write(dir_b.join("fileB.dat"), vec![0u8; 500]).unwrap();
+    // folderC: 2000 bytes (unchanged compared to baseline 2000)
+    fs::write(dir_c.join("fileC.dat"), vec![0u8; 2000]).unwrap();
+    // folderD: 1000 bytes (new, not in baseline)
+    fs::write(dir_d.join("fileD.dat"), vec![0u8; 1000]).unwrap();
+
+    let canonical_root = root_path.canonicalize().unwrap();
+    let allowed_root = AllowedRoot {
+        root_id: "root-home".to_string(),
+        canonical_path: canonical_root.clone(),
+        display_name: "~/".to_string(),
+    };
+
+    let policy = McpPolicy::new(
+        vec![allowed_root],
+        PathDisclosureMode::HomeRelative,
+        50,
+        2,
+        std::time::Duration::from_secs(30),
+        false,
+        false,
+    );
+
+    let index_path = temp_dir.path().join("index.db");
+
+    // Write baseline snapshot into index
+    {
+        let mut db = vacua_index::IndexDatabase::open(&index_path).expect("open index db");
+        let mut subtrees = std::collections::HashMap::new();
+        subtrees.insert(
+            "folderA".to_string(),
+            vacua_index::SnapshotSubtreeStats {
+                allocated_bytes: 4096,
+                logical_bytes: 1000,
+                file_count: 1,
+                dir_count: 1,
+            },
+        );
+        subtrees.insert(
+            "folderB".to_string(),
+            vacua_index::SnapshotSubtreeStats {
+                allocated_bytes: 8192,
+                logical_bytes: 5000,
+                file_count: 2,
+                dir_count: 1,
+            },
+        );
+        subtrees.insert(
+            "folderC".to_string(),
+            vacua_index::SnapshotSubtreeStats {
+                allocated_bytes: 4096,
+                logical_bytes: 2096,
+                file_count: 1,
+                dir_count: 1,
+            },
+        );
+        // folderD is NOT in subtrees
+
+        let snapshot = vacua_index::StorageSnapshot {
+            snapshot_id: "snap-baseline-1".to_string(),
+            name: "Baseline".to_string(),
+            root_path: canonical_root.clone(),
+            timestamp: 100,
+            total_files: 4,
+            total_dirs: 3,
+            logical_bytes: 8000,
+            allocated_bytes: 16384,
+            subtrees,
+        };
+        db.save_snapshot(&snapshot).expect("save snapshot");
+    }
+
+    let service = VacuaDomainService::new(policy, Some(index_path), None);
+
+    let analysis = service
+        .analyze_storage_map(Some("root-home"), Some(true))
+        .await
+        .expect("analyze storage map");
+
+    let page = service
+        .get_storage_map(
+            "root-home",
+            &analysis.generation_id,
+            None,
+            Some("allocated"),
+            Some(10),
+            Some(0),
+            Some("snap-baseline-1"),
+        )
+        .expect("get_storage_map with snapshot");
+
+    assert!(page.item_deltas.is_some(), "item_deltas must be present");
+    let deltas = page.item_deltas.unwrap();
+    assert_eq!(deltas.len(), page.items.len());
+
+    let mut kinds_by_name = std::collections::HashMap::new();
+    for (item, delta) in page.items.iter().zip(deltas.iter()) {
+        assert_eq!(item.node_id, delta.node_id);
+        kinds_by_name.insert(item.display_name.clone(), delta.change_kind.clone());
+    }
+
+    assert_eq!(
+        kinds_by_name.get("folderA").map(|s| s.as_str()),
+        Some("grown")
+    );
+    assert_eq!(
+        kinds_by_name.get("folderB").map(|s| s.as_str()),
+        Some("shrunk")
+    );
+    assert_eq!(
+        kinds_by_name.get("folderC").map(|s| s.as_str()),
+        Some("unchanged")
+    );
+    assert_eq!(
+        kinds_by_name.get("folderD").map(|s| s.as_str()),
+        Some("new")
     );
 }

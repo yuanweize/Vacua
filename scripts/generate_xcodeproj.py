@@ -67,7 +67,13 @@ def main():
     app_files = [
         ("Vacua/App/VacuaApp.swift", "VacuaApp.swift"),
         ("Vacua/App/AppModel.swift", "AppModel.swift"),
-        ("Vacua/Common/DesignSystem.swift", "DesignSystem.swift"),
+        ("Vacua/Common/DesignSystem/VacuaTheme.swift", "VacuaTheme.swift"),
+        ("Vacua/Common/DesignSystem/VacuaSymbols.swift", "VacuaSymbols.swift"),
+        ("Vacua/Common/DesignSystem/Metrics.swift", "Metrics.swift"),
+        ("Vacua/Common/DesignSystem/Badges.swift", "Badges.swift"),
+        ("Vacua/Common/DesignSystem/StatusViews.swift", "StatusViews.swift"),
+        ("Vacua/Common/DesignSystem/EmptyState.swift", "EmptyState.swift"),
+        ("Vacua/Common/DesignSystem/ErrorState.swift", "ErrorState.swift"),
         ("Vacua/Features/Overview/OverviewView.swift", "OverviewView.swift"),
         ("Vacua/Features/Candidates/CandidatesView.swift", "CandidatesView.swift"),
         ("Vacua/Features/Candidates/CandidateDetailView.swift", "CandidateDetailView.swift"),
@@ -95,6 +101,10 @@ def main():
     ]
 
     info_plist_id = gen_id()
+    assets_ref_id = gen_id()
+    assets_bf_id = gen_id()
+    localizable_ref_id = gen_id()
+    localizable_bf_id = gen_id()
 
     # Build File and File Ref dicts
     app_file_entries = []
@@ -136,6 +146,8 @@ def main():
     tests_pkg_bf_id = gen_id()
     pbx += f"\t\t{vacua_pkg_bf_id} /* VacuaClient in Frameworks */ = {{isa = PBXBuildFile; productRef = {package_product_vacua_id} /* VacuaClient */; }};\n"
     pbx += f"\t\t{tests_pkg_bf_id} /* VacuaClient in Frameworks */ = {{isa = PBXBuildFile; productRef = {package_product_tests_id} /* VacuaClient */; }};\n"
+    pbx += f"\t\t{assets_bf_id} /* Assets.xcassets in Resources */ = {{isa = PBXBuildFile; fileRef = {assets_ref_id} /* Assets.xcassets */; }};\n"
+    pbx += f"\t\t{localizable_bf_id} /* Localizable.xcstrings in Resources */ = {{isa = PBXBuildFile; fileRef = {localizable_ref_id} /* Localizable.xcstrings */; }};\n"
 
     pbx += """/* End PBXBuildFile section */
 
@@ -143,6 +155,8 @@ def main():
 """
     target_proxy_tests_id = gen_id()
     target_proxy_uitests_id = gen_id()
+    target_dep_tests_id = gen_id()
+    target_dep_uitests_id = gen_id()
     pbx += f"""\t\t{target_proxy_tests_id} /* PBXContainerItemProxy */ = {{
 \t\t\tisa = PBXContainerItemProxy;
 \t\t\tcontainerPortal = {project_id} /* Project object */;
@@ -159,11 +173,26 @@ def main():
 \t\t}};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXTargetDependency section */
+\t\t{target_dep_tests_id} /* PBXTargetDependency */ = {{
+\t\t\tisa = PBXTargetDependency;
+\t\t\ttarget = {vacua_target_id} /* Vacua */;
+\t\t\ttargetProxy = {target_proxy_tests_id} /* PBXContainerItemProxy */;
+\t\t}};
+\t\t{target_dep_uitests_id} /* PBXTargetDependency */ = {{
+\t\t\tisa = PBXTargetDependency;
+\t\t\ttarget = {vacua_target_id} /* Vacua */;
+\t\t\ttargetProxy = {target_proxy_uitests_id} /* PBXContainerItemProxy */;
+\t\t}};
+/* End PBXTargetDependency section */
+
 /* Begin PBXFileReference section */
 \t\t{vacua_app_ref_id} /* Vacua.app */ = {{isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Vacua.app; sourceTree = BUILT_PRODUCTS_DIR; }};
 \t\t{vacua_tests_ref_id} /* VacuaTests.xctest */ = {{isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VacuaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; }};
 \t\t{vacua_uitests_ref_id} /* VacuaUITests.xctest */ = {{isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VacuaUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; }};
 \t\t{info_plist_id} /* Info.plist */ = {{isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Vacua/Resources/Info.plist"; sourceTree = "<group>"; }};
+\t\t{assets_ref_id} /* Assets.xcassets */ = {{isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Vacua/Resources/Assets.xcassets"; sourceTree = "<group>"; }};
+\t\t{localizable_ref_id} /* Localizable.xcstrings */ = {{isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = "Vacua/Resources/Localizable.xcstrings"; sourceTree = "<group>"; }};
 """
     for f_id, bf_id, rel_path, name in app_file_entries:
         pbx += f"\t\t{f_id} /* {name} */ = {{isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = \"{rel_path}\"; sourceTree = \"<group>\"; }};\n"
@@ -226,6 +255,8 @@ def main():
 \t\t\tisa = PBXGroup;
 \t\t\tchildren = (
 \t\t\t\t{info_plist_id} /* Info.plist */,
+\t\t\t\t{assets_ref_id} /* Assets.xcassets */,
+\t\t\t\t{localizable_ref_id} /* Localizable.xcstrings */,
 """
     for f_id, _, _, name in app_file_entries:
         pbx += f"\t\t\t\t{f_id} /* {name} */,\n"
@@ -287,6 +318,7 @@ def main():
 \t\t\tbuildRules = (
 \t\t\t);
 \t\t\tdependencies = (
+\t\t\t\t{target_dep_tests_id} /* PBXTargetDependency */,
 \t\t\t);
 \t\t\tname = VacuaTests;
 \t\t\tpackageProductDependencies = (
@@ -307,6 +339,7 @@ def main():
 \t\t\tbuildRules = (
 \t\t\t);
 \t\t\tdependencies = (
+\t\t\t\t{target_dep_uitests_id} /* PBXTargetDependency */,
 \t\t\t);
 \t\t\tname = VacuaUITests;
 \t\t\tproductName = VacuaUITests;
@@ -363,6 +396,8 @@ def main():
 \t\t\tisa = PBXResourcesBuildPhase;
 \t\t\tbuildActionMask = 2147483647;
 \t\t\tfiles = (
+\t\t\t\t{assets_bf_id} /* Assets.xcassets in Resources */,
+\t\t\t\t{localizable_bf_id} /* Localizable.xcstrings in Resources */,
 \t\t\t);
 \t\t\trunOnlyForDeploymentPostprocessing = 0;
 \t\t}};
@@ -469,6 +504,7 @@ def main():
 \t\t{vacua_cfg_debug_id} /* Debug */ = {{
 \t\t\tisa = XCBuildConfiguration;
 \t\t\tbuildSettings = {{
+\t\t\t\tASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 \t\t\t\tCODE_SIGN_STYLE = Manual;
 \t\t\t\tCOMBINE_HIDPI_IMAGES = YES;
 \t\t\t\tCURRENT_PROJECT_VERSION = 1;
@@ -479,7 +515,7 @@ def main():
 \t\t\t\t\t"$(inherited)",
 \t\t\t\t\t"@executable_path/../Frameworks",
 \t\t\t\t);
-\t\t\t\tMARKETING_VERSION = 0.7.0;
+\t\t\t\tMARKETING_VERSION = 0.7.1;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = io.github.yuanweize.vacua;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSWIFT_EMIT_LOC_STRINGS = YES;
@@ -490,6 +526,7 @@ def main():
 \t\t{vacua_cfg_release_id} /* Release */ = {{
 \t\t\tisa = XCBuildConfiguration;
 \t\t\tbuildSettings = {{
+\t\t\t\tASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 \t\t\t\tCODE_SIGN_STYLE = Manual;
 \t\t\t\tCOMBINE_HIDPI_IMAGES = YES;
 \t\t\t\tCURRENT_PROJECT_VERSION = 1;
@@ -500,7 +537,7 @@ def main():
 \t\t\t\t\t"$(inherited)",
 \t\t\t\t\t"@executable_path/../Frameworks",
 \t\t\t\t);
-\t\t\t\tMARKETING_VERSION = 0.7.0;
+\t\t\t\tMARKETING_VERSION = 0.7.1;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = io.github.yuanweize.vacua;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSWIFT_EMIT_LOC_STRINGS = YES;
@@ -515,7 +552,7 @@ def main():
 \t\t\t\tCODE_SIGN_STYLE = Manual;
 \t\t\t\tCURRENT_PROJECT_VERSION = 1;
 \t\t\t\tGENERATE_INFOPLIST_FILE = YES;
-\t\t\t\tMARKETING_VERSION = 0.7.0;
+\t\t\t\tMARKETING_VERSION = 0.7.1;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = io.github.yuanweize.vacua.VacuaTests;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSWIFT_EMIT_LOC_STRINGS = NO;
@@ -531,7 +568,7 @@ def main():
 \t\t\t\tCODE_SIGN_STYLE = Manual;
 \t\t\t\tCURRENT_PROJECT_VERSION = 1;
 \t\t\t\tGENERATE_INFOPLIST_FILE = YES;
-\t\t\t\tMARKETING_VERSION = 0.7.0;
+\t\t\t\tMARKETING_VERSION = 0.7.1;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = io.github.yuanweize.vacua.VacuaTests;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSWIFT_EMIT_LOC_STRINGS = NO;
@@ -546,7 +583,7 @@ def main():
 \t\t\t\tCODE_SIGN_STYLE = Manual;
 \t\t\t\tCURRENT_PROJECT_VERSION = 1;
 \t\t\t\tGENERATE_INFOPLIST_FILE = YES;
-\t\t\t\tMARKETING_VERSION = 0.7.0;
+\t\t\t\tMARKETING_VERSION = 0.7.1;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = io.github.yuanweize.vacua.VacuaUITests;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSWIFT_EMIT_LOC_STRINGS = NO;
@@ -561,7 +598,7 @@ def main():
 \t\t\t\tCODE_SIGN_STYLE = Manual;
 \t\t\t\tCURRENT_PROJECT_VERSION = 1;
 \t\t\t\tGENERATE_INFOPLIST_FILE = YES;
-\t\t\t\tMARKETING_VERSION = 0.7.0;
+\t\t\t\tMARKETING_VERSION = 0.7.1;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = io.github.yuanweize.vacua.VacuaUITests;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSWIFT_EMIT_LOC_STRINGS = NO;

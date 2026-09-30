@@ -11,13 +11,15 @@ public struct SettingsView: View {
     
     public var body: some View {
         Form {
-            Section("Inspection Root Folder") {
+            Section("Storage Root") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Vacua only inspects filesystem trees within allowed roots.")
+                    Text("Vacua only inspects filesystem trees within configured allowed roots.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     
                     HStack {
+                        Image(systemName: VacuaSymbols.activeRoot)
+                            .foregroundStyle(.tint)
                         Text(model.supervisor.currentRootPath)
                             .font(.system(.body, design: .monospaced))
                             .lineLimit(1)
@@ -32,7 +34,7 @@ public struct SettingsView: View {
                     }
                     .padding(8)
                     .background(Color.secondary.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .clipShape(RoundedRectangle(cornerRadius: VacuaMetrics.cornerRadiusSmall))
                 }
             }
             
@@ -57,22 +59,15 @@ public struct SettingsView: View {
                 }
             }
             
-            Section("Build Identity & Provenance") {
-                VStack(alignment: .leading, spacing: 10) {
-                    statusRow(label: "App Version", value: appVersionWithCommit)
-                    statusRow(label: "Source Commit", value: appGitCommit)
-                }
-            }
-
-            Section("macOS Storage Access Truth") {
+            Section("Privacy & Data Boundary") {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
-                        Image(systemName: "lock.shield")
-                            .foregroundStyle(.blue)
-                        Text("Permission & Transparency Reality")
+                        Image(systemName: "lock.shield.fill")
+                            .foregroundStyle(.green)
+                        Text("100% Local Processing & Privacy First")
                             .font(.subheadline.weight(.semibold))
                     }
-                    Text("Vacua runs with standard user privileges. Access to protected areas (e.g. ~/Library/Mail, Safari data) requires system Full Disk Access granted in macOS System Settings. Vacua will never spoof or claim Full Disk Access without actual OS verification.")
+                    Text("• No cloud uploads, telemetry, or remote analytics of any kind.\n• Storage Map analysis operates strictly on local metadata.\n• Duplicate inspection uses staged local hashes; raw file bytes never leave your device.\n• Standard user permissions; system Full Disk Access is respected if granted.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     
@@ -84,6 +79,33 @@ public struct SettingsView: View {
                     .font(.caption)
                     .padding(.top, 4)
                 }
+            }
+
+            Section("About Vacua") {
+                HStack(spacing: 16) {
+                    if let appIcon = NSImage(named: NSImage.applicationIconName) {
+                        Image(nsImage: appIcon)
+                            .resizable()
+                            .frame(width: 56, height: 56)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Vacua")
+                            .font(.title3.weight(.bold))
+                        Text("Version \(appVersionWithCommit)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("Licensed under Apache-2.0")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    
+                    Spacer()
+                    
+                    Link("GitHub", destination: URL(string: "https://github.com/yuanweize/vacua")!)
+                        .font(.caption)
+                }
+                .padding(.vertical, 4)
             }
         }
         .formStyle(.grouped)
@@ -116,7 +138,7 @@ public struct SettingsView: View {
     }
 
     private var appVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.7.0"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.7.1"
     }
 
     private var appGitCommit: String {

@@ -46,28 +46,20 @@ public struct SnapshotsView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if model.snapshots.isEmpty {
-                    VStack(spacing: 8) {
-                        Image(systemName: "camera.metering.matrix")
-                            .font(.largeTitle)
-                            .foregroundStyle(.tertiary)
-                        Text("No Storage Snapshots")
-                            .font(.headline)
-                        Text("No saved Vacua storage snapshots found for this volume.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text("Create a Vacua storage snapshot to compare filesystem allocation changes over time.")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.top, 4)
-                    }
-                    .padding(24)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    VacuaEmptyState(
+                        symbol: VacuaSymbols.snapshots,
+                        title: "No Storage Snapshots",
+                        message: "Create a point-in-time storage snapshot to compare filesystem allocation growth and shrink over time.",
+                        actionTitle: "Refresh Snapshots",
+                        action: {
+                            Task { await model.loadSnapshots(force: true) }
+                        }
+                    )
                 } else {
                     VStack(spacing: 0) {
                         List(model.snapshots, selection: $selectedSnapshotId) { snapshot in
                             HStack {
-                                Image(systemName: "camera.fill")
+                                Image(systemName: VacuaSymbols.snapshots)
                                     .foregroundStyle(.purple)
                                 
                                 VStack(alignment: .leading, spacing: 2) {

@@ -519,6 +519,8 @@ pub struct StorageTreePageV1 {
     pub remainder: StorageTreeRemainderV1,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub next_cursor: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub item_deltas: Option<Vec<StorageTreeDeltaV1>>,
 }
 
 /// Observed storage delta between a tree node and a baseline snapshot.

@@ -346,6 +346,18 @@ impl StorageTreeEngine {
 
         Ok(delta)
     }
+
+    /// Computes deltas for multiple nodes against a baseline StorageSnapshot in batch.
+    pub fn compare_nodes_with_snapshot(
+        generation: &StorageTreeGeneration,
+        snapshot: &StorageSnapshot,
+        nodes: &[StorageTreeNode],
+    ) -> Result<Vec<StorageTreeDelta>> {
+        nodes
+            .iter()
+            .map(|node| Self::compare_with_snapshot(generation, snapshot, node))
+            .collect()
+    }
 }
 
 fn parse_generation_row(row: &rusqlite::Row) -> rusqlite::Result<StorageTreeGeneration> {
@@ -555,5 +567,183 @@ mod tests {
         // Verify stg_test_2 and stg_test_3 remain
         assert!(StorageTreeEngine::get_generation(&conn, "stg_test_2").is_ok());
         assert!(StorageTreeEngine::get_generation(&conn, "stg_test_3").is_ok());
+    }
+
+    #[test]
+    fn test_compare_nodes_with_snapshot_four_states() {
+        use std::collections::HashMap;
+        use vacua_index::{SnapshotSubtreeStats, StorageSnapshot};
+
+        let root = Path::new("/tmp/test_snapshot_compare");
+        let root_id = "root_snap";
+        let gen = StorageTreeGeneration {
+            generation_id: "stg_snap_1".to_string(),
+            root_path: root.to_path_buf(),
+            root_id: root_id.to_string(),
+            observed_at: 1000,
+            source: StorageTreeSource::LiveScan,
+            status: StorageTreeStatus::Ready,
+            total_files: 10,
+            total_dirs: 4,
+            total_logical_bytes: 10000,
+            total_allocated_bytes: 16384,
+            coverage: Default::default(),
+        };
+
+        // Snapshot baseline
+        let mut subtrees = HashMap::new();
+        // folder A: baseline 1000 bytes
+        subtrees.insert(
+            "folderA".to_string(),
+            SnapshotSubtreeStats {
+                allocated_bytes: 4096,
+                logical_bytes: 1000,
+                file_count: 2,
+                dir_count: 1,
+            },
+        );
+        // folder B: baseline 5000 bytes
+        subtrees.insert(
+            "folderB".to_string(),
+            SnapshotSubtreeStats {
+                allocated_bytes: 8192,
+                logical_bytes: 5000,
+                file_count: 5,
+                dir_count: 1,
+            },
+        );
+        // folder C: baseline 2000 bytes
+        subtrees.insert(
+            "folderC".to_string(),
+            SnapshotSubtreeStats {
+                allocated_bytes: 4096,
+                logical_bytes: 2000,
+                file_count: 2,
+                dir_count: 1,
+            },
+        );
+        // folder D is not in baseline (new)
+
+        let snapshot = StorageSnapshot {
+            snapshot_id: "snap_base_1".to_string(),
+            name: "Baseline".to_string(),
+            root_path: root.to_path_buf(),
+            timestamp: 500,
+            total_files: 9,
+            total_dirs: 3,
+            logical_bytes: 8000,
+            allocated_bytes: 16384,
+            subtrees,
+        };
+
+        let node_a = StorageTreeNode {
+            node_id: StorageNodeId("node_a".to_string()),
+            parent_id: None,
+            raw_relative_path: b"folderA".to_vec(),
+            display_name: "folderA".to_string(),
+            display_path: "folderA".to_string(),
+            kind: StorageNodeKind::Directory,
+            depth: 1,
+            direct_logical_bytes: 0,
+            direct_allocated_bytes: 0,
+            subtree_logical_bytes: 2000,   // grew from 1000 to 2000
+            subtree_allocated_bytes: 8192, // grew from 4096 to 8192
+            file_count: 4,
+            directory_count: 1,
+            hardlink_alias_count: 0,
+            is_hardlink_alias: false,
+            child_count: 2,
+            mtime_sec: 1000,
+        };
+
+        let node_b = StorageTreeNode {
+            node_id: StorageNodeId("node_b".to_string()),
+            parent_id: None,
+            raw_relative_path: b"folderB".to_vec(),
+            display_name: "folderB".to_string(),
+            display_path: "folderB".to_string(),
+            kind: StorageNodeKind::Directory,
+            depth: 1,
+            direct_logical_bytes: 0,
+            direct_allocated_bytes: 0,
+            subtree_logical_bytes: 2000,   // shrunk from 5000 to 2000
+            subtree_allocated_bytes: 4096, // shrunk from 8192 to 4096
+            file_count: 2,
+            directory_count: 1,
+            hardlink_alias_count: 0,
+            is_hardlink_alias: false,
+            child_count: 2,
+            mtime_sec: 1000,
+        };
+
+        let node_c = StorageTreeNode {
+            node_id: StorageNodeId("node_c".to_string()),
+            parent_id: None,
+            raw_relative_path: b"folderC".to_vec(),
+            display_name: "folderC".to_string(),
+            display_path: "folderC".to_string(),
+            kind: StorageNodeKind::Directory,
+            depth: 1,
+            direct_logical_bytes: 0,
+            direct_allocated_bytes: 0,
+            subtree_logical_bytes: 2000,   // unchanged
+            subtree_allocated_bytes: 4096, // unchanged
+            file_count: 2,
+            directory_count: 1,
+            hardlink_alias_count: 0,
+            is_hardlink_alias: false,
+            child_count: 2,
+            mtime_sec: 1000,
+        };
+
+        let node_d = StorageTreeNode {
+            node_id: StorageNodeId("node_d".to_string()),
+            parent_id: None,
+            raw_relative_path: b"folderD".to_vec(),
+            display_name: "folderD".to_string(),
+            display_path: "folderD".to_string(),
+            kind: StorageNodeKind::Directory,
+            depth: 1,
+            direct_logical_bytes: 0,
+            direct_allocated_bytes: 0,
+            subtree_logical_bytes: 1500, // brand new
+            subtree_allocated_bytes: 4096,
+            file_count: 1,
+            directory_count: 1,
+            hardlink_alias_count: 0,
+            is_hardlink_alias: false,
+            child_count: 1,
+            mtime_sec: 1000,
+        };
+
+        let nodes = vec![node_a, node_b, node_c, node_d];
+        let deltas =
+            StorageTreeEngine::compare_nodes_with_snapshot(&gen, &snapshot, &nodes).unwrap();
+
+        assert_eq!(deltas.len(), 4);
+
+        // A is grown
+        assert_eq!(deltas[0].node_id.0, "node_a");
+        assert_eq!(deltas[0].change_kind, TreeChangeKind::Grown);
+        assert_eq!(deltas[0].allocated_delta_bytes, 4096);
+        assert_eq!(deltas[0].logical_delta_bytes, 1000);
+
+        // B is shrunk
+        assert_eq!(deltas[1].node_id.0, "node_b");
+        assert_eq!(deltas[1].change_kind, TreeChangeKind::Shrunk);
+        assert_eq!(deltas[1].allocated_delta_bytes, -4096);
+        assert_eq!(deltas[1].logical_delta_bytes, -3000);
+
+        // C is unchanged
+        assert_eq!(deltas[2].node_id.0, "node_c");
+        assert_eq!(deltas[2].change_kind, TreeChangeKind::Unchanged);
+        assert_eq!(deltas[2].allocated_delta_bytes, 0);
+        assert_eq!(deltas[2].logical_delta_bytes, 0);
+
+        // D is new
+        assert_eq!(deltas[3].node_id.0, "node_d");
+        assert_eq!(deltas[3].change_kind, TreeChangeKind::New);
+        assert_eq!(deltas[3].allocated_delta_bytes, 4096);
+        assert_eq!(deltas[3].logical_delta_bytes, 1500);
     }
 }
