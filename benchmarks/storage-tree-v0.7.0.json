@@ -1,0 +1,67 @@
+{
+  "timestamp": "2026-09-30T11:14:34.255186+00:00",
+  "sys_info": {
+    "soc": "Apple M4",
+    "ram": "16 GB",
+    "os": "macOS 27.0 (Build 26A428)",
+    "filesystem": "APFS (Apple File System)",
+    "git_sha": "85938f6"
+  },
+  "workloads": {
+    "workload_a_10k": {
+      "file_count": 10000,
+      "dirs_count": 400,
+      "cold_build_ms": 236.0803330084309,
+      "peak_rss_mb": 29.3125,
+      "warm_query_ms": 4.63934599829372,
+      "logical_bytes": 7398912,
+      "allocated_bytes": 40960000
+    },
+    "workload_a_50k": {
+      "file_count": 50000,
+      "dirs_count": 2000,
+      "cold_build_ms": 1555.6841659999918,
+      "peak_rss_mb": 102.609375,
+      "warm_query_ms": 4.582608501368668,
+      "logical_bytes": 36994560,
+      "allocated_bytes": 204800000
+    },
+    "workload_b_fanout": {
+      "file_count": 20000,
+      "limit": 30,
+      "elapsed_ms": 463.2611670094775,
+      "rss_mb": 43.796875,
+      "remainder_count": 19970,
+      "remainder_logical": 2556160
+    },
+    "workload_c_deep": {
+      "depth": 256,
+      "elapsed_ms": 57.37500000395812,
+      "rss_mb": 10.921875,
+      "directories_observed": 256,
+      "logical_bytes": 28376
+    },
+    "workload_d_hardlinks": {
+      "unique_files": 1000,
+      "total_entries": 5000,
+      "hardlink_aliases": 4000,
+      "elapsed_ms": 83.10454200545792,
+      "logical_bytes": 51360320,
+      "allocated_bytes": 12288000,
+      "ratio": 4.179713541666667
+    },
+    "workload_e_tiny": {
+      "file_count": 20000,
+      "elapsed_ms": 353.91504199651536,
+      "rss_mb": 44.421875,
+      "logical_bytes": 40895903,
+      "allocated_bytes": 81895424
+    },
+    "workload_f_warm": {
+      "iterations": 25,
+      "mean_ms": 4.858033358468674,
+      "p50_ms": 4.655124997952953,
+      "p95_ms": 5.713249993277714
+    }
+  }
+}

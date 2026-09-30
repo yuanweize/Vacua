@@ -138,4 +138,41 @@ struct ContractTests {
         #expect(prop.serialized_plan == nil)
         #expect(prop.items.count == 2)
     }
+
+    @Test("Decode StorageTreeAnalysisV1 fixture")
+    func testStorageTreeAnalysisFixture() throws {
+        let data = try loadFixtureData(named: "storage-tree-analysis-v1.json")
+        let analysis = try JSONDecoder().decode(StorageTreeAnalysisV1.self, from: data)
+        #expect(analysis.schema_version == VacuaSchemas.storageTreeAnalysisV1)
+        #expect(analysis.generation_id == "stg_sample_20260930_abc123")
+        #expect(analysis.root_id == "root_projects_1")
+        #expect(analysis.physical_sharing_uncertainty == true)
+        #expect(analysis.root_node.node_id == "stn_00000000000000000000000000000001")
+        #expect(analysis.root_node.isDirectory == true)
+        #expect(analysis.coverage.analysis_complete == true)
+    }
+
+    @Test("Decode StorageTreePageV1 fixture")
+    func testStorageTreePageFixture() throws {
+        let data = try loadFixtureData(named: "storage-tree-page-v1.json")
+        let page = try JSONDecoder().decode(StorageTreePageV1.self, from: data)
+        #expect(page.schema_version == VacuaSchemas.storageTreePageV1)
+        #expect(page.generation_id == "stg_sample_20260930_abc123")
+        #expect(page.metric == "allocated")
+        #expect(page.items.count == 3)
+        #expect(page.items[0].node_id == "stn_00000000000000000000000000000002")
+        #expect(page.remainder.item_count == 1)
+        #expect(page.total_child_count == 4)
+    }
+
+    @Test("Decode StorageTreeNodeDetailV1 fixture")
+    func testStorageTreeNodeDetailFixture() throws {
+        let data = try loadFixtureData(named: "storage-tree-node-detail-v1.json")
+        let detail = try JSONDecoder().decode(StorageTreeNodeDetailV1.self, from: data)
+        #expect(detail.schema_version == VacuaSchemas.storageTreeNodeDetailV1)
+        #expect(detail.node.node_id == "stn_00000000000000000000000000000002")
+        #expect(detail.percentage_of_parent == 38.17427385892116)
+        #expect(detail.percentage_of_root == 38.17427385892116)
+        #expect(detail.delta?.change_kind == "grown")
+    }
 }

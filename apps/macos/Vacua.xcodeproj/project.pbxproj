@@ -19,7 +19,14 @@
 		28FB5C9CE10D497DBAA00BB8 /* ApplicationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5C73BAD534C4E2FB41E180C /* ApplicationsView.swift */; };
 		59C3F2F3E45E4964BBC91EC5 /* SnapshotsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95D352C5CADE42E29C655B1A /* SnapshotsView.swift */; };
 		364E58E4F0B5419BA0F2B39E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E0896C7506F450298658C1A /* SettingsView.swift */; };
+		B07000010000000000000001 /* TreemapLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = F07000010000000000000001 /* TreemapLayout.swift */; };
+		B07000010000000000000002 /* StorageMapModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F07000010000000000000002 /* StorageMapModel.swift */; };
+		B07000010000000000000003 /* TreemapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F07000010000000000000003 /* TreemapView.swift */; };
+		B07000010000000000000004 /* StorageNodeInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = F07000010000000000000004 /* StorageNodeInspector.swift */; };
+		B07000010000000000000005 /* StorageMapToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = F07000010000000000000005 /* StorageMapToolbar.swift */; };
+		B07000010000000000000006 /* StorageMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F07000010000000000000006 /* StorageMapView.swift */; };
 		BEA0B64B6B8D401C9D512527 /* AppModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 827EFB99D6BF4A288788AA3B /* AppModelTests.swift */; };
+		B07000010000000000000007 /* TreemapLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F07000010000000000000007 /* TreemapLayoutTests.swift */; };
 		AD5F589D55A647DAA852971F /* VacuaUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC57CB01CD3E4C4A88DD4A1E /* VacuaUITests.swift */; };
 		A3085AC3419849A2828E6676 /* VacuaClient in Frameworks */ = {isa = PBXBuildFile; productRef = 517FA2ED699C40AFA56E7435 /* VacuaClient */; };
 		40F8BCDC4E924B85B64A8868 /* VacuaClient in Frameworks */ = {isa = PBXBuildFile; productRef = 63C602CE2C134A4DB2B50457 /* VacuaClient */; };
@@ -59,7 +66,14 @@
 		C5C73BAD534C4E2FB41E180C /* ApplicationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/Applications/ApplicationsView.swift"; sourceTree = "<group>"; };
 		95D352C5CADE42E29C655B1A /* SnapshotsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/Snapshots/SnapshotsView.swift"; sourceTree = "<group>"; };
 		7E0896C7506F450298658C1A /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/Settings/SettingsView.swift"; sourceTree = "<group>"; };
+		F07000010000000000000001 /* TreemapLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/StorageMap/TreemapLayout.swift"; sourceTree = "<group>"; };
+		F07000010000000000000002 /* StorageMapModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/StorageMap/StorageMapModel.swift"; sourceTree = "<group>"; };
+		F07000010000000000000003 /* TreemapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/StorageMap/TreemapView.swift"; sourceTree = "<group>"; };
+		F07000010000000000000004 /* StorageNodeInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/StorageMap/StorageNodeInspector.swift"; sourceTree = "<group>"; };
+		F07000010000000000000005 /* StorageMapToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/StorageMap/StorageMapToolbar.swift"; sourceTree = "<group>"; };
+		F07000010000000000000006 /* StorageMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vacua/Features/StorageMap/StorageMapView.swift"; sourceTree = "<group>"; };
 		827EFB99D6BF4A288788AA3B /* AppModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VacuaTests/AppModelTests.swift"; sourceTree = "<group>"; };
+		F07000010000000000000007 /* TreemapLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VacuaTests/TreemapLayoutTests.swift"; sourceTree = "<group>"; };
 		FC57CB01CD3E4C4A88DD4A1E /* VacuaUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VacuaUITests/VacuaUITests.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -126,6 +140,12 @@
 				C5C73BAD534C4E2FB41E180C /* ApplicationsView.swift */,
 				95D352C5CADE42E29C655B1A /* SnapshotsView.swift */,
 				7E0896C7506F450298658C1A /* SettingsView.swift */,
+				F07000010000000000000001 /* TreemapLayout.swift */,
+				F07000010000000000000002 /* StorageMapModel.swift */,
+				F07000010000000000000003 /* TreemapView.swift */,
+				F07000010000000000000004 /* StorageNodeInspector.swift */,
+				F07000010000000000000005 /* StorageMapToolbar.swift */,
+				F07000010000000000000006 /* StorageMapView.swift */,
 			);
 			name = Vacua;
 			sourceTree = "<group>";
@@ -134,6 +154,7 @@
 			isa = PBXGroup;
 			children = (
 				827EFB99D6BF4A288788AA3B /* AppModelTests.swift */,
+				F07000010000000000000007 /* TreemapLayoutTests.swift */,
 			);
 			name = VacuaTests;
 			sourceTree = "<group>";
@@ -292,6 +313,12 @@
 				28FB5C9CE10D497DBAA00BB8 /* ApplicationsView.swift in Sources */,
 				59C3F2F3E45E4964BBC91EC5 /* SnapshotsView.swift in Sources */,
 				364E58E4F0B5419BA0F2B39E /* SettingsView.swift in Sources */,
+				B07000010000000000000001 /* TreemapLayout.swift in Sources */,
+				B07000010000000000000002 /* StorageMapModel.swift in Sources */,
+				B07000010000000000000003 /* TreemapView.swift in Sources */,
+				B07000010000000000000004 /* StorageNodeInspector.swift in Sources */,
+				B07000010000000000000005 /* StorageMapToolbar.swift in Sources */,
+				B07000010000000000000006 /* StorageMapView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -300,6 +327,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				BEA0B64B6B8D401C9D512527 /* AppModelTests.swift in Sources */,
+				B07000010000000000000007 /* TreemapLayoutTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -377,7 +405,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.6.1;
+				MARKETING_VERSION = 0.7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.yuanweize.vacua;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -398,7 +426,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.6.1;
+				MARKETING_VERSION = 0.7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.yuanweize.vacua;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -413,7 +441,7 @@
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 0.6.1;
+				MARKETING_VERSION = 0.7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.yuanweize.vacua.VacuaTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -429,7 +457,7 @@
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 0.6.1;
+				MARKETING_VERSION = 0.7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.yuanweize.vacua.VacuaTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -444,7 +472,7 @@
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 0.6.1;
+				MARKETING_VERSION = 0.7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.yuanweize.vacua.VacuaUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -459,7 +487,7 @@
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 0.6.1;
+				MARKETING_VERSION = 0.7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.yuanweize.vacua.VacuaUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;

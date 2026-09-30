@@ -70,5 +70,13 @@
 | **GitHub Artifact Attestation** | `VERIFIED` | `.github/workflows/release.yml` | `actions/attest-build-provenance@v2` | Cryptographic build provenance binding released artifacts to GitHub Actions workflow run and repository commit |
 | **Immutable Release & Tag Protection** | `VERIFIED` | GitHub Ruleset (ID: 24170892) & `.github/workflows/release.yml` | GitHub Ruleset inspection: bypass actors `[]`, update/deletion blocked; draft-first release without `--clobber` |
 | **Homebrew Provenance** | `RUNTIME_VERIFIED` | `yuanweize/homebrew-tap/Formula/vacua.rb` | Public release artifact download, checksum verification, and `brew test` | Homebrew formula points to exact published GitHub Release tarball and verifies identical SHA256 and Git commit |
+| **Hierarchical StorageTree Engine** | `VERIFIED` | `vacua-tree::builder`, `engine`, `vacua-index::schema` (v5) | 8 unit tests, Workloads A-F benchmarks, SQLite migration tests | Atomic SQLite generations; $O(N \log N)$ bottom-up iterative rollup; verified safe up to depth 256; zero file content reads |
+| **Hardlink-Aware Tree Accounting** | `VERIFIED` | `vacua-tree::hardlink`, `builder` | `test_hardlink_deduplication`, `benchmark-storage-tree.py` Workload D | Allocated bytes attributed exclusively to lexicographically smallest canonical path; aliases get 0 allocated; zero double counting |
+| **StorageTree Machine API** | `VERIFIED` | `vacua-api::dto`, `schema` | `vacua.mcp.storage-tree-*.v1` schemas, `test_mcp_schemas_are_up_to_date`, fixtures | Versioned analysis, page, node detail, remainder, and delta DTOs; bounded page cursor contract; exact remainder accounting |
+| **Storage Map MCP Tools** | `VERIFIED` | `vacua-mcp::domain`, `server` | `storage_map_mcp_tests.rs`, `@modelcontextprotocol/inspector` | 3 capability-isolated tools (`vacua_analyze_storage_map`, `vacua_get_storage_map`, `vacua_get_storage_node`); allowed-root enforcement; opaque node IDs |
+| **Native Treemap Layout** | `VERIFIED` | `Vacua::TreemapLayout.swift` | `TreemapLayoutTests.swift` (bounds containment, no overlap, area ratio, non-negativity) | Pure Squarified Treemap layout in Swift; normalized weights; zero filesystem truth computed in Swift |
+| **Storage Map Drill-Down & Inspector** | `VERIFIED` | `Vacua::StorageMapView`, `StorageMapModel`, `StorageNodeInspector` | App unit & UI tests; breadcrumb navigation; list fallback | Navigation by opaque `node_id` & `generation_id`; metric switch (Allocated vs Logical); VoiceOver-accessible list view |
+| **Snapshot Delta Overlay** | `VERIFIED` | `vacua-tree::engine`, `Vacua::StorageMapView` | `test_snapshot_delta_comparison`, DTO contract | Growth/shrinkage delta truth computed in Rust; UI renders diverging color map without client size recalculation |
+
 
 

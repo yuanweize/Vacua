@@ -18,6 +18,9 @@ public enum VacuaSchemas {
     public static let serverCapabilitiesV1 = "vacua.mcp.server-capabilities.v1"
     public static let historySummaryV1 = "vacua.mcp.history-summary.v1"
     public static let historyVerificationV1 = "vacua.mcp.history-verification.v1"
+    public static let storageTreeAnalysisV1 = "vacua.mcp.storage-tree-analysis.v1"
+    public static let storageTreePageV1 = "vacua.mcp.storage-tree-page.v1"
+    public static let storageTreeNodeDetailV1 = "vacua.mcp.storage-tree-node-detail.v1"
 }
 
 // MARK: - Filter Enums
@@ -399,3 +402,100 @@ public enum Formatters {
         return prefix + bytes.formatted(.byteCount(style: .file))
     }
 }
+
+// MARK: - Storage Tree Models
+
+public struct StorageTreeCoverageV1: Codable, Sendable, Equatable {
+    public let files_observed: UInt64
+    public let directories_observed: UInt64
+    public let entries_skipped: UInt64
+    public let permission_errors: UInt64
+    public let mount_boundary_skips: UInt64
+    public let special_files_skipped: UInt64
+    public let cloud_placeholders_observed: UInt64
+    public let analysis_complete: Bool
+}
+
+public struct StorageTreeNodeV1: Codable, Sendable, Identifiable, Equatable {
+    public var id: String { node_id }
+
+    public let node_id: String
+    public let parent_node_id: String?
+    public let display_name: String
+    public let display_path: String
+    public let kind: String
+    public let depth: UInt32
+    public let direct_logical_bytes: UInt64
+    public let direct_allocated_bytes: UInt64
+    public let subtree_logical_bytes: UInt64
+    public let subtree_allocated_bytes: UInt64
+    public let file_count: UInt64
+    public let directory_count: UInt64
+    public let hardlink_alias_count: UInt64
+    public let is_hardlink_alias: Bool
+    public let child_count: UInt64
+    public let mtime_sec: Int64
+
+    public var isDirectory: Bool {
+        kind == "directory" || kind == "root"
+    }
+}
+
+public struct StorageTreeRemainderV1: Codable, Sendable, Equatable {
+    public let item_count: UInt64
+    public let logical_bytes: UInt64
+    public let allocated_bytes: UInt64
+}
+
+public struct StorageTreeAnalysisV1: Codable, Sendable, Identifiable, Equatable {
+    public var id: String { generation_id }
+
+    public let schema_version: String
+    public let generation_id: String
+    public let root_path: String
+    public let root_id: String
+    public let observed_at: String
+    public let source: String
+    public let root_node: StorageTreeNodeV1
+    public let total_files: UInt64
+    public let total_dirs: UInt64
+    public let total_logical_bytes: UInt64
+    public let total_allocated_bytes: UInt64
+    public let physical_sharing_uncertainty: Bool
+    public let allocation_semantics: String
+    public let coverage: StorageTreeCoverageV1
+}
+
+public struct StorageTreePageV1: Codable, Sendable, Equatable {
+    public let schema_version: String
+    public let generation_id: String
+    public let parent_node: StorageTreeNodeV1
+    public let metric: String
+    public let items: [StorageTreeNodeV1]
+    public let total_child_count: Int
+    public let limit: Int
+    public let offset: Int
+    public let remainder: StorageTreeRemainderV1
+    public let next_cursor: String?
+}
+
+public struct StorageTreeDeltaV1: Codable, Sendable, Identifiable, Equatable {
+    public var id: String { node_id }
+
+    public let node_id: String
+    public let allocated_delta_bytes: Int64
+    public let logical_delta_bytes: Int64
+    public let file_count_delta: Int64
+    public let change_kind: String
+}
+
+public struct StorageTreeNodeDetailV1: Codable, Sendable, Equatable {
+    public let schema_version: String
+    public let node: StorageTreeNodeV1
+    public let percentage_of_parent: Double?
+    public let percentage_of_root: Double
+    public let hardlink_info: String?
+    public let allocation_semantics: String
+    public let delta: StorageTreeDeltaV1?
+}
+

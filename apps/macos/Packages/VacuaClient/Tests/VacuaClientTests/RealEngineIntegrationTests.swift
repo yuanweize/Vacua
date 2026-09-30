@@ -52,7 +52,7 @@ struct RealEngineIntegrationTests {
 
             #expect(caps.mutation_authority == false)
             #expect(caps.executor_linked == false)
-            #expect(caps.server_version == "0.6.1")
+            #expect(caps.server_version == "0.7.0")
 
             let summary = try await client.storageSummary(rootId: nil)
             #expect(summary.schema_version == VacuaSchemas.storageSummaryV1)

@@ -1,0 +1,23 @@
+[package]
+name = "vacua-tree"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Deterministic hierarchical storage tree aggregation and attribution engine for Vacua"
+
+[dependencies]
+vacua-core = { path = "../vacua-core" }
+vacua-scan = { path = "../vacua-scan" }
+vacua-index = { path = "../vacua-index" }
+vacua-api = { path = "../vacua-api" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+blake3 = { workspace = true }
+chrono = { workspace = true }
+rusqlite = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

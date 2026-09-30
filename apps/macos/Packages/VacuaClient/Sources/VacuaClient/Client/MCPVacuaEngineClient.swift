@@ -20,7 +20,7 @@ public final class MCPVacuaEngineClient: VacuaEngineClient, @unchecked Sendable 
             ],
             "clientInfo": [
                 "name": "vacua-app",
-                "version": "0.6.1"
+                "version": "0.7.0"
             ]
         ]
 
@@ -205,6 +205,63 @@ public final class MCPVacuaEngineClient: VacuaEngineClient, @unchecked Sendable 
             name: "vacua_history_summary",
             arguments: [:],
             expectedSchema: VacuaSchemas.historySummaryV1
+        )
+    }
+
+    public func analyzeStorageMap(
+        rootId: String?,
+        forceRefresh: Bool?
+    ) async throws -> StorageTreeAnalysisV1 {
+        var args: [String: Any] = [:]
+        if let rootId { args["root_id"] = rootId }
+        if let forceRefresh { args["force_refresh"] = forceRefresh }
+        return try await callTool(
+            name: "vacua_analyze_storage_map",
+            arguments: args,
+            expectedSchema: VacuaSchemas.storageTreeAnalysisV1,
+            timeoutSeconds: 60.0
+        )
+    }
+
+    public func storageMap(
+        rootId: String,
+        generationId: String,
+        nodeId: String?,
+        metric: String?,
+        limit: Int?,
+        offset: Int?
+    ) async throws -> StorageTreePageV1 {
+        var args: [String: Any] = [
+            "root_id": rootId,
+            "generation_id": generationId
+        ]
+        if let nodeId { args["node_id"] = nodeId }
+        if let metric { args["metric"] = metric }
+        if let limit { args["limit"] = limit }
+        if let offset { args["offset"] = offset }
+        return try await callTool(
+            name: "vacua_get_storage_map",
+            arguments: args,
+            expectedSchema: VacuaSchemas.storageTreePageV1
+        )
+    }
+
+    public func storageNode(
+        rootId: String,
+        generationId: String,
+        nodeId: String,
+        compareSnapshotId: String?
+    ) async throws -> StorageTreeNodeDetailV1 {
+        var args: [String: Any] = [
+            "root_id": rootId,
+            "generation_id": generationId,
+            "node_id": nodeId
+        ]
+        if let compareSnapshotId { args["compare_snapshot_id"] = compareSnapshotId }
+        return try await callTool(
+            name: "vacua_get_storage_node",
+            arguments: args,
+            expectedSchema: VacuaSchemas.storageTreeNodeDetailV1
         )
     }
 

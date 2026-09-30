@@ -116,7 +116,7 @@ public struct SettingsView: View {
     }
 
     private var appVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.6.1"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.7.0"
     }
 
     private var appGitCommit: String {

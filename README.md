@@ -111,6 +111,35 @@ APFS shared / clone extents:   18.3 GB
 
 ---
 
+## Hierarchical Storage Map
+
+Explore filesystem storage distribution through a deterministic Rust hierarchical model and a native macOS Squarified Treemap:
+
+```bash
+$ vacua tree ~/Projects --metric allocated --limit 10
+```
+
+```text
+/Users/developer/Projects
+  48.21 GiB allocated (52.14 GiB logical)
+
+  node_modules              18.42 GiB ( 38.2%)  [dir, 142100 files]
+  build                     11.70 GiB ( 24.3%)  [dir, 1240 files]
+  datasets                   9.10 GiB ( 18.9%)  [dir, 4 files]
+  ...
+  Other                      3.40 GiB (  7.1%)  [remainder, 38 items]
+```
+
+- **Logical vs. Allocated Views**: Separates nominal file length (`st_size`) from attributed filesystem allocation (`st_blocks * 512`). The tree explains observed namespace attribution, not freeable or unallocated disk space.
+- **Hardlink-Aware Attribution**: When multiple hardlinks share an inode, allocated blocks are attributed exclusively to the lexicographically smallest canonical relative path. Peer aliases report `0` allocated bytes, eliminating double-counting.
+- **APFS Clone Extent Uncertainty**: Copy-on-write clones may share physical extents even across distinct inodes; the engine explicitly flags extent-sharing uncertainty without pretending to know unprovable unique disk ownership.
+- **Lazy Bounded Drill-Down**: Swift views navigate with sub-6ms latency across stable opaque node IDs (`stn_...`), backed by authoritative `remainder` aggregates for unreturned items.
+- **Snapshot Growth Overlay**: Compares current directory allocations against historical storage snapshots, coloring treemap nodes by verified growth and shrinkage.
+
+For full technical specifications, see [docs/STORAGE_MAP.md](docs/STORAGE_MAP.md) and [ADR 0007](docs/adr/0007-hierarchical-storage-tree.md).
+
+---
+
 ## Why Vacua?
 
 Most cleanup utilities for macOS are either simplistic shell wrappers (`rm -rf ~/Library/Caches`) or closed-source commercial applications offering opaque "Scan & Clean" buttons.
@@ -275,20 +304,20 @@ Download the pre-compiled binary package from [GitHub Releases](https://github.c
 
 ```bash
 # Verify cryptographic provenance attestation
-gh attestation verify vacua-v0.6.1-aarch64-apple-darwin.tar.gz --repo yuanweize/vacua
+gh attestation verify vacua-v0.7.0-aarch64-apple-darwin.tar.gz --repo yuanweize/vacua
 
 # Verify checksum
-shasum -a 256 vacua-v0.6.1-aarch64-apple-darwin.tar.gz
+shasum -a 256 vacua-v0.7.0-aarch64-apple-darwin.tar.gz
 
 # Extract and install
-tar -xzf vacua-v0.6.1-aarch64-apple-darwin.tar.gz
-cd vacua-v0.6.1-aarch64-apple-darwin
+tar -xzf vacua-v0.7.0-aarch64-apple-darwin.tar.gz
+cd vacua-v0.7.0-aarch64-apple-darwin
 sudo cp bin/vacua bin/vacua-intelligence bin/vacua-mcp /usr/local/bin/
 ```
 
 ### 3. Native macOS App (SwiftUI)
 
-Download the standalone `Vacua-v0.6.1-macos-arm64-unsigned.zip` from [GitHub Releases](https://github.com/yuanweize/vacua/releases), unzip, and drag `Vacua.app` to your `/Applications` folder:
+Download the standalone `Vacua-v0.7.0-macos-arm64-unsigned.zip` from [GitHub Releases](https://github.com/yuanweize/vacua/releases), unzip, and drag `Vacua.app` to your `/Applications` folder:
 
 - **Strictly Proposal-Only**: Zero mutation or deletion authority in the GUI client (`mutation_authority == false`).
 - **Pure Native UI**: Built with pure SwiftUI and AppKit; no Electron or WebViews.

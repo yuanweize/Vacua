@@ -5,6 +5,7 @@ import os
 
 public enum NavigationItem: String, CaseIterable, Identifiable, Sendable {
     case overview = "Overview"
+    case storageMap = "Storage Map"
     case candidates = "Candidates"
     case duplicates = "Duplicates"
     case applications = "Applications"
@@ -16,6 +17,7 @@ public enum NavigationItem: String, CaseIterable, Identifiable, Sendable {
     public var iconName: String {
         switch self {
         case .overview: return "gauge.with.needle"
+        case .storageMap: return "square.split.2x2"
         case .candidates: return "list.bullet.rectangle"
         case .duplicates: return "doc.on.doc"
         case .applications: return "app.badge"
@@ -58,6 +60,7 @@ public final class AppModel {
     
     // MARK: - Feature-Local Load States
     public var overviewState: LoadState<StorageSummaryV1> = .idle
+    public var storageMapModel: StorageMapModel = StorageMapModel()
     public var candidatesState: LoadState<[CandidateSummaryV1]> = .idle
     public var duplicatesState: LoadState<[DuplicateGroupSummaryV1]> = .idle
     public var applicationsState: LoadState<[ApplicationSummaryV1]> = .idle
@@ -131,6 +134,7 @@ public final class AppModel {
         self.supervisor = supervisor
         self.activeRootPath = supervisor.currentRootPath
         self.activeRootDisplayName = (supervisor.currentRootPath as NSString).lastPathComponent
+        self.storageMapModel.setAppModel(self)
     }
     
     private var hasStartedEngine = false
@@ -167,6 +171,8 @@ public final class AppModel {
         switch selectedNavigation {
         case .overview:
             await loadOverview(force: true)
+        case .storageMap:
+            await storageMapModel.analyzeStorageMap(forceRefresh: true)
         case .candidates:
             await loadCandidates(force: true)
         case .duplicates:
@@ -538,6 +544,7 @@ public final class AppModel {
         self.activeRootDisplayName = (path as NSString).lastPathComponent
         
         self.overviewState = .loading(previous: nil)
+        self.storageMapModel.resetForRootSwitch()
         self.candidatesState = .idle
         self.duplicatesState = .idle
         self.applicationsState = .idle

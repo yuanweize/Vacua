@@ -131,6 +131,50 @@ pub struct HistorySummaryParams {
 #[derive(Debug, Clone, Deserialize, JsonSchema, Default)]
 pub struct VerifyHistoryParams {}
 
+#[derive(Debug, Clone, Deserialize, JsonSchema, Default)]
+pub struct AnalyzeStorageMapParams {
+    #[schemars(
+        description = "Optional root identifier configured on server (defaults to primary root)."
+    )]
+    pub root_id: Option<String>,
+    #[schemars(
+        description = "Force full live metadata rescan even if index is fresh (default: false)."
+    )]
+    pub force_refresh: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+pub struct GetStorageMapParams {
+    #[schemars(description = "Authoritative root identifier configured on server.")]
+    pub root_id: String,
+    #[schemars(description = "Tree generation ID returned by vacua_analyze_storage_map.")]
+    pub generation_id: String,
+    #[schemars(
+        description = "Node ID to query children of. If omitted, returns children of root."
+    )]
+    pub node_id: Option<String>,
+    #[schemars(description = "Metric to sort and bound by: 'allocated' (default) or 'logical'.")]
+    pub metric: Option<String>,
+    #[schemars(description = "Maximum children to return (default: 60, max: 200).")]
+    pub limit: Option<usize>,
+    #[schemars(description = "Paging offset.")]
+    pub offset: Option<usize>,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+pub struct GetStorageNodeParams {
+    #[schemars(description = "Authoritative root identifier configured on server.")]
+    pub root_id: String,
+    #[schemars(description = "Tree generation ID.")]
+    pub generation_id: String,
+    #[schemars(description = "Node ID to inspect.")]
+    pub node_id: String,
+    #[schemars(
+        description = "Optional snapshot ID or name to compute growth/shrink delta against."
+    )]
+    pub compare_snapshot_id: Option<String>,
+}
+
 pub fn to_mcp_error(err: VacuaErrorResponse) -> McpError {
     McpError::new(
         match err.code {
@@ -455,6 +499,79 @@ impl VacuaMcpServer {
     ) -> Result<Json<HistoryVerificationV1>, McpError> {
         self.service
             .verify_history()
+            .map(Json)
+            .map_err(to_mcp_error)
+    }
+
+    #[tool(
+        name = "vacua_analyze_storage_map",
+        description = "Build or retrieve a deterministic hierarchical Storage Tree generation with logical and allocated attribution for an authorized root.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            open_world_hint = false,
+            title = "Analyze Storage Map"
+        )
+    )]
+    pub async fn analyze_storage_map(
+        &self,
+        params: Parameters<AnalyzeStorageMapParams>,
+    ) -> Result<Json<StorageTreeAnalysisV1>, McpError> {
+        self.service
+            .analyze_storage_map(params.0.root_id.as_deref(), params.0.force_refresh)
+            .await
+            .map(Json)
+            .map_err(to_mcp_error)
+    }
+
+    #[tool(
+        name = "vacua_get_storage_map",
+        description = "Retrieve bounded hierarchical child nodes and exact remainder metrics from a ready tree generation.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            open_world_hint = false,
+            title = "Get Storage Map Children"
+        )
+    )]
+    pub async fn get_storage_map(
+        &self,
+        params: Parameters<GetStorageMapParams>,
+    ) -> Result<Json<StorageTreePageV1>, McpError> {
+        self.service
+            .get_storage_map(
+                &params.0.root_id,
+                &params.0.generation_id,
+                params.0.node_id.as_deref(),
+                params.0.metric.as_deref(),
+                params.0.limit,
+                params.0.offset,
+            )
+            .map(Json)
+            .map_err(to_mcp_error)
+    }
+
+    #[tool(
+        name = "vacua_get_storage_node",
+        description = "Inspect single storage node attribution, percentage of parent, and optional snapshot delta comparison.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            open_world_hint = false,
+            title = "Get Storage Node Detail"
+        )
+    )]
+    pub async fn get_storage_node(
+        &self,
+        params: Parameters<GetStorageNodeParams>,
+    ) -> Result<Json<StorageTreeNodeDetailV1>, McpError> {
+        self.service
+            .get_storage_node(
+                &params.0.root_id,
+                &params.0.generation_id,
+                &params.0.node_id,
+                params.0.compare_snapshot_id.as_deref(),
+            )
             .map(Json)
             .map_err(to_mcp_error)
     }

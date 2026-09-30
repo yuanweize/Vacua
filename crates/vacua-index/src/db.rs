@@ -212,6 +212,51 @@ impl IndexDatabase {
         Ok(Self { conn })
     }
 
+    pub fn conn(&self) -> &Connection {
+        &self.conn
+    }
+
+    pub fn conn_mut(&mut self) -> &mut Connection {
+        &mut self.conn
+    }
+
+    pub fn get_entries_under_root(&self, root: &Path) -> Result<Vec<IndexedEntry>, IndexError> {
+        let root_str = root.to_string_lossy().to_string();
+        let prefix = if root_str.ends_with('/') {
+            format!("{}%", root_str)
+        } else {
+            format!("{}/%", root_str)
+        };
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT device_id, inode, canonical_path, parent_path,
+                   file_type, logical_bytes, allocated_bytes, mtime_sec, observed_at
+            FROM entries
+            WHERE canonical_path = ?1 OR canonical_path LIKE ?2
+            ORDER BY canonical_path ASC
+            "#,
+        )?;
+        let entries = stmt
+            .query_map(params![root_str, prefix], |row| {
+                let path_s: String = row.get(2)?;
+                let parent_s: String = row.get(3)?;
+                Ok(IndexedEntry {
+                    device_id: row.get(0)?,
+                    inode: row.get(1)?,
+                    canonical_path: PathBuf::from(path_s),
+                    parent_path: PathBuf::from(parent_s),
+                    file_type: row.get(4)?,
+                    logical_bytes: row.get(5)?,
+                    allocated_bytes: row.get(6)?,
+                    mtime_sec: row.get(7)?,
+                    observed_at: row.get(8)?,
+                })
+            })?
+            .filter_map(std::result::Result::ok)
+            .collect();
+        Ok(entries)
+    }
+
     pub fn record_session(
         &mut self,
         target_path: &Path,

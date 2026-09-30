@@ -1,0 +1,223 @@
+{
+  "$defs": {
+    "StorageTreeCoverageV1": {
+      "description": "Coverage metrics for storage tree analysis.",
+      "properties": {
+        "analysis_complete": {
+          "type": "boolean"
+        },
+        "cloud_placeholders_observed": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "directories_observed": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "entries_skipped": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "files_observed": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "mount_boundary_skips": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "permission_errors": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "special_files_skipped": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "files_observed",
+        "directories_observed",
+        "entries_skipped",
+        "permission_errors",
+        "mount_boundary_skips",
+        "special_files_skipped",
+        "cloud_placeholders_observed",
+        "analysis_complete"
+      ],
+      "type": "object"
+    },
+    "StorageTreeNodeV1": {
+      "description": "Compact node summary within a hierarchical storage tree.",
+      "properties": {
+        "child_count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "depth": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "direct_allocated_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "direct_logical_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "directory_count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "display_path": {
+          "type": "string"
+        },
+        "file_count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "hardlink_alias_count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "is_hardlink_alias": {
+          "type": "boolean"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "mtime_sec": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "parent_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "subtree_allocated_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "subtree_logical_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "node_id",
+        "display_name",
+        "display_path",
+        "kind",
+        "depth",
+        "direct_logical_bytes",
+        "direct_allocated_bytes",
+        "subtree_logical_bytes",
+        "subtree_allocated_bytes",
+        "file_count",
+        "directory_count",
+        "hardlink_alias_count",
+        "is_hardlink_alias",
+        "child_count",
+        "mtime_sec"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Complete storage tree analysis response.",
+  "properties": {
+    "allocation_semantics": {
+      "type": "string"
+    },
+    "coverage": {
+      "$ref": "#/$defs/StorageTreeCoverageV1"
+    },
+    "generation_id": {
+      "type": "string"
+    },
+    "observed_at": {
+      "type": "string"
+    },
+    "physical_sharing_uncertainty": {
+      "type": "boolean"
+    },
+    "root_id": {
+      "type": "string"
+    },
+    "root_node": {
+      "$ref": "#/$defs/StorageTreeNodeV1"
+    },
+    "root_path": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
+    },
+    "total_allocated_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "total_dirs": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "total_files": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "total_logical_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "generation_id",
+    "root_path",
+    "root_id",
+    "observed_at",
+    "source",
+    "root_node",
+    "total_files",
+    "total_dirs",
+    "total_logical_bytes",
+    "total_allocated_bytes",
+    "physical_sharing_uncertainty",
+    "allocation_semantics",
+    "coverage"
+  ],
+  "title": "StorageTreeAnalysisV1",
+  "type": "object"
+}

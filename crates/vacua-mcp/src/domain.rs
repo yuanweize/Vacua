@@ -13,6 +13,10 @@ use vacua_plan::CleanupPlan;
 use vacua_risk::CandidateEvaluator;
 use vacua_rules::engine::RulesEngine;
 use vacua_scan::{FilesystemScanner, ScanOptions};
+use vacua_tree::{
+    StorageNodeId, StorageTreeBuilder, StorageTreeCoverage, StorageTreeEngine,
+    StorageTreeGeneration, StorageTreeMetric, StorageTreeSource, StorageTreeStatus, TreeError,
+};
 
 use crate::policy::{
     AllowedRoot, McpPolicy, PathDisclosureMode, MAX_PROPOSAL_CANDIDATES, MAX_SIMULATION_CANDIDATES,
@@ -62,6 +66,21 @@ impl VacuaDomainService {
         } else {
             None
         }
+    }
+
+    fn open_index_writable(&self) -> Option<IndexDatabase> {
+        let path = self.index_path.clone().unwrap_or_else(|| {
+            let home = std::env::var_os("HOME")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("."));
+            home.join(".vacua").join("index.db")
+        });
+
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+
+        IndexDatabase::open(&path).ok()
     }
 
     fn open_journal(&self) -> Option<ExecutionJournal> {
@@ -1323,5 +1342,386 @@ impl VacuaDomainService {
             foundation_models_integration: "IMPLEMENTED".to_string(),
             foundation_models_runtime_status: "NOT_QUERIED_BY_MCP".to_string(),
         }
+    }
+
+    /// Analyze or build storage tree for authoritative root.
+    pub async fn analyze_storage_map(
+        &self,
+        root_id: Option<&str>,
+        force_refresh: Option<bool>,
+    ) -> Result<StorageTreeAnalysisV1, VacuaErrorResponse> {
+        let _permit = self.policy.acquire_expensive_permit().await?;
+        let root = self.policy.get_root(root_id)?.clone();
+
+        let mut db = self.open_index_writable().ok_or_else(|| {
+            VacuaErrorResponse::new(
+                VacuaErrorCode::VacuaInternal,
+                "Failed to open index database for writing",
+            )
+        })?;
+
+        let canonical_root = root.canonical_path.clone();
+        let root_id_str = root.root_id.clone();
+        let force = force_refresh.unwrap_or(false);
+
+        let analysis_dto = tokio::time::timeout(
+            self.policy.timeout,
+            tokio::task::spawn_blocking(move || -> Result<StorageTreeAnalysisV1, VacuaErrorResponse> {
+                let existing_entries = if !force {
+                    db.get_entries_under_root(&canonical_root).unwrap_or_default()
+                } else {
+                    vec![]
+                };
+
+                let builder = StorageTreeBuilder::new(&canonical_root, &root_id_str);
+                let (nodes, coverage, source) = if !existing_entries.is_empty() {
+                    let cov = StorageTreeCoverage {
+                        files_observed: existing_entries.iter().filter(|e| e.file_type != "directory").count() as u64,
+                        directories_observed: existing_entries.iter().filter(|e| e.file_type == "directory").count() as u64,
+                        entries_skipped: 0,
+                        permission_errors: 0,
+                        mount_boundary_skips: 0,
+                        special_files_skipped: 0,
+                        cloud_placeholders_observed: 0,
+                        analysis_complete: true,
+                    };
+                    let n = builder.build_from_indexed_entries(&existing_entries)
+                        .map_err(|e| VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, e.to_string()))?;
+                    (n, cov, StorageTreeSource::Indexed)
+                } else {
+                    let scanner = FilesystemScanner::new(ScanOptions {
+                        cross_mounts: false,
+                        max_depth: None,
+                        jobs: Some(2),
+                    });
+                    let report = scanner
+                        .scan(&canonical_root)
+                        .map_err(|e| VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, e.to_string()))?;
+                    let cov = StorageTreeCoverage {
+                        files_observed: report.total_files,
+                        directories_observed: report.total_dirs,
+                        entries_skipped: report.skipped_paths.len() as u64,
+                        permission_errors: report.skipped_paths.len() as u64,
+                        mount_boundary_skips: 0,
+                        special_files_skipped: 0,
+                        cloud_placeholders_observed: 0,
+                        analysis_complete: true,
+                    };
+                    let _session_id = db
+                        .record_session(&canonical_root, &report)
+                        .map_err(|e| VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, e.to_string()))?;
+                    let n = builder.build_from_scanned_entries(&report.entries)
+                        .map_err(|e| VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, e.to_string()))?;
+                    (n, cov, StorageTreeSource::LiveScan)
+                };
+
+                let root_node = nodes.first().ok_or_else(|| {
+                    VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, "Empty storage tree generated")
+                })?;
+
+                let gen = StorageTreeGeneration {
+                    generation_id: format!("stg_{}_{}", &root_id_str, Utc::now().timestamp_millis()),
+                    root_path: canonical_root.clone(),
+                    root_id: root_id_str.clone(),
+                    observed_at: Utc::now().timestamp(),
+                    source,
+                    status: StorageTreeStatus::Ready,
+                    total_files: root_node.file_count,
+                    total_dirs: root_node.directory_count,
+                    total_logical_bytes: root_node.subtree_logical_bytes,
+                    total_allocated_bytes: root_node.subtree_allocated_bytes,
+                    coverage: coverage.clone(),
+                };
+
+                StorageTreeEngine::publish_generation(db.conn_mut(), &gen, &nodes)
+                    .map_err(|e| VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, e.to_string()))?;
+
+                let _ = StorageTreeEngine::prune_older_generations(db.conn_mut(), &root_id_str, 2);
+
+                let mut root_dto = root_node.to_dto();
+                root_dto.display_path = canonical_root.to_string_lossy().to_string();
+
+                Ok(StorageTreeAnalysisV1 {
+                    schema_version: SCHEMA_STORAGE_TREE_ANALYSIS_V1.to_string(),
+                    generation_id: gen.generation_id,
+                    root_path: canonical_root.to_string_lossy().to_string(),
+                    root_id: gen.root_id,
+                    observed_at: Utc::now().to_rfc3339(),
+                    source: format!("{:?}", gen.source),
+                    root_node: root_dto,
+                    total_files: gen.total_files,
+                    total_dirs: gen.total_dirs,
+                    total_logical_bytes: gen.total_logical_bytes,
+                    total_allocated_bytes: gen.total_allocated_bytes,
+                    physical_sharing_uncertainty: true,
+                    allocation_semantics: "Filesystem allocation attributed to this namespace tree. APFS clone sharing may cause physical overlap; not guaranteed unique physical storage.".to_string(),
+                    coverage: gen.coverage.to_dto(),
+                })
+            }),
+        )
+        .await
+        .map_err(|_| {
+            VacuaErrorResponse::new(VacuaErrorCode::VacuaBusy, "Storage tree analysis timed out")
+        })?
+        .map_err(|e| VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, e.to_string()))??;
+
+        Ok(analysis_dto)
+    }
+
+    /// Retrieve bounded storage tree child nodes with remainder accounting.
+    pub fn get_storage_map(
+        &self,
+        root_id: &str,
+        generation_id: &str,
+        node_id: Option<&str>,
+        metric: Option<&str>,
+        limit: Option<usize>,
+        offset: Option<usize>,
+    ) -> Result<StorageTreePageV1, VacuaErrorResponse> {
+        let root = self.policy.get_root(Some(root_id))?;
+        let db = self.open_index().ok_or_else(|| {
+            VacuaErrorResponse::new(
+                VacuaErrorCode::VacuaNotFound,
+                "Metadata index database not found",
+            )
+        })?;
+
+        let gen =
+            StorageTreeEngine::get_generation(db.conn(), generation_id).map_err(|e| match e {
+                TreeError::GenerationNotFound(_) => VacuaErrorResponse::new(
+                    VacuaErrorCode::VacuaStaleState,
+                    format!("Tree generation {} not found or pruned", generation_id),
+                ),
+                other => VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, other.to_string()),
+            })?;
+
+        if gen.root_id != root.root_id {
+            return Err(VacuaErrorResponse::new(
+                VacuaErrorCode::VacuaPolicyDenied,
+                format!(
+                    "Generation {} does not belong to root {}",
+                    generation_id, root.root_id
+                ),
+            ));
+        }
+
+        let parent_node_id = if let Some(nid) = node_id {
+            StorageNodeId::new(nid)
+        } else {
+            StorageNodeId::from_relative_path(&root.root_id, Path::new(""))
+        };
+
+        let metric_enum = match metric {
+            Some("logical") => StorageTreeMetric::Logical,
+            _ => StorageTreeMetric::Allocated,
+        };
+
+        let limit_val = limit.unwrap_or(60).min(200) as u32;
+        let offset_val = offset.unwrap_or(0) as u32;
+
+        let (children, remainder, total_child_count) = StorageTreeEngine::query_children_page(
+            db.conn(),
+            generation_id,
+            &parent_node_id,
+            metric_enum,
+            limit_val,
+            offset_val,
+        )
+        .map_err(|e| VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, e.to_string()))?;
+
+        let parent_node = StorageTreeEngine::get_node(db.conn(), generation_id, &parent_node_id)
+            .map_err(|e| VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, e.to_string()))?
+            .ok_or_else(|| {
+                VacuaErrorResponse::new(
+                    VacuaErrorCode::VacuaNotFound,
+                    format!("Parent node {} not found", parent_node_id),
+                )
+            })?;
+
+        let mut parent_dto = parent_node.to_dto();
+        let rel_parent = String::from_utf8_lossy(&parent_node.raw_relative_path);
+        let parent_full = root.canonical_path.join(rel_parent.as_ref());
+        parent_dto.display_path = self.policy.format_path(&parent_full);
+
+        let items: Vec<StorageTreeNodeV1> = children
+            .into_iter()
+            .map(|c| {
+                let rel = String::from_utf8_lossy(&c.raw_relative_path);
+                let full = root.canonical_path.join(rel.as_ref());
+                let mut dto = c.to_dto();
+                dto.display_path = self.policy.format_path(&full);
+                dto
+            })
+            .collect();
+
+        let next_offset = if (offset_val as usize) + items.len() < (total_child_count as usize) {
+            Some((offset_val as usize) + items.len())
+        } else {
+            None
+        };
+
+        let next_cursor = next_offset.map(|off| {
+            format!(
+                "{}:{}:{}:{}",
+                generation_id,
+                parent_node_id.as_str(),
+                metric.unwrap_or("allocated"),
+                off
+            )
+        });
+
+        Ok(StorageTreePageV1 {
+            schema_version: SCHEMA_STORAGE_TREE_PAGE_V1.to_string(),
+            generation_id: generation_id.to_string(),
+            parent_node: parent_dto,
+            metric: metric.unwrap_or("allocated").to_string(),
+            items,
+            total_child_count: total_child_count as usize,
+            limit: limit_val as usize,
+            offset: offset_val as usize,
+            remainder: remainder.to_dto(),
+            next_cursor,
+        })
+    }
+
+    /// Retrieve detailed metrics for a single node, optionally with snapshot delta comparison.
+    pub fn get_storage_node(
+        &self,
+        root_id: &str,
+        generation_id: &str,
+        node_id: &str,
+        compare_snapshot_id: Option<&str>,
+    ) -> Result<StorageTreeNodeDetailV1, VacuaErrorResponse> {
+        let root = self.policy.get_root(Some(root_id))?;
+        let db = self.open_index().ok_or_else(|| {
+            VacuaErrorResponse::new(
+                VacuaErrorCode::VacuaNotFound,
+                "Metadata index database not found",
+            )
+        })?;
+
+        let gen =
+            StorageTreeEngine::get_generation(db.conn(), generation_id).map_err(|e| match e {
+                TreeError::GenerationNotFound(_) => VacuaErrorResponse::new(
+                    VacuaErrorCode::VacuaStaleState,
+                    format!("Tree generation {} not found or pruned", generation_id),
+                ),
+                other => VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, other.to_string()),
+            })?;
+
+        if gen.root_id != root.root_id {
+            return Err(VacuaErrorResponse::new(
+                VacuaErrorCode::VacuaPolicyDenied,
+                format!(
+                    "Generation {} does not belong to root {}",
+                    generation_id, root.root_id
+                ),
+            ));
+        }
+
+        let target_node_id = StorageNodeId::new(node_id);
+        let node = StorageTreeEngine::get_node(db.conn(), generation_id, &target_node_id)
+            .map_err(|e| VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, e.to_string()))?
+            .ok_or_else(|| {
+                VacuaErrorResponse::new(
+                    VacuaErrorCode::VacuaNotFound,
+                    format!("Node {} not found in generation {}", node_id, generation_id),
+                )
+            })?;
+
+        let rel = String::from_utf8_lossy(&node.raw_relative_path);
+        let full_path = root.canonical_path.join(rel.as_ref());
+        let display_path = self.policy.format_path(&full_path);
+
+        let percentage_of_parent = if let Some(ref pid) = node.parent_id {
+            if let Ok(Some(parent)) = StorageTreeEngine::get_node(db.conn(), generation_id, pid) {
+                if parent.subtree_allocated_bytes > 0 {
+                    Some(
+                        (node.subtree_allocated_bytes as f64
+                            / parent.subtree_allocated_bytes as f64)
+                            * 100.0,
+                    )
+                } else {
+                    Some(0.0)
+                }
+            } else {
+                Some(100.0)
+            }
+        } else {
+            Some(100.0)
+        };
+
+        let root_node = StorageTreeEngine::get_node(
+            db.conn(),
+            generation_id,
+            &StorageNodeId::from_relative_path(&root.root_id, Path::new("")),
+        )
+        .map_err(|e| VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, e.to_string()))?;
+
+        let percentage_of_root = if let Some(r) = root_node {
+            if r.subtree_allocated_bytes > 0 {
+                (node.subtree_allocated_bytes as f64 / r.subtree_allocated_bytes as f64) * 100.0
+            } else {
+                0.0
+            }
+        } else {
+            100.0
+        };
+
+        let hardlink_info = if node.is_hardlink_alias {
+            Some(
+                "Hardlink alias — allocated storage is attributed to another representative path."
+                    .to_string(),
+            )
+        } else if node.hardlink_alias_count > 0 {
+            Some(format!(
+                "Primary hardlink representative with {} alias(es).",
+                node.hardlink_alias_count
+            ))
+        } else {
+            None
+        };
+
+        let delta = if let Some(snap_id) = compare_snapshot_id {
+            let snapshot = db
+                .get_snapshot(snap_id)
+                .map_err(|e| VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, e.to_string()))?
+                .ok_or_else(|| {
+                    VacuaErrorResponse::new(
+                        VacuaErrorCode::VacuaNotFound,
+                        format!("Snapshot {} not found", snap_id),
+                    )
+                })?;
+
+            let d =
+                StorageTreeEngine::compare_with_snapshot(&gen, &snapshot, &node).map_err(|e| {
+                    match e {
+                        TreeError::SnapshotRootMismatch { .. } => VacuaErrorResponse::new(
+                            VacuaErrorCode::VacuaPolicyDenied,
+                            e.to_string(),
+                        ),
+                        other => VacuaErrorResponse::new(
+                            VacuaErrorCode::VacuaInternal,
+                            other.to_string(),
+                        ),
+                    }
+                })?;
+            Some(d.to_dto())
+        } else {
+            None
+        };
+
+        let mut node_dto = node.to_dto();
+        node_dto.display_path = display_path;
+
+        Ok(StorageTreeNodeDetailV1 {
+            schema_version: SCHEMA_STORAGE_TREE_NODE_DETAIL_V1.to_string(),
+            node: node_dto,
+            percentage_of_parent,
+            percentage_of_root,
+            hardlink_info,
+            allocation_semantics: "Filesystem allocation attributed to this namespace tree. APFS clone sharing may cause physical overlap; not guaranteed unique physical storage.".to_string(),
+            delta,
+        })
     }
 }

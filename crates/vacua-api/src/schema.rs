@@ -15,3 +15,6 @@ pub const SCHEMA_PLAN_PROPOSAL_V1: &str = "vacua.mcp.plan-proposal.v1";
 pub const SCHEMA_SERVER_CAPABILITIES_V1: &str = "vacua.mcp.server-capabilities.v1";
 pub const SCHEMA_HISTORY_SUMMARY_V1: &str = "vacua.mcp.history-summary.v1";
 pub const SCHEMA_HISTORY_VERIFICATION_V1: &str = "vacua.mcp.history-verification.v1";
+pub const SCHEMA_STORAGE_TREE_ANALYSIS_V1: &str = "vacua.mcp.storage-tree-analysis.v1";
+pub const SCHEMA_STORAGE_TREE_PAGE_V1: &str = "vacua.mcp.storage-tree-page.v1";
+pub const SCHEMA_STORAGE_TREE_NODE_DETAIL_V1: &str = "vacua.mcp.storage-tree-node-detail.v1";

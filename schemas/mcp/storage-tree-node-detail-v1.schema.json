@@ -1,0 +1,176 @@
+{
+  "$defs": {
+    "StorageTreeDeltaV1": {
+      "description": "Observed storage delta between a tree node and a baseline snapshot.",
+      "properties": {
+        "allocated_delta_bytes": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "change_kind": {
+          "type": "string"
+        },
+        "file_count_delta": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "logical_delta_bytes": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "node_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "node_id",
+        "allocated_delta_bytes",
+        "logical_delta_bytes",
+        "file_count_delta",
+        "change_kind"
+      ],
+      "type": "object"
+    },
+    "StorageTreeNodeV1": {
+      "description": "Compact node summary within a hierarchical storage tree.",
+      "properties": {
+        "child_count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "depth": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "direct_allocated_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "direct_logical_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "directory_count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "display_path": {
+          "type": "string"
+        },
+        "file_count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "hardlink_alias_count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "is_hardlink_alias": {
+          "type": "boolean"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "mtime_sec": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "parent_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "subtree_allocated_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "subtree_logical_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "node_id",
+        "display_name",
+        "display_path",
+        "kind",
+        "depth",
+        "direct_logical_bytes",
+        "direct_allocated_bytes",
+        "subtree_logical_bytes",
+        "subtree_allocated_bytes",
+        "file_count",
+        "directory_count",
+        "hardlink_alias_count",
+        "is_hardlink_alias",
+        "child_count",
+        "mtime_sec"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Detailed node inspection view.",
+  "properties": {
+    "allocation_semantics": {
+      "type": "string"
+    },
+    "delta": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StorageTreeDeltaV1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "hardlink_info": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "node": {
+      "$ref": "#/$defs/StorageTreeNodeV1"
+    },
+    "percentage_of_parent": {
+      "format": "double",
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "percentage_of_root": {
+      "format": "double",
+      "type": "number"
+    },
+    "schema_version": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "node",
+    "percentage_of_root",
+    "allocation_semantics"
+  ],
+  "title": "StorageTreeNodeDetailV1",
+  "type": "object"
+}

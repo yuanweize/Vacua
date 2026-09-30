@@ -41,6 +41,28 @@ public protocol VacuaEngineClient: Sendable {
         candidateIds: [String]
     ) async throws -> CleanupPlanProposalV1
     func historySummary() async throws -> HistorySummaryV1
+
+    // MARK: - Storage Tree Map
+    func analyzeStorageMap(
+        rootId: String?,
+        forceRefresh: Bool?
+    ) async throws -> StorageTreeAnalysisV1
+
+    func storageMap(
+        rootId: String,
+        generationId: String,
+        nodeId: String?,
+        metric: String?,
+        limit: Int?,
+        offset: Int?
+    ) async throws -> StorageTreePageV1
+
+    func storageNode(
+        rootId: String,
+        generationId: String,
+        nodeId: String,
+        compareSnapshotId: String?
+    ) async throws -> StorageTreeNodeDetailV1
 }
 
 /// Whitelisted, narrow command service for non-destructive operations.

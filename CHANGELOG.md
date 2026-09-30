@@ -5,6 +5,60 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-09-30
+
+Phase 5: Hierarchical Storage Map & Native Treemap Intelligence Engine: Introduces a deterministic Rust hierarchical storage engine (`vacua-tree`), SQLite-backed tree generation persistence (Schema v5), hardlink-aware allocated block attribution, bounded child queries with exact remainder invariants, capability-isolated MCP tools, Swift engine client bindings, and a native macOS Squarified Treemap in SwiftUI with lazy drill-down, metric toggles, node inspection, and snapshot delta overlays.
+
+### Added
+- **Deterministic Hierarchical StorageTree Engine (`crates/vacua-tree`)**:
+  - Independent workspace crate responsible for hierarchical aggregation, storage accounting semantics, stable opaque node identity, tree generations, and remainder calculations.
+  - Distinct dual metrics: Logical Bytes (nominal namespace file lengths from `st_size`) and Allocated Bytes (attributed filesystem blocks from `st_blocks * 512`).
+  - Iterative bottom-up rollup processing directory depths up to 256 without recursion or stack overflow risks ($O(N \log N)$ complexity).
+  - Explicit APFS Clone Extent Uncertainty: flags `physical_sharing_uncertainty: true` to prevent false unique physical space claims.
+  - Zero Content Reads: operates exclusively on filesystem directory entries and inode metadata (`stat(2)`), reading exactly 0 file content bytes.
+- **Hardlink-Aware Storage Attribution**:
+  - Deterministically attributes allocated blocks to the lexicographically smallest canonical relative path for any unique `(device_id, inode)` pair.
+  - Peer aliases receive `0` attributed allocated bytes with `hardlink_alias = true`, completely eliminating double-counting in directory subtree totals.
+- **Stable Opaque Node Identifiers**:
+  - Domain-separated BLAKE3 hashing: `BLAKE3("VACUA_STORAGE_NODE_V1" || root_id || raw_unix_relative_path_bytes)`.
+  - Prefix `stn_...` prevents path leakage across IPC, process boundaries, and MCP clients.
+- **Index-Backed Tree Generations & Atomic Publication (`vacua-index`)**:
+  - Schema migration to version 5 introducing `storage_tree_generations` and `storage_tree_nodes` tables with compound indices on `(generation_id, parent_node_id)` and `(generation_id, node_id)`.
+  - Atomic publication: builds in single isolated transaction (`Building` ➔ `Ready`). Incomplete or interrupted analyses never corrupt previous ready generations.
+  - Generational pruning: retains the latest 2 ready generations per root to prevent database bloat.
+- **Bounded Child Queries with Exact Remainder Accounting**:
+  - Queries return top $k$ children (default 60, max 200) sorted deterministically by the requested metric.
+  - Returns an authoritative `remainder` aggregate preserving the exact accounting invariant: $\sum \text{items} + \text{remainder} = \text{parent}$.
+  - Renders `Other` as an aggregate presentation rectangle without fabricating a fake filesystem node identity.
+- **Storage Tree CLI (`vacua tree`)**:
+  - Inspects hierarchical space via `vacua tree [path]` with `--metric (allocated|logical)`, `--limit`, `--depth`, `--json`, and `--refresh`.
+  - Human-friendly tabular display with byte formatting, percentages, and remainder summaries.
+- **Versioned Machine API DTOs & Schemas (`vacua-api`)**:
+  - Added `StorageTreeAnalysisV1`, `StorageTreePageV1`, `StorageTreeNodeV1`, `StorageTreeNodeDetailV1`, `StorageTreeDeltaV1`, `StorageTreeRemainderV1`, and `StorageTreeCoverageV1`.
+  - Registered schemas: `vacua.mcp.storage-tree-analysis.v1`, `vacua.mcp.storage-tree-page.v1`, and `vacua.mcp.storage-tree-node-detail.v1`.
+  - Generated and validated cross-language JSON fixtures in `fixtures/api/`.
+- **Capability-Isolated Storage Map MCP Tools (`vacua-mcp`)**:
+  - `vacua_analyze_storage_map`: Analyzes the storage root and publishes a ready tree generation (expensive permit bounded).
+  - `vacua_get_storage_map`: Queries bounded children and remainder for any directory node.
+  - `vacua_get_storage_node`: Retrieves full metadata and attribution details for an individual node.
+  - Strict capability isolation: zero `vacua-executor` dependency and zero mutation authority.
+- **Typed Swift Client Bindings (`VacuaClient`)**:
+  - Extended `VacuaEngineClient` protocol and `MCPVacuaEngineClient` with `analyzeStorageMap`, `storageMap`, `storageNode`, and `compareGenerationWithSnapshot`.
+  - Cross-language contract tests decoding Rust-generated fixtures.
+- **Native SwiftUI Squarified Treemap (`apps/macos/Vacua`)**:
+  - Native Squarified Treemap layout algorithm in Swift (`TreemapLayout.swift`) based on Bruls, Huizing, and van Wijk (2000) with weight normalization and boundary invariants.
+  - Interactive canvas/rectangles with hover tooltips, click selection, and double-click / Return drill-down navigation.
+  - Breadcrumb navigation bar with home-relative paths.
+  - Segmented control toggle between **Allocated filesystem blocks** and **Logical file sizes**.
+  - Node Inspector detailing nominal size, block allocation, parent percentage, child file/directory counts, and hardlink attribution caveats.
+  - Snapshot Delta Overlay: colors nodes by verified growth and shrinkage against historical storage snapshots.
+  - Accessibility Fallback: Tabular List view switchable alongside the Treemap, with VoiceOver accessibility elements.
+  - State safety: root switching cancels in-flight analyses and cleanly resets navigation stacks and generations.
+- **Benchmark Suite (`scripts/benchmark-storage-tree.py`)**:
+  - Verified workloads on Apple Silicon M4 running macOS 27.0 APFS: Balanced 10k/50k trees, Extreme Fanout (20k files in 1 directory), Deep Hierarchy (depth 256), Hardlink deduplication, Tiny files (20k 0-4KB), and warm indexed query latency (sub-6ms p95).
+
+---
+
 ## [0.6.1] - 2026-09-30
 
 Release Integrity, Build Provenance & Runtime Qualification: Establishes a cryptographically traceable, append-only provenance chain binding git commit ➔ GitHub Actions release workflow ➔ release artifacts ➔ SHA256 digests ➔ machine-verifiable manifest ➔ GitHub Artifact Attestation (`actions/attest-build-provenance`) ➔ Homebrew tap. Truthfully clarifies and tightens runtime qualification criteria across all GUI features.

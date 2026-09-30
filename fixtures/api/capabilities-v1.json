@@ -1,6 +1,6 @@
 {
   "schema_version": "vacua.mcp.server-capabilities.v1",
-  "server_version": "0.6.1",
+  "server_version": "0.7.0",
   "mcp_protocol_generation": "2026-07-28",
   "platform": "macOS",
   "transport": "stdio",

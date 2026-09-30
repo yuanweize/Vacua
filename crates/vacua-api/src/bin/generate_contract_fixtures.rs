@@ -29,8 +29,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     roundtrip::<SnapshotDiffV1>(&fixtures_dir.join("snapshot-diff-v1.json"))?;
     roundtrip::<CleanupSimulationV1>(&fixtures_dir.join("cleanup-simulation-v1.json"))?;
     roundtrip::<CleanupPlanProposalV1>(&fixtures_dir.join("cleanup-proposal-v1.json"))?;
+    roundtrip::<StorageTreeAnalysisV1>(&fixtures_dir.join("storage-tree-analysis-v1.json"))?;
+    roundtrip::<StorageTreePageV1>(&fixtures_dir.join("storage-tree-page-v1.json"))?;
+    roundtrip::<StorageTreeNodeDetailV1>(&fixtures_dir.join("storage-tree-node-detail-v1.json"))?;
 
-    println!("All 12 contract fixtures validated and proven through real Rust DTO serialization!");
+    println!("All 15 contract fixtures validated and proven through real Rust DTO serialization!");
     Ok(())
 }
 
