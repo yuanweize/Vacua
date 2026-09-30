@@ -5,7 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-09-30
+
+Release Integrity, Build Provenance & Runtime Qualification: Establishes a cryptographically traceable, append-only provenance chain binding git commit ➔ GitHub Actions release workflow ➔ release artifacts ➔ SHA256 digests ➔ machine-verifiable manifest ➔ GitHub Artifact Attestation (`actions/attest-build-provenance`) ➔ Homebrew tap. Truthfully clarifies and tightens runtime qualification criteria across all GUI features.
+
+### Added
+- **Compile-Time Build Identity (`--build-info`)**:
+  - Embedded `VACUA_GIT_SHA`, build profile, target platform, and version injected at build time into `vacua` and `vacua-mcp` binaries via `crates/vacua-api/build.rs`.
+  - Machine-readable JSON output via `vacua --build-info` and `vacua-mcp --build-info` without runtime `git` subprocess calls.
+  - Native App bundle identity: `VacuaGitCommit` key written to `Vacua.app/Contents/Info.plist`; Settings view displays exact version and short Git commit.
+- **Machine-Verifiable Release Manifest (`dist/RELEASE_MANIFEST.json`)**:
+  - Deterministically generated release manifest complying with `vacua.release-manifest.v1` JSON Schema.
+  - Documents exact source commit, release tag, compiler toolchain versions, and artifact SHA256 digests.
+- **Release Integrity & Provenance Verification (`scripts/verify-release-integrity.sh`)**:
+  - Automated script verifying that release tag commit == manifest `git_commit` == `vacua` commit == `vacua-mcp` commit == `Vacua.app` Git SHA.
+  - Offline checksum verification (`shasum -a 256 -c SHA256SUMS`) and GitHub Artifact Attestation verification (`gh attestation verify`).
+- **Release Packaging Invariant Hardening**:
+  - Packaging fails immediately if App bundle version or Git SHA does not match bundled helpers (`vacua` and `vacua-mcp`).
+  - Preflight checks fail if working tree is dirty or if version tags do not match Cargo workspace and Xcode project versions.
+- **Authoritative, Append-Only Release Workflow (`.github/workflows/release.yml`)**:
+  - Tag identity gate: `TAG_COMMIT == GITHUB_SHA`.
+  - Version ↔ Tag gate: Cargo workspace version == App MARKETING_VERSION == vacua-intelligence version == `VERSION`.
+  - Existing-release guard: Refuses to overwrite or clobber already published releases.
+  - Draft-first publishing: Creates draft release, uploads all artifacts, verifies checksums, and publishes once atomically.
+  - Cryptographic provenance: Generates GitHub Artifact Attestations via `actions/attest-build-provenance@v2`.
+  - Downstream Homebrew validation: Re-downloads public release artifact, validates matching SHA256, and updates Homebrew tap.
+- **Static Release Safety Gate (`scripts/test-release-integrity.sh`)**:
+  - Automated static check blocking `--clobber`, `tag -f`, and `push --force` across release workflows and automation scripts.
+
+### Changed
+- **Runtime Qualification Truth (`FEATURE_REALITY_MATRIX.md`)**:
+  - Strictly differentiated `RUNTIME_VERIFIED` (real OS interaction or automated full subprocess execution) from `VERIFIED` (unit, integration, and equivalence test-backed implementation).
+  - Clarified GUI features without individual interactive session recordings as `VERIFIED`, reserving `RUNTIME_VERIFIED` strictly for `Native SwiftUI App Shell` (PID-verified launch), `First-Party MCP Client` (real child subprocess integration), and `Native App Packaging`.
+
+---
+
 ## [0.6.0] - 2026-09-30
+
+> [!NOTE]
+> **Superseded by v0.6.1.**  
+> The original `v0.6.0` tag was created prior to the final native-app hardening merge, while its release assets were rebuilt from the hardened main branch. For strict source-to-artifact provenance, use `v0.6.1` or later.
 
 Phase 5: Native SwiftUI macOS App Foundation & Storage Intelligence UI: First-party native macOS desktop client over the verified Rust storage truth engine, bundled helper architecture over stdio JSON-RPC 2.0 (MCP), strictly proposal-only safety model, APFS clone awareness, and cross-language contract fixtures.
 

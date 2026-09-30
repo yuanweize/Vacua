@@ -68,10 +68,10 @@ xcodebuild -project apps/macos/Vacua.xcodeproj -scheme Vacua -configuration Debu
 To build a standalone, ad-hoc signed distribution bundle:
 
 ```bash
-./scripts/package-macos-app.sh 0.6.0
+./scripts/package-macos-app.sh 0.6.1
 ```
 
-Output archive will be generated in `dist/Vacua-v0.6.0-macos-arm64-unsigned.zip`.
+Output archive will be generated in `dist/Vacua-v0.6.1-macos-arm64-unsigned.zip`.
 
 ### Gatekeeper & Security Notice (Ad-Hoc Signing)
 
