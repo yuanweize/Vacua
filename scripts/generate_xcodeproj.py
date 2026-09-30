@@ -3,8 +3,12 @@ import os
 import plistlib
 import uuid
 
+_id_counter = 0
+
 def gen_id():
-    return uuid.uuid4().hex[:24].upper()
+    global _id_counter
+    _id_counter += 1
+    return uuid.uuid5(uuid.NAMESPACE_DNS, f"vacua.v0.8.id.{_id_counter}").hex[:24].upper()
 
 def main():
     proj_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "apps", "macos"))
