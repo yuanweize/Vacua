@@ -120,10 +120,13 @@ fi
 if [ -n "${LOCAL_DIR}" ]; then
   TAG_COMMIT="${MANIFEST_GIT_SHA}"
 else
-  # Query GitHub release target commitish or tag
-  TAG_COMMIT=$(gh release view "${TAG}" --repo "${REPO}" --json targetCommitish -q .targetCommitish 2>/dev/null || true)
-  if [ -z "${TAG_COMMIT}" ] || [ "${TAG_COMMIT}" = "null" ]; then
-    TAG_COMMIT=$(git ls-remote "https://github.com/${REPO}.git" "refs/tags/${TAG}" | awk '{print $1}')
+  # Query git tag commit (peeled annotated tag or lightweight tag)
+  TAG_COMMIT=$(git ls-remote "https://github.com/${REPO}.git" "refs/tags/${TAG}^{}" 2>/dev/null | awk '{print $1}')
+  if [ -z "${TAG_COMMIT}" ]; then
+    TAG_COMMIT=$(git ls-remote "https://github.com/${REPO}.git" "refs/tags/${TAG}" 2>/dev/null | awk '{print $1}')
+  fi
+  if [ -z "${TAG_COMMIT}" ]; then
+    TAG_COMMIT=$(git rev-parse "${TAG}^{commit}" 2>/dev/null || true)
   fi
 fi
 
