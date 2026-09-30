@@ -36,21 +36,25 @@ Vacua relies exclusively on the Apple System Font (`San Francisco`) and standard
 Vacua avoids arbitrary hardcoded RGB values. All colors belong to distinct semantic tiers:
 
 ### 3.1. Brand Accent
+
 - **Primary Brand:** Electric Cyan (`#00A6D9` / `RGB(0.0, 0.65, 0.85)`). Used for key brand accents, primary focus outlines, and the central negative-space aperture in the app icon.
 
 ### 3.2. Hierarchical Grouping (Treemap Type Mode)
+
 In normal Treemap visualization, rectangles are colored using a restrained slate/indigo/teal palette derived deterministically from the node's path hash:
 - **Invariant:** Grouping color implies **spatial hierarchy only**. It **never** implies reclaimability, risk, or deletion safety.
 - Colors adapt smoothly across Dark and Light appearances.
 
 ### 3.3. Snapshot Delta Semantics
+
 When in *Change Since Snapshot* mode, the authoritative Rust delta determines cell treatment:
-- **Grown (`↑`):** Red (`Color.red`). File or directory allocation increased.
-- **Shrunk (`↓`):** Green (`Color.green`). File or directory allocation decreased.
-- **New (`●`):** Purple (`Color.purple`). Node was created after the base snapshot.
-- **Unchanged (`—`):** Gray (`Color.secondary`). No change in allocation.
+- **Grown (`arrow.up.right`):** Red (`Color.red`). File or directory allocation increased.
+- **Shrunk (`arrow.down.right`):** Green (`Color.green`). File or directory allocation decreased.
+- **New (`sparkle`):** Purple (`Color.purple`). Node was created after the base snapshot.
+- **Unchanged (`equal`):** Gray (`Color.secondary`). No change in allocation.
 
 ### 3.4. Risk & Safety Semantics
+
 - **Protected (`shield.fill`):** Blue. System-critical or application-managed paths.
 - **Review (`eye`):** Orange. User confirmation required before proposing action.
 - **Caution (`exclamationmark.triangle`):** Yellow / Orange. Reclaim carries side-effects or cache invalidations.

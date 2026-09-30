@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Native macOS Product Design, App Icon & UX Hardening: Elevates Vacua into a visually coherent, recognizable, accessible, production-grade native macOS product while maintaining strict truth boundaries and zero-destructive execution safety.
 
 ### Added
+
 - **Production macOS App Icon & Asset Catalog Pipeline**:
   - Original vector master artwork (`design/icon/VacuaIcon.svg`) embodying the "Negative Space Matrix" concept (slate graphite squircle with electric cyan aperture).
   - Reproducible native Swift export pipeline (`scripts/export_app_icon.swift`) generating standard macOS icon sizes (16pt–512pt @1x, @2x) into `Assets.xcassets/AppIcon.appiconset`.
@@ -38,6 +39,7 @@ Native macOS Product Design, App Icon & UX Hardening: Elevates Vacua into a visu
   - Runtime visual qualification report (`docs/qualification/v0.7.1-ui.md`).
 
 ### Changed
+
 - Refactored sidebar navigation into "Core" and "Analysis" sections and removed redundant sidebar Settings item in favor of native macOS Preferences scene (`⌘,`).
 - Replaced hardcoded "v0.7.0" release strings in banners and proposal sheets with dynamic version lookups and standardized "Analysis & proposal only" safety copy.
 - Enriched Settings view with About Vacua section featuring embedded app icon, version, git commit, license, and repository links.

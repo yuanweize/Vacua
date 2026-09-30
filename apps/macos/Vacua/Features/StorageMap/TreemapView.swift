@@ -2,6 +2,7 @@ import SwiftUI
 import VacuaClient
 
 public struct TreemapView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable var model: StorageMapModel
     @State private var hoveredNodeId: String?
 
