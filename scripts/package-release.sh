@@ -17,6 +17,31 @@ ARCHIVE="${DIST_DIR}/${PKG_NAME}.tar.gz"
 
 echo "=== Building Vacua v${VERSION} (${TARGET}) Distribution Package ==="
 
+# 0. Clean tree and version gates
+if git -C "${REPO_ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  if [ -z "${ALLOW_DIRTY:-}" ]; then
+    if ! git -C "${REPO_ROOT}" diff --quiet || ! git -C "${REPO_ROOT}" diff --cached --quiet; then
+      echo "Error: Working tree is dirty. Refusing to package release." >&2
+      exit 1
+    fi
+  fi
+fi
+
+CARGO_VER=$(grep -m 1 '^version = ' "${REPO_ROOT}/Cargo.toml" | cut -d '"' -f 2)
+if [ "${CARGO_VER}" != "${VERSION}" ]; then
+  echo "Error: Cargo workspace version (${CARGO_VER}) does not match release version (${VERSION})" >&2
+  exit 1
+fi
+
+SWIFT_CLI_VER=$(grep -m 1 'static let version = ' "${REPO_ROOT}/apple/VacuaIntelligence/Sources/VacuaIntelligence/VacuaIntelligenceCLI.swift" | cut -d '"' -f 2)
+if [ "${SWIFT_CLI_VER}" != "${VERSION}" ]; then
+  echo "Error: VacuaIntelligenceCLI version (${SWIFT_CLI_VER}) does not match release version (${VERSION})" >&2
+  exit 1
+fi
+
+VACUA_GIT_SHA="${VACUA_GIT_SHA:-$(git -C "${REPO_ROOT}" rev-parse HEAD 2>/dev/null || echo "release")}"
+echo "Release Git Commit: ${VACUA_GIT_SHA}"
+
 # 1. Clean and prepare dist directory
 rm -rf "${DIST_DIR}"
 mkdir -p "${PKG_DIR}/bin"
@@ -26,9 +51,13 @@ mkdir -p "${PKG_DIR}/share/fish/vendor_completions.d"
 
 # 2. Build Rust CLI & MCP Server
 echo "--- Compiling vacua and vacua-mcp (release) ---"
-cargo build --release --bin vacua --bin vacua-mcp --manifest-path "${REPO_ROOT}/Cargo.toml"
+VACUA_GIT_SHA="${VACUA_GIT_SHA}" cargo build --release --bin vacua --bin vacua-mcp --manifest-path "${REPO_ROOT}/Cargo.toml"
 cp "${REPO_ROOT}/target/release/vacua" "${PKG_DIR}/bin/"
 cp "${REPO_ROOT}/target/release/vacua-mcp" "${PKG_DIR}/bin/"
+
+echo "--- Validating binary build info ---"
+"${PKG_DIR}/bin/vacua" --build-info
+"${PKG_DIR}/bin/vacua-mcp" --build-info
 
 # 3. Build Swift Intelligence Helper
 echo "--- Compiling vacua-intelligence (release) ---"
@@ -68,7 +97,7 @@ Verify:
 EOF
 
 # 6. Record Build Provenance
-GIT_SHA=$(git -C "${REPO_ROOT}" rev-parse HEAD 2>/dev/null || echo "release")
+GIT_SHA="${VACUA_GIT_SHA}"
 RUSTC_VER=$(rustc --version)
 SWIFT_VER=$(swift --version | head -n 1)
 

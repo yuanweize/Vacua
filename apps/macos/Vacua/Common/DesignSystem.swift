@@ -118,7 +118,7 @@ public struct SafetyGuaranteeBanner: View {
                 .font(.title3)
             
             VStack(alignment: .leading, spacing: 2) {
-                Text("Proposal-Only Interface (v0.6.0)")
+                Text("Proposal-Only Interface (v0.6.1)")
                     .font(.subheadline.weight(.medium))
                 Text("Vacua native client has strictly zero mutation authority. No deletions or modifications will ever be performed from this interface.")
                     .font(.caption)
