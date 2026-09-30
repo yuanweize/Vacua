@@ -1420,7 +1420,7 @@ impl VacuaDomainService {
                 })?;
 
                 let gen = StorageTreeGeneration {
-                    generation_id: format!("stg_{}_{}", &root_id_str, Utc::now().timestamp_millis()),
+                    generation_id: format!("stg_{}_{}", root_id_str, Utc::now().timestamp_millis()),
                     root_path: canonical_root.clone(),
                     root_id: root_id_str.clone(),
                     observed_at: Utc::now().timestamp(),
