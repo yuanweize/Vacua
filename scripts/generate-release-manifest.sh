@@ -31,10 +31,12 @@ CLI_SHA=$(shasum -a 256 "${DIST_DIR}/${CLI_ARCHIVE}" | awk '{print $1}')
 APP_SHA=$(shasum -a 256 "${DIST_DIR}/${APP_ARCHIVE}" | awk '{print $1}')
 
 GIT_SHA="${VACUA_GIT_SHA:-$(git -C "${REPO_ROOT}" rev-parse HEAD 2>/dev/null || echo "unknown")}"
-RUSTC_VER=$(rustc --version 2>/dev/null | head -n 1 | tr -d '\r\n')
-SWIFT_VER=$(swift --version 2>/dev/null | head -n 1 | tr -d '\r\n')
-if command -v xcodebuild >/dev/null 2>&1; then
-  XCODE_VER=$(xcodebuild -version 2>/dev/null | head -n 1 | tr -d '\r\n')
+RUSTC_VER=$(rustc --version 2>/dev/null | head -n 1 | tr -d '\r\n' || echo "unknown")
+SWIFT_VER=$(swift --version 2>/dev/null | head -n 1 | tr -d '\r\n' || echo "unknown")
+if [ -f "/Applications/Xcode.app/Contents/version.plist" ]; then
+  XCODE_VER="Xcode $(defaults read /Applications/Xcode.app/Contents/version.plist CFBundleShortVersionString 2>/dev/null | tr -d '\r\n' || echo "unknown")"
+elif command -v xcodebuild >/dev/null 2>&1; then
+  XCODE_VER=$(xcodebuild -version 2>/dev/null | head -n 1 | tr -d '\r\n' || echo "unknown")
 else
   XCODE_VER="unknown"
 fi
