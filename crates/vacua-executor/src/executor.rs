@@ -83,6 +83,12 @@ pub struct ExecutionReport {
     pub immediate_reclaimed_bytes: u64,
     #[serde(default)]
     pub total_reclaimed_bytes: u64,
+    #[serde(default)]
+    pub actual_free_space_before: u64,
+    #[serde(default)]
+    pub actual_free_space_after: u64,
+    #[serde(default)]
+    pub actual_free_delta: i64,
 }
 
 pub struct PlanExecutor<'a, B: TrashBackend> {
@@ -284,6 +290,13 @@ impl<'a, B: TrashBackend> PlanExecutor<'a, B> {
         }
 
         let transaction_id = format!("tx-{}", Utc::now().timestamp_millis());
+        let actual_free_space_before = plan
+            .items
+            .first()
+            .and_then(|item| vacua_core::pressure::query_volume_status(&item.path).ok())
+            .map(|s| s.available_bytes)
+            .unwrap_or(0);
+
         let mut successful = Vec::new();
         let mut skipped = Vec::new();
         let mut failed = Vec::new();
@@ -788,6 +801,19 @@ impl<'a, B: TrashBackend> PlanExecutor<'a, B> {
             }
         }
 
+        let actual_free_space_after = plan
+            .items
+            .first()
+            .and_then(|item| vacua_core::pressure::query_volume_status(&item.path).ok())
+            .map(|s| s.available_bytes)
+            .unwrap_or(0);
+
+        let actual_free_delta = if actual_free_space_before > 0 && actual_free_space_after > 0 {
+            (actual_free_space_after as i64) - (actual_free_space_before as i64)
+        } else {
+            0
+        };
+
         Ok(ExecutionReport {
             transaction_id,
             plan_hash: plan.plan_hash.clone(),
@@ -800,6 +826,9 @@ impl<'a, B: TrashBackend> PlanExecutor<'a, B> {
             estimated_eventual_reclaim_after_purge: estimated_eventual_reclaim,
             immediate_reclaimed_bytes,
             total_reclaimed_bytes: bytes_moved_to_trash,
+            actual_free_space_before,
+            actual_free_space_after,
+            actual_free_delta,
         })
     }
 }

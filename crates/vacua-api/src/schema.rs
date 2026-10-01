@@ -22,3 +22,7 @@ pub const SCHEMA_DEVELOPER_ARTIFACT_ANALYSIS_V1: &str = "vacua.mcp.developer-art
 pub const SCHEMA_DEVELOPER_ARTIFACT_PAGE_V1: &str = "vacua.mcp.developer-artifact-page.v1";
 pub const SCHEMA_DEVELOPER_ARTIFACT_DETAIL_V1: &str = "vacua.mcp.developer-artifact-detail.v1";
 pub const SCHEMA_DEVELOPER_PROJECT_DETAIL_V1: &str = "vacua.mcp.developer-project-detail.v1";
+pub const SCHEMA_STORAGE_PRESSURE_V1: &str = "vacua.mcp.storage-pressure.v1";
+pub const SCHEMA_STORAGE_RESCUE_SUMMARY_V1: &str = "vacua.mcp.storage-rescue-summary.v1";
+pub const SCHEMA_CLEANUP_PLAN_SUMMARY_V1: &str = "vacua.mcp.cleanup-plan-summary.v1";
+pub const SCHEMA_CLEANUP_EXECUTION_RESULT_V1: &str = "vacua.mcp.cleanup-execution-result.v1";

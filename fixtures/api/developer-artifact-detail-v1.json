@@ -28,7 +28,8 @@
       "Manifest present: Cargo.toml",
       "Lockfile detected: Cargo.lock",
       "Workflow artifacts fully reconstructable via project toolchain and lockfile."
-    ]
+    ],
+    "active_guard_deferred": false
   },
   "candidate_id": "cand-rust-target-01",
   "observed_at": "2026-10-01T00:00:00Z"

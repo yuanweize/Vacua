@@ -73,6 +73,7 @@ fn generate_developer_artifact_fixtures(
             "Workflow artifacts fully reconstructable via project toolchain and lockfile."
                 .to_string(),
         ],
+        active_guard_deferred: false,
     };
 
     let rust_art = DeveloperArtifactSummaryV1 {
@@ -107,6 +108,7 @@ fn generate_developer_artifact_fixtures(
             "Lockfile detected: pnpm-lock.yaml".to_string(),
             "Dependency tree backed by exact lockfile.".to_string(),
         ],
+        active_guard_deferred: false,
     };
 
     let node_art = DeveloperArtifactSummaryV1 {
@@ -141,6 +143,7 @@ fn generate_developer_artifact_fixtures(
             "Lockfile detected: uv.lock".to_string(),
             "Virtual environment backed by deterministic lockfile.".to_string(),
         ],
+        active_guard_deferred: false,
     };
 
     let py_art = DeveloperArtifactSummaryV1 {
@@ -173,6 +176,7 @@ fn generate_developer_artifact_fixtures(
             "Associated with Xcode project at Vacua.xcodeproj".to_string(),
             "Archive contains distribution or signed products; requires manual review.".to_string(),
         ],
+        active_guard_deferred: false,
     };
 
     let xcode_art = DeveloperArtifactSummaryV1 {

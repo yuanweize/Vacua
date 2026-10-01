@@ -1358,7 +1358,7 @@ dependencies = [
 
 [[package]]
 name = "vacua-api"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "chrono",
  "schemars",
@@ -1371,7 +1371,7 @@ dependencies = [
 
 [[package]]
 name = "vacua-artifacts"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "blake3",
  "chrono",
@@ -1380,6 +1380,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "sysinfo",
  "tempfile",
  "thiserror",
  "vacua-core",
@@ -1390,7 +1391,7 @@ dependencies = [
 
 [[package]]
 name = "vacua-cli"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "blake3",
  "chrono",
@@ -1417,7 +1418,7 @@ dependencies = [
 
 [[package]]
 name = "vacua-content"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "blake3",
  "chrono",
@@ -1436,7 +1437,7 @@ dependencies = [
 
 [[package]]
 name = "vacua-core"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "chrono",
  "libc",
@@ -1448,7 +1449,7 @@ dependencies = [
 
 [[package]]
 name = "vacua-executor"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "blake3",
  "chrono",
@@ -1468,7 +1469,7 @@ dependencies = [
 
 [[package]]
 name = "vacua-index"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "chrono",
  "libc",
@@ -1485,7 +1486,7 @@ dependencies = [
 
 [[package]]
 name = "vacua-mcp"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "blake3",
  "chrono",
@@ -1514,7 +1515,7 @@ dependencies = [
 
 [[package]]
 name = "vacua-plan"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "chrono",
  "serde",
@@ -1527,7 +1528,7 @@ dependencies = [
 
 [[package]]
 name = "vacua-risk"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "serde",
  "sha2",
@@ -1539,7 +1540,7 @@ dependencies = [
 
 [[package]]
 name = "vacua-rules"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "glob",
  "serde",
@@ -1553,7 +1554,7 @@ dependencies = [
 
 [[package]]
 name = "vacua-scan"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "libc",
  "serde",
@@ -1565,7 +1566,7 @@ dependencies = [
 
 [[package]]
 name = "vacua-tree"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "blake3",
  "chrono",

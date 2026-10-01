@@ -10,7 +10,7 @@ use vacua_artifacts::{
 use vacua_content::DuplicateScanOptions;
 use vacua_core::candidate::Candidate;
 use vacua_core::evidence_graph::{ApplicationEvidenceGraph, NodeKind, OrphanConfidence};
-use vacua_core::pressure::query_volume_status;
+use vacua_core::pressure::{query_volume_status, StoragePressure};
 use vacua_core::risk::RiskLevel;
 use vacua_index::{ExecutionJournal, IndexDatabase};
 use vacua_plan::CleanupPlan;
@@ -267,6 +267,214 @@ impl VacuaDomainService {
             candidate_reclaim_upper_bound: upper_reclaim,
             index_freshness,
             is_stale,
+        })
+    }
+
+    /// Storage pressure probe for early warning before comprehensive scanning.
+    pub fn storage_pressure(
+        &self,
+        root_id: Option<&str>,
+    ) -> Result<StoragePressureV1, VacuaErrorResponse> {
+        let root = self.policy.get_root(root_id)?;
+        let status = query_volume_status(&root.canonical_path).map_err(|e| {
+            VacuaErrorResponse::new(
+                VacuaErrorCode::VacuaInternal,
+                format!("Failed to query volume storage status: {}", e),
+            )
+        })?;
+
+        let candidates = self.get_or_evaluate_candidates_for_root(root)?;
+        let safe_reclaim: u64 = candidates
+            .iter()
+            .filter(|c| c.risk == RiskLevel::Safe)
+            .map(|c| c.allocation.allocated_bytes)
+            .sum();
+
+        let pressure_str = match status.pressure {
+            StoragePressure::Normal => "healthy",
+            StoragePressure::Elevated => "elevated",
+            StoragePressure::Low => "low",
+            StoragePressure::Critical => "critical",
+        };
+
+        let recommended_action = match status.pressure {
+            StoragePressure::Critical => {
+                "Immediate storage rescue recommended. Disk space critically exhausted."
+            }
+            StoragePressure::Low => "Storage rescue recommended to relieve volume pressure.",
+            StoragePressure::Elevated => "Proactive cleanup advised before performance degrades.",
+            StoragePressure::Normal => "Volume storage is healthy. Normal operation.",
+        };
+
+        Ok(StoragePressureV1 {
+            schema_version: SCHEMA_STORAGE_PRESSURE_V1.to_string(),
+            total_space_bytes: status.total_bytes,
+            available_space_bytes: status.available_bytes,
+            used_space_bytes: status.total_bytes.saturating_sub(status.available_bytes),
+            pressure_level: pressure_str.to_string(),
+            recommended_action: recommended_action.to_string(),
+            safe_reclaimable_bytes: safe_reclaim,
+        })
+    }
+
+    /// Storage rescue tool providing whole volume accounting, attributed domains, and candidate groups.
+    pub fn storage_rescue(
+        &self,
+        root_id: Option<&str>,
+    ) -> Result<StorageRescueSummaryV1, VacuaErrorResponse> {
+        let root = self.policy.get_root(root_id)?;
+        let status = query_volume_status(&root.canonical_path).map_err(|e| {
+            VacuaErrorResponse::new(
+                VacuaErrorCode::VacuaInternal,
+                format!(
+                    "Failed to query volume storage status for root '{}': {}",
+                    root.root_id, e
+                ),
+            )
+        })?;
+
+        let candidates = self.get_or_evaluate_candidates_for_root(root)?;
+        let rescue_plan = vacua_core::rescue::build_storage_rescue_plan(
+            &root.canonical_path,
+            &status,
+            &candidates,
+        );
+
+        let safe_groups_dto = rescue_plan
+            .safe_groups
+            .into_iter()
+            .map(|g| CandidateGroupSummaryV1 {
+                group_id: g.group_id,
+                group_type: g.group_type,
+                title: g.title,
+                description: g.description,
+                item_count: g.item_count,
+                project_or_app_count: g.project_or_app_count,
+                logical_bytes: g.logical_bytes,
+                confirmed_physical_reclaim_bytes: g.confirmed_physical_reclaim_bytes,
+                estimated_reclaim_bytes: g.estimated_reclaim_bytes,
+                evidence_level: g.evidence_level,
+                evidence_reasons: g.evidence_reasons,
+                candidate_ids: g.candidate_ids,
+                eligible_for_one_click: g.eligible_for_one_click,
+                active_guard_deferred: g.active_guard_deferred,
+            })
+            .collect();
+
+        let review_groups_dto = rescue_plan
+            .review_groups
+            .into_iter()
+            .map(|g| CandidateGroupSummaryV1 {
+                group_id: g.group_id,
+                group_type: g.group_type,
+                title: g.title,
+                description: g.description,
+                item_count: g.item_count,
+                project_or_app_count: g.project_or_app_count,
+                logical_bytes: g.logical_bytes,
+                confirmed_physical_reclaim_bytes: g.confirmed_physical_reclaim_bytes,
+                estimated_reclaim_bytes: g.estimated_reclaim_bytes,
+                evidence_level: g.evidence_level,
+                evidence_reasons: g.evidence_reasons,
+                candidate_ids: g.candidate_ids,
+                eligible_for_one_click: g.eligible_for_one_click,
+                active_guard_deferred: g.active_guard_deferred,
+            })
+            .collect();
+
+        let domains_dto = rescue_plan
+            .volume_accounting
+            .domains
+            .into_iter()
+            .map(|d| StorageDomainV1 {
+                id: d.id,
+                label: d.label,
+                logical_bytes: d.logical_bytes,
+                allocated_bytes: d.allocated_bytes,
+                confidence: d.confidence,
+                source: d.source,
+                reclaimable_bytes: d.reclaimable_bytes,
+                review_bytes: d.review_bytes,
+            })
+            .collect();
+
+        let volume_accounting_dto = WholeVolumeAccountingV1 {
+            total_capacity_bytes: rescue_plan.volume_accounting.total_capacity_bytes,
+            volume_used_bytes: rescue_plan.volume_accounting.volume_used_bytes,
+            volume_available_bytes: rescue_plan.volume_accounting.volume_available_bytes,
+            attributed_bytes: rescue_plan.volume_accounting.attributed_bytes,
+            unattributed_system_managed_bytes: rescue_plan
+                .volume_accounting
+                .unattributed_system_managed_bytes,
+            reconciliation_tolerance_bytes: rescue_plan
+                .volume_accounting
+                .reconciliation_tolerance_bytes,
+            pressure_level: rescue_plan.volume_accounting.pressure_level,
+            is_material_discrepancy: rescue_plan.volume_accounting.is_material_discrepancy,
+            domains: domains_dto,
+        };
+
+        let protected_summary_dto = ProtectedSummaryV1 {
+            protected_locations_count: rescue_plan.protected_summary.protected_locations_count,
+            protected_categories: rescue_plan.protected_summary.protected_categories,
+            description: rescue_plan.protected_summary.description,
+        };
+
+        Ok(StorageRescueSummaryV1 {
+            schema_version: SCHEMA_STORAGE_RESCUE_SUMMARY_V1.to_string(),
+            observed_at: Utc::now().to_rfc3339(),
+            volume_accounting: volume_accounting_dto,
+            safe_reclaimable_bytes: rescue_plan.safe_reclaimable_bytes,
+            review_recommended_bytes: rescue_plan.review_recommended_bytes,
+            system_managed_uncertain_bytes: rescue_plan.system_managed_uncertain_bytes,
+            safe_groups: safe_groups_dto,
+            review_groups: review_groups_dto,
+            protected_summary: protected_summary_dto,
+        })
+    }
+
+    /// Propose a CleanupPlan v2 from a list of user-selected group IDs.
+    pub fn propose_group_plan(
+        &self,
+        root_id: Option<&str>,
+        group_ids: Vec<String>,
+    ) -> Result<CleanupPlanProposalV1, VacuaErrorResponse> {
+        let root = self.policy.get_root(root_id)?;
+        let candidates = self.get_or_evaluate_candidates_for_root(root)?;
+
+        let plan =
+            CleanupPlan::build_from_groups(&candidates, &group_ids, &root.canonical_path, "v0.9.0")
+                .map_err(|e| {
+                    VacuaErrorResponse::new(VacuaErrorCode::VacuaInternal, e.to_string())
+                })?;
+
+        // Convert plan to proposal DTO
+        let items_dto = plan
+            .items
+            .iter()
+            .map(|item| PlanProposalItemV1 {
+                candidate_id: item.candidate_id.clone(),
+                display_path: self.policy.format_path(&item.path),
+                action: "trash".to_string(),
+                risk: format!("{:?}", item.risk).to_lowercase(),
+                estimated_bytes: item.allocated_bytes,
+            })
+            .collect();
+
+        Ok(CleanupPlanProposalV1 {
+            schema_version: SCHEMA_PLAN_PROPOSAL_V1.to_string(),
+            plan_schema_version: plan.plan_schema_version,
+            plan_id: plan.plan_id.clone(),
+            plan_hash: plan.plan_hash.clone(),
+            created_at: plan.created_at.to_rfc3339(),
+            item_count: plan.items.len(),
+            highest_risk: "safe".to_string(),
+            estimated_eventual_reclaim_bytes: plan.estimated_eventual_reclaim_bytes,
+            immediate_reclaim_bytes: 0,
+            preservation_guard_count: plan.preservation_guards.len(),
+            items: items_dto,
+            proposal_status: "proposed".to_string(),
+            serialized_plan: None,
         })
     }
 
@@ -2109,6 +2317,7 @@ impl VacuaDomainService {
                                 .to_string(),
                             rebuild_command_template: art.rebuild_evidence.rebuild_command_template,
                             reasons: art.rebuild_evidence.reasons,
+                            active_guard_deferred: art.rebuild_evidence.active_guard_deferred,
                         },
                         candidate_id: art.candidate_id,
                         observed_at: Utc::now().to_rfc3339(),

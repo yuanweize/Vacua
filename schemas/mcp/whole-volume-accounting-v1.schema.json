@@ -1,0 +1,111 @@
+{
+  "$defs": {
+    "StorageDomainV1": {
+      "description": "Attributed storage domain representing a distinct segment of disk usage.",
+      "properties": {
+        "allocated_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "confidence": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "logical_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "reclaimable_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "review_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "logical_bytes",
+        "allocated_bytes",
+        "confidence",
+        "source",
+        "reclaimable_bytes",
+        "review_bytes"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Whole-volume storage accounting reconciling volume used space with attributed domains.",
+  "properties": {
+    "attributed_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "domains": {
+      "items": {
+        "$ref": "#/$defs/StorageDomainV1"
+      },
+      "type": "array"
+    },
+    "is_material_discrepancy": {
+      "type": "boolean"
+    },
+    "pressure_level": {
+      "type": "string"
+    },
+    "reconciliation_tolerance_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "total_capacity_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "unattributed_system_managed_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "volume_available_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "volume_used_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "total_capacity_bytes",
+    "volume_used_bytes",
+    "volume_available_bytes",
+    "attributed_bytes",
+    "unattributed_system_managed_bytes",
+    "reconciliation_tolerance_bytes",
+    "pressure_level",
+    "is_material_discrepancy",
+    "domains"
+  ],
+  "title": "WholeVolumeAccountingV1",
+  "type": "object"
+}

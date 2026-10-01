@@ -11,7 +11,7 @@ public final class EngineProcessSupervisor: ObservableObject {
 
     private var transport: MCPStdioTransport?
     private var client: MCPVacuaEngineClient?
-    private let helperOverrideURL: URL?
+    public let helperOverrideURL: URL?
 
     public init(initialRootPath: String = NSHomeDirectory(), helperOverrideURL: URL? = nil) {
         self.currentRootPath = initialRootPath

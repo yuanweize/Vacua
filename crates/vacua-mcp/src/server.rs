@@ -231,6 +231,34 @@ pub struct GetDeveloperArtifactParams {
     pub artifact_id: String,
 }
 
+#[derive(Debug, Clone, Deserialize, JsonSchema, Default)]
+pub struct StoragePressureParams {
+    #[schemars(
+        description = "Authoritative root identifier configured on server (defaults to primary root)."
+    )]
+    pub root_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema, Default)]
+pub struct StorageRescueParams {
+    #[schemars(
+        description = "Authoritative root identifier configured on server (defaults to primary root)."
+    )]
+    pub root_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+pub struct ProposeGroupPlanParams {
+    #[schemars(
+        description = "List of canonical candidate group IDs to include in the plan (e.g. ['developer_builds', 'dependency_caches', 'application_caches', 'verified_duplicates'])."
+    )]
+    pub group_ids: Vec<String>,
+    #[schemars(
+        description = "Optional root identifier configured on server (defaults to primary root)."
+    )]
+    pub root_id: Option<String>,
+}
+
 pub fn to_mcp_error(err: VacuaErrorResponse) -> McpError {
     McpError::new(
         match err.code {
@@ -302,6 +330,46 @@ impl VacuaMcpServer {
     ) -> Result<Json<StorageSummaryV1>, McpError> {
         self.service
             .storage_summary(params.0.root_id.as_deref(), params.0.path.as_deref())
+            .map(Json)
+            .map_err(to_mcp_error)
+    }
+
+    #[tool(
+        name = "vacua_storage_pressure",
+        description = "Check volume storage pressure level (healthy, elevated, low, critical) and immediate safe reclaim potential.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            open_world_hint = false,
+            title = "Check Storage Pressure"
+        )
+    )]
+    pub async fn storage_pressure(
+        &self,
+        params: Parameters<StoragePressureParams>,
+    ) -> Result<Json<StoragePressureV1>, McpError> {
+        self.service
+            .storage_pressure(params.0.root_id.as_deref())
+            .map(Json)
+            .map_err(to_mcp_error)
+    }
+
+    #[tool(
+        name = "vacua_storage_rescue",
+        description = "Perform a Storage Rescue analysis: whole-volume accounting (statfs), attributed storage domains, and canonical candidate groups (safe vs review vs protected).",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            open_world_hint = false,
+            title = "Storage Rescue Analysis"
+        )
+    )]
+    pub async fn storage_rescue(
+        &self,
+        params: Parameters<StorageRescueParams>,
+    ) -> Result<Json<StorageRescueSummaryV1>, McpError> {
+        self.service
+            .storage_rescue(params.0.root_id.as_deref())
             .map(Json)
             .map_err(to_mcp_error)
     }
@@ -518,6 +586,26 @@ impl VacuaMcpServer {
     ) -> Result<Json<CleanupPlanProposalV1>, McpError> {
         self.service
             .propose_cleanup_plan(&params.0.candidate_ids)
+            .map(Json)
+            .map_err(to_mcp_error)
+    }
+
+    #[tool(
+        name = "vacua_propose_group_plan",
+        description = "Compile an immutable CleanupPlan v2 proposal from user-selected candidate group IDs (one-decision cleanup). Does NOT execute or delete files.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            open_world_hint = false,
+            title = "Propose Group Cleanup Plan"
+        )
+    )]
+    pub async fn propose_group_plan(
+        &self,
+        params: Parameters<ProposeGroupPlanParams>,
+    ) -> Result<Json<CleanupPlanProposalV1>, McpError> {
+        self.service
+            .propose_group_plan(params.0.root_id.as_deref(), params.0.group_ids)
             .map(Json)
             .map_err(to_mcp_error)
     }

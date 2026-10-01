@@ -5,33 +5,43 @@ import os
 
 public enum NavigationItem: String, CaseIterable, Identifiable, Sendable {
     case overview = "Overview"
+    case storageRescue = "Storage Rescue"
     case storageMap = "Storage Map"
     case candidates = "Candidates"
     case duplicates = "Duplicates"
     case applications = "Applications"
     case developerArtifacts = "Developer Artifacts"
     case snapshots = "Snapshots"
+    case askVacua = "Ask Vacua"
+    case diagnostics = "Diagnostics"
 
     public var id: String { rawValue }
     
     public var iconName: String {
         switch self {
         case .overview: return VacuaSymbols.overview
+        case .storageRescue: return VacuaSymbols.storageRescue
         case .storageMap: return VacuaSymbols.storageMap
         case .candidates: return VacuaSymbols.candidates
         case .duplicates: return VacuaSymbols.duplicates
         case .applications: return VacuaSymbols.applications
         case .developerArtifacts: return VacuaSymbols.developerArtifacts
         case .snapshots: return VacuaSymbols.snapshots
+        case .askVacua: return VacuaSymbols.askVacua
+        case .diagnostics: return VacuaSymbols.diagnostics
         }
     }
 
     public static var coreItems: [NavigationItem] {
-        [.overview, .storageMap]
+        [.overview, .storageRescue, .storageMap]
     }
 
     public static var analysisItems: [NavigationItem] {
         [.candidates, .duplicates, .applications, .developerArtifacts, .snapshots]
+    }
+
+    public static var intelligenceItems: [NavigationItem] {
+        [.askVacua, .diagnostics]
     }
 }
 
@@ -68,6 +78,13 @@ public final class AppModel {
     
     // MARK: - Feature-Local Load States
     public var overviewState: LoadState<StorageSummaryV1> = .idle
+    public var rescueState: LoadState<StorageRescueSummaryV1> = .idle
+    public var pressureState: LoadState<StoragePressureV1> = .idle
+    public var storageRescueSummary: StorageRescueSummaryV1? { rescueState.value }
+    public var storagePressure: StoragePressureV1? { pressureState.value }
+    public var executionReport: CleanupExecutionResultV1? = nil
+    public var isExecutingGroupPlan: Bool = false
+    public var executionError: String? = nil
     public var storageMapModel: StorageMapModel = StorageMapModel()
     public var candidatesState: LoadState<[CandidateSummaryV1]> = .idle
     public var duplicatesState: LoadState<[DuplicateGroupSummaryV1]> = .idle
@@ -181,6 +198,9 @@ public final class AppModel {
         switch selectedNavigation {
         case .overview:
             await loadOverview(force: true)
+            await loadStoragePressure()
+        case .storageRescue:
+            await loadStorageRescue()
         case .storageMap:
             await storageMapModel.analyzeStorageMap(forceRefresh: true)
         case .candidates:
@@ -193,6 +213,8 @@ public final class AppModel {
             await developerArtifactsModel.analyzeDeveloperArtifacts(forceRefresh: true)
         case .snapshots:
             await loadSnapshots(force: true)
+        case .askVacua, .diagnostics:
+            break
         }
     }
     
@@ -221,6 +243,100 @@ public final class AppModel {
             self.errorMessage = error.localizedDescription
             self.overviewState = .failed(message: error.localizedDescription, previous: overviewState.value)
             logger.error("Error loading storage summary: \(error.localizedDescription, privacy: .private)")
+        }
+    }
+
+    // MARK: - Storage Rescue & One-Decision Cleanup Feature
+
+    public func loadStoragePressure() async {
+        guard case .ready = supervisor.state else { return }
+        do {
+            let client = try supervisor.getClient()
+            let p = try await client.storagePressure(rootId: activeRootID)
+            self.pressureState = .loaded(p)
+        } catch {
+            logger.error("Error loading storage pressure: \(error.localizedDescription, privacy: .private)")
+        }
+    }
+
+    public func loadStorageRescue() async {
+        guard case .ready = supervisor.state else { return }
+        rescueState = .loading(previous: rescueState.value)
+        do {
+            let client = try supervisor.getClient()
+            let rescue = try await client.storageRescue(rootId: activeRootID)
+            self.rescueState = .loaded(rescue)
+        } catch {
+            self.rescueState = .failed(message: error.localizedDescription, previous: rescueState.value)
+            logger.error("Error loading storage rescue: \(error.localizedDescription, privacy: .private)")
+        }
+    }
+
+    public func proposeAndExecuteSafePlan(groupIds: [String]) async -> Bool {
+        guard case .ready = supervisor.state else { return false }
+        isExecutingGroupPlan = true
+        executionError = nil
+        defer { isExecutingGroupPlan = false }
+
+        do {
+            let client = try supervisor.getClient()
+            let proposal = try await client.proposeGroupPlan(groupIds: groupIds, rootId: activeRootID)
+            self.activeProposal = proposal
+
+            let helperURL = try EngineProcessSupervisor.resolveEngineURL(override: supervisor.helperOverrideURL)
+            let vacuaBin = helperURL.deletingLastPathComponent().appendingPathComponent("vacua")
+            guard FileManager.default.isExecutableFile(atPath: vacuaBin.path) else {
+                throw VacuaClientError.engineNotFound(path: vacuaBin.path)
+            }
+
+            let process = Process()
+            process.executableURL = vacuaBin
+            process.arguments = ["rescue", "--apply", "--yes", activeRootPath, "--json"]
+
+            let stdoutPipe = Pipe()
+            let stderrPipe = Pipe()
+            process.standardOutput = stdoutPipe
+            process.standardError = stderrPipe
+
+            try process.run()
+            process.waitUntilExit()
+
+            let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+            if process.terminationStatus == 0 {
+                if let reportObj = try? JSONSerialization.jsonObject(with: stdoutData) as? [String: Any] {
+                    let moved = reportObj["bytes_moved_to_trash"] as? UInt64 ?? 0
+                    let transId = reportObj["transaction_id"] as? String ?? UUID().uuidString
+                    let execResult = CleanupExecutionResultV1(
+                        schema_version: VacuaSchemas.cleanupExecutionResultV1,
+                        transaction_id: transId,
+                        plan_id: proposal.plan_id,
+                        plan_hash: proposal.plan_hash,
+                        executed_at: ISO8601DateFormatter().string(from: Date()),
+                        planned_items: proposal.item_count,
+                        moved_to_trash_items: (reportObj["successful_items"] as? [Any])?.count ?? proposal.item_count,
+                        skipped_stale_items: (reportObj["skipped_items"] as? [Any])?.count ?? 0,
+                        failed_items: (reportObj["failed_items"] as? [Any])?.count ?? 0,
+                        actual_bytes_moved_to_trash: moved,
+                        actual_free_space_before: reportObj["actual_free_space_before"] as? UInt64 ?? 0,
+                        actual_free_space_after: reportObj["actual_free_space_after"] as? UInt64 ?? 0,
+                        actual_free_delta: reportObj["actual_free_delta"] as? Int64 ?? 0,
+                        journal_entry_id: transId,
+                        status: "completed"
+                    )
+                    self.executionReport = execResult
+                    await loadStorageRescue()
+                    await loadOverview(force: true)
+                    return true
+                }
+            }
+
+            let errText = String(data: stderrPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "Execution process failed"
+            executionError = errText
+            return false
+        } catch {
+            executionError = error.localizedDescription
+            logger.error("Group plan execution failed: \(error.localizedDescription)")
+            return false
         }
     }
     

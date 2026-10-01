@@ -1,0 +1,272 @@
+{
+  "$defs": {
+    "CandidateGroupSummaryV1": {
+      "description": "Group of cleanup candidates presented as a cohesive unit for one-decision cleanup.",
+      "properties": {
+        "active_guard_deferred": {
+          "type": "boolean"
+        },
+        "candidate_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "confirmed_physical_reclaim_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "description": {
+          "type": "string"
+        },
+        "eligible_for_one_click": {
+          "type": "boolean"
+        },
+        "estimated_reclaim_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "evidence_level": {
+          "type": "string"
+        },
+        "evidence_reasons": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "group_id": {
+          "type": "string"
+        },
+        "group_type": {
+          "type": "string"
+        },
+        "item_count": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "logical_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "project_or_app_count": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "group_id",
+        "group_type",
+        "title",
+        "description",
+        "item_count",
+        "project_or_app_count",
+        "logical_bytes",
+        "confirmed_physical_reclaim_bytes",
+        "estimated_reclaim_bytes",
+        "evidence_level",
+        "evidence_reasons",
+        "candidate_ids",
+        "eligible_for_one_click",
+        "active_guard_deferred"
+      ],
+      "type": "object"
+    },
+    "ProtectedSummaryV1": {
+      "description": "Protected system storage invariant summary.",
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "protected_categories": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "protected_locations_count": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "protected_locations_count",
+        "protected_categories",
+        "description"
+      ],
+      "type": "object"
+    },
+    "StorageDomainV1": {
+      "description": "Attributed storage domain representing a distinct segment of disk usage.",
+      "properties": {
+        "allocated_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "confidence": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "logical_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "reclaimable_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "review_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "logical_bytes",
+        "allocated_bytes",
+        "confidence",
+        "source",
+        "reclaimable_bytes",
+        "review_bytes"
+      ],
+      "type": "object"
+    },
+    "WholeVolumeAccountingV1": {
+      "description": "Whole-volume storage accounting reconciling volume used space with attributed domains.",
+      "properties": {
+        "attributed_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "domains": {
+          "items": {
+            "$ref": "#/$defs/StorageDomainV1"
+          },
+          "type": "array"
+        },
+        "is_material_discrepancy": {
+          "type": "boolean"
+        },
+        "pressure_level": {
+          "type": "string"
+        },
+        "reconciliation_tolerance_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "total_capacity_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "unattributed_system_managed_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "volume_available_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "volume_used_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "total_capacity_bytes",
+        "volume_used_bytes",
+        "volume_available_bytes",
+        "attributed_bytes",
+        "unattributed_system_managed_bytes",
+        "reconciliation_tolerance_bytes",
+        "pressure_level",
+        "is_material_discrepancy",
+        "domains"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Comprehensive Storage Rescue summary for high-pressure storage recovery.",
+  "properties": {
+    "observed_at": {
+      "type": "string"
+    },
+    "protected_summary": {
+      "$ref": "#/$defs/ProtectedSummaryV1"
+    },
+    "review_groups": {
+      "items": {
+        "$ref": "#/$defs/CandidateGroupSummaryV1"
+      },
+      "type": "array"
+    },
+    "review_recommended_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "safe_groups": {
+      "items": {
+        "$ref": "#/$defs/CandidateGroupSummaryV1"
+      },
+      "type": "array"
+    },
+    "safe_reclaimable_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "system_managed_uncertain_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "volume_accounting": {
+      "$ref": "#/$defs/WholeVolumeAccountingV1"
+    }
+  },
+  "required": [
+    "schema_version",
+    "observed_at",
+    "volume_accounting",
+    "safe_reclaimable_bytes",
+    "review_recommended_bytes",
+    "system_managed_uncertain_bytes",
+    "safe_groups",
+    "review_groups",
+    "protected_summary"
+  ],
+  "title": "StorageRescueSummaryV1",
+  "type": "object"
+}

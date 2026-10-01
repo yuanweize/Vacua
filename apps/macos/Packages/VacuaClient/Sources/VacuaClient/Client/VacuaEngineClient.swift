@@ -86,6 +86,11 @@ public protocol VacuaEngineClient: Sendable {
     func developerArtifactDetail(
         artifactId: String
     ) async throws -> DeveloperArtifactDetailV1
+
+    // MARK: - Storage Rescue & One-Decision Cleanup
+    func storagePressure(rootId: String?) async throws -> StoragePressureV1
+    func storageRescue(rootId: String?) async throws -> StorageRescueSummaryV1
+    func proposeGroupPlan(groupIds: [String], rootId: String?) async throws -> CleanupPlanProposalV1
 }
 
 /// Whitelisted, narrow command service for non-destructive operations.

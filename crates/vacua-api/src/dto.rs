@@ -562,6 +562,8 @@ pub struct RebuildEvidenceV1 {
     pub reconstruction_confidence: String,
     pub rebuild_command_template: Option<String>,
     pub reasons: Vec<String>,
+    #[serde(default)]
+    pub active_guard_deferred: bool,
 }
 
 /// Compact summary of a single developer artifact for listings and project grouping.
@@ -671,4 +673,154 @@ pub struct DeveloperArtifactPageV1 {
     pub offset: usize,
     pub limit: usize,
     pub has_more: bool,
+}
+
+/// Storage pressure levels for proactive Mac storage alerting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum StoragePressureLevel {
+    Healthy,
+    Elevated,
+    Low,
+    Critical,
+}
+
+impl StoragePressureLevel {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Healthy => "healthy",
+            Self::Elevated => "elevated",
+            Self::Low => "low",
+            Self::Critical => "critical",
+        }
+    }
+}
+
+/// Standalone storage pressure report for early triage.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct StoragePressureV1 {
+    pub schema_version: String,
+    pub total_space_bytes: u64,
+    pub available_space_bytes: u64,
+    pub used_space_bytes: u64,
+    pub pressure_level: String,
+    pub recommended_action: String,
+    pub safe_reclaimable_bytes: u64,
+}
+
+/// Attributed storage domain representing a distinct segment of disk usage.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct StorageDomainV1 {
+    pub id: String,
+    pub label: String,
+    pub logical_bytes: u64,
+    pub allocated_bytes: u64,
+    pub confidence: String,
+    pub source: String,
+    pub reclaimable_bytes: u64,
+    pub review_bytes: u64,
+}
+
+/// Whole-volume storage accounting reconciling volume used space with attributed domains.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct WholeVolumeAccountingV1 {
+    pub total_capacity_bytes: u64,
+    pub volume_used_bytes: u64,
+    pub volume_available_bytes: u64,
+    pub attributed_bytes: u64,
+    pub unattributed_system_managed_bytes: u64,
+    pub reconciliation_tolerance_bytes: u64,
+    pub pressure_level: String,
+    pub is_material_discrepancy: bool,
+    pub domains: Vec<StorageDomainV1>,
+}
+
+/// Group of cleanup candidates presented as a cohesive unit for one-decision cleanup.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct CandidateGroupSummaryV1 {
+    pub group_id: String,
+    pub group_type: String,
+    pub title: String,
+    pub description: String,
+    pub item_count: usize,
+    pub project_or_app_count: usize,
+    pub logical_bytes: u64,
+    pub confirmed_physical_reclaim_bytes: u64,
+    pub estimated_reclaim_bytes: u64,
+    pub evidence_level: String,
+    pub evidence_reasons: Vec<String>,
+    pub candidate_ids: Vec<String>,
+    pub eligible_for_one_click: bool,
+    pub active_guard_deferred: bool,
+}
+
+/// Protected system storage invariant summary.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ProtectedSummaryV1 {
+    pub protected_locations_count: usize,
+    pub protected_categories: Vec<String>,
+    pub description: String,
+}
+
+/// Comprehensive Storage Rescue summary for high-pressure storage recovery.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct StorageRescueSummaryV1 {
+    pub schema_version: String,
+    pub observed_at: String,
+    pub volume_accounting: WholeVolumeAccountingV1,
+    pub safe_reclaimable_bytes: u64,
+    pub review_recommended_bytes: u64,
+    pub system_managed_uncertain_bytes: u64,
+    pub safe_groups: Vec<CandidateGroupSummaryV1>,
+    pub review_groups: Vec<CandidateGroupSummaryV1>,
+    pub protected_summary: ProtectedSummaryV1,
+}
+
+/// Compact summary of a compiled immutable cleanup plan.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct CleanupPlanSummaryV1 {
+    pub schema_version: String,
+    pub plan_id: String,
+    pub generation_id: String,
+    pub group_count: usize,
+    pub item_count: usize,
+    pub logical_bytes: u64,
+    pub confirmed_reclaimable: u64,
+    pub estimated_reclaimable: u64,
+    pub review_bytes: u64,
+    pub protected_count: usize,
+    pub preflight_status: String,
+    pub groups: Vec<CandidateGroupSummaryV1>,
+}
+
+/// Individual item journal entry in execution results.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ExecutionJournalEntryV1 {
+    pub candidate_id: String,
+    pub path: String,
+    pub action: String,
+    pub status: String,
+    pub reclaimed_bytes: u64,
+    pub reason: Option<String>,
+}
+
+/// Truthful execution result accounting for physical free space delta and Trash semantics.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct CleanupExecutionResultV1 {
+    pub schema_version: String,
+    pub plan_id: String,
+    pub executed_at: String,
+    pub planned_items: usize,
+    pub planned_bytes: u64,
+    pub moved_to_trash_items: usize,
+    pub moved_to_trash_bytes: u64,
+    pub physically_deleted_items: usize,
+    pub physically_deleted_bytes: u64,
+    pub failed_items: usize,
+    pub skipped_stale_items: usize,
+    pub actual_free_space_before: u64,
+    pub actual_free_space_after: u64,
+    pub actual_free_delta: i64,
+    pub status: String,
+    pub details: Vec<ExecutionJournalEntryV1>,
 }

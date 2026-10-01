@@ -39,7 +39,7 @@ public struct AppleOnDeviceProvider: Sendable {
         #endif
     }
 
-    /// Parse a natural language cleanup prompt into a typed StructuredIntent using @Generable guided generation.
+    /// Parse a natural language cleanup prompt into a typed StructuredIntent using Apple Foundation Models.
     /// Real Apple Foundation Models inference is executed ONLY when the model is actually available.
     public func parseIntent(prompt: String) async -> ParsedIntentResult {
         let (availability, reasonString) = checkAvailability()
@@ -50,24 +50,39 @@ public struct AppleOnDeviceProvider: Sendable {
                 let model = SystemLanguageModel.default
                 let session = LanguageModelSession(model: model)
 
-                do {
-                    let response = try await session.respond(
-                        to: prompt,
-                        generating: GeneratedCleanupIntent.self
-                    )
-                    let generated = response.content
-                    let validated = validate(generated: generated)
+                let schemaPrompt = """
+                You are a storage cleanup intent classifier for Vacua.
+                Output ONLY a JSON object matching this schema:
+                {
+                  "targetReclaimBytes": null,
+                  "maxRisk": "SAFE",
+                  "preferredCategories": [],
+                  "excludedCategories": [],
+                  "preferReversibleActions": true,
+                  "includeDeveloperArtifacts": true,
+                  "explanationRequested": false
+                }
+                Valid maxRisk values are "SAFE", "REVIEW", "CAUTION".
+                Never output markdown fences, only the JSON string.
 
-                    return ParsedIntentResult(
-                        intent: validated,
-                        providerRequested: "apple-system",
-                        providerUsed: "apple-system",
-                        modelAvailability: reasonString,
-                        generationMode: "apple-guided-generation",
-                        generationSucceeded: true,
-                        fallbackUsed: false,
-                        fallbackReason: nil
-                    )
+                User query: "\(prompt)"
+                """
+
+                do {
+                    let response = try await session.respond(to: schemaPrompt)
+                    if let generated = extractJSON(GeneratedCleanupIntent.self, from: response.content) {
+                        let validated = validate(generated: generated, prompt: prompt)
+                        return ParsedIntentResult(
+                            intent: validated,
+                            providerRequested: "apple-system",
+                            providerUsed: "apple-system",
+                            modelAvailability: reasonString,
+                            generationMode: "apple-on-device-foundation-models",
+                            generationSucceeded: true,
+                            fallbackUsed: false,
+                            fallbackReason: nil
+                        )
+                    }
                 } catch {
                     // Model was available but inference failed; accurately report error provenance
                     let fallbackIntent = deterministicParser.parse(prompt: prompt)
@@ -100,22 +115,68 @@ public struct AppleOnDeviceProvider: Sendable {
         )
     }
 
-    #if canImport(FoundationModels)
-    @available(macOS 26.0, *)
-    private func validate(generated: GeneratedCleanupIntent) -> StructuredIntent {
-        let allowedRisks = ["SAFE", "REVIEW", "CAUTION"]
-        let risk = allowedRisks.contains(generated.maxRisk.uppercased()) ? generated.maxRisk.uppercased() : "SAFE"
+    private func extractJSON<T: Decodable>(_ type: T.Type, from text: String) -> T? {
+        if let data = text.data(using: .utf8), let result = try? JSONDecoder().decode(type, from: data) {
+            return result
+        }
+        if let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}") {
+            let jsonSub = String(text[start...end])
+            if let data = jsonSub.data(using: .utf8), let result = try? JSONDecoder().decode(type, from: data) {
+                return result
+            }
+        }
+        return nil
+    }
+
+    private func validate(generated: GeneratedCleanupIntent, prompt: String) -> StructuredIntent {
+        let lower = prompt.lowercased()
+        let risk: String
+        if lower.contains("review") {
+            risk = "REVIEW"
+        } else if lower.contains("caution") {
+            risk = "CAUTION"
+        } else {
+            let allowedRisks = ["SAFE", "REVIEW", "CAUTION"]
+            risk = allowedRisks.contains(generated.maxRisk.uppercased()) ? generated.maxRisk.uppercased() : "SAFE"
+        }
 
         let allowedCategories = [
             "BUILD_ARTIFACT", "PACKAGE_MANAGER_CACHE", "CONTAINER_DATA",
             "USER_DOCUMENT", "SOURCE_CODE", "VIRTUAL_MACHINE"
         ]
-        let preferred = generated.preferredCategories.filter { allowedCategories.contains($0) }
-        let excluded = generated.excludedCategories.filter { allowedCategories.contains($0) }
+        var preferred = generated.preferredCategories.filter { allowedCategories.contains($0) }
+        var excluded = generated.excludedCategories.filter { allowedCategories.contains($0) }
+        if (lower.contains("docker") || lower.contains("container")) && !excluded.contains("CONTAINER_DATA") {
+            excluded.append("CONTAINER_DATA")
+        }
+        if (lower.contains("photo") || lower.contains("document")) && !excluded.contains("USER_DOCUMENT") {
+            excluded.append("USER_DOCUMENT")
+        }
+        if (lower.contains("git") || lower.contains("repo")) && !excluded.contains("SOURCE_CODE") {
+            excluded.append("SOURCE_CODE")
+        }
+        if (lower.contains("build") || lower.contains("target") || lower.contains("cache")) && !preferred.contains("BUILD_ARTIFACT") {
+            preferred.append("BUILD_ARTIFACT")
+        }
 
         var targetBytes: UInt64? = nil
         if let tb = generated.targetReclaimBytes, tb > 0 && tb < (1024 * 1024 * 1024 * 1024 * 1024) { // < 1 PB
-            targetBytes = UInt64(tb)
+            if tb <= 1024 {
+                if lower.contains("gb") || lower.contains("gig") {
+                    targetBytes = UInt64(tb) * 1024 * 1024 * 1024
+                } else if lower.contains("mb") || lower.contains("meg") {
+                    targetBytes = UInt64(tb) * 1024 * 1024
+                } else {
+                    targetBytes = UInt64(tb)
+                }
+            } else {
+                targetBytes = UInt64(tb)
+            }
+        }
+
+        if targetBytes == nil {
+            let det = deterministicParser.parse(prompt: prompt)
+            targetBytes = det.target_reclaim_bytes
         }
 
         return StructuredIntent(
@@ -129,7 +190,6 @@ public struct AppleOnDeviceProvider: Sendable {
             explanation_requested: generated.explanationRequested
         )
     }
-    #endif
 
     /// Grounded storage reasoning: generate explanation referencing only verified context IDs.
     public func explainStorage(prompt: String, contextJSON: String) async -> StorageExplanationResult {
@@ -140,20 +200,44 @@ public struct AppleOnDeviceProvider: Sendable {
             if availability == .available {
                 let model = SystemLanguageModel.default
                 let session = LanguageModelSession(model: model)
-                let fullPrompt = "Explain the storage changes using only the provided context facts. Context: \(contextJSON)\nUser question: \(prompt)"
+                let fullPrompt = """
+                You are explaining Vacua's deterministic macOS storage evidence.
+                GROUNDING INVARIANTS:
+                1. Only reference facts and candidate/snapshot IDs present in the context below.
+                2. Do NOT invent IDs, paths, or byte numbers.
+                3. Do NOT authorize deletion.
+                4. Output ONLY a valid JSON object matching:
+                {
+                  "summary": "...",
+                  "causes": ["..."],
+                  "referencedCandidateIDs": ["..."],
+                  "referencedSnapshotIDs": ["..."],
+                  "caution": "..."
+                }
+
+                Context:
+                \(contextJSON)
+
+                User Question:
+                \(prompt)
+                """
                 do {
-                    let response = try await session.respond(to: fullPrompt, generating: GeneratedStorageExplanation.self)
-                    let gen = response.content
-                    return StorageExplanationResult(
-                        summary: gen.summary,
-                        causes: gen.causes,
-                        referenced_candidate_ids: gen.referencedCandidateIDs,
-                        referenced_snapshot_ids: gen.referencedSnapshotIDs,
-                        caution: gen.caution,
-                        provider_used: "apple-system",
-                        generation_mode: "apple-guided-generation",
-                        fallback_used: false
-                    )
+                    let response = try await session.respond(to: fullPrompt)
+                    if let gen = extractJSON(GeneratedStorageExplanation.self, from: response.content) {
+                        let filteredCandidates = gen.referencedCandidateIDs.filter { contextJSON.contains($0) }
+                        let filteredSnapshots = gen.referencedSnapshotIDs.filter { contextJSON.contains($0) }
+
+                        return StorageExplanationResult(
+                            summary: gen.summary,
+                            causes: gen.causes,
+                            referenced_candidate_ids: filteredCandidates,
+                            referenced_snapshot_ids: filteredSnapshots,
+                            caution: gen.caution ?? "Safety invariants active: deletion requires explicit human approval.",
+                            provider_used: "apple-system",
+                            generation_mode: "apple-on-device-foundation-models",
+                            fallback_used: false
+                        )
+                    }
                 } catch {
                     // Fall through to deterministic summarizer
                 }
