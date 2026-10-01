@@ -1,0 +1,136 @@
+{
+  "$defs": {
+    "ExecutionJournalEntryV1": {
+      "description": "Individual item journal entry in execution results.",
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "candidate_id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reclaimed_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "path",
+        "action",
+        "status",
+        "reclaimed_bytes"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Truthful execution result accounting for physical free space delta and Trash semantics.",
+  "properties": {
+    "actual_free_delta": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "actual_free_space_after": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "actual_free_space_before": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "details": {
+      "items": {
+        "$ref": "#/$defs/ExecutionJournalEntryV1"
+      },
+      "type": "array"
+    },
+    "executed_at": {
+      "type": "string"
+    },
+    "failed_items": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "moved_to_trash_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "moved_to_trash_items": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "physically_deleted_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "physically_deleted_items": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "plan_id": {
+      "type": "string"
+    },
+    "planned_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "planned_items": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "skipped_stale_items": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "status": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "plan_id",
+    "executed_at",
+    "planned_items",
+    "planned_bytes",
+    "moved_to_trash_items",
+    "moved_to_trash_bytes",
+    "physically_deleted_items",
+    "physically_deleted_bytes",
+    "failed_items",
+    "skipped_stale_items",
+    "actual_free_space_before",
+    "actual_free_space_after",
+    "actual_free_delta",
+    "status",
+    "details"
+  ],
+  "title": "CleanupExecutionResultV1",
+  "type": "object"
+}

@@ -375,3 +375,71 @@ fn test_static_shell_safety_boundary() {
         }
     }
 }
+
+#[test]
+fn test_agent_development_active_process_guard_scenario() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+
+    // Helper to backdate mtime so recent-mtime guard does not mask the process check
+    fn backdate_mtime(path: &Path) {
+        use std::ffi::CString;
+        let c_path = CString::new(path.to_str().unwrap()).unwrap();
+        let old_time = libc::timeval {
+            tv_sec: 1_700_000_000,
+            tv_usec: 0,
+        };
+        let times = [old_time, old_time];
+        unsafe {
+            libc::utimes(c_path.as_ptr(), times.as_ptr());
+        }
+    }
+
+    // Create Cargo project: Cargo.toml, src/main.rs, target/debug/vacua
+    let cargo_toml = root.join("Cargo.toml");
+    File::create(&cargo_toml).unwrap();
+    let src_dir = root.join("src");
+    fs::create_dir_all(&src_dir).unwrap();
+    let main_rs = src_dir.join("main.rs");
+    File::create(&main_rs).unwrap();
+
+    let target_dir = root.join("target");
+    let debug_dir = target_dir.join("debug");
+    fs::create_dir_all(&debug_dir).unwrap();
+    let bin_file = debug_dir.join("vacua");
+    File::create(&bin_file).unwrap();
+
+    // Backdate project files and directories to 10 days ago
+    backdate_mtime(&bin_file);
+    backdate_mtime(&debug_dir);
+    backdate_mtime(&target_dir);
+    backdate_mtime(&cargo_toml);
+    backdate_mtime(&main_rs);
+    backdate_mtime(&src_dir);
+    backdate_mtime(root);
+
+    // 1. Simulate active cargo/rustc build process on target directory
+    std::env::set_var(
+        "VACUA_SIMULATED_ACTIVE_PROCESS_PATH",
+        target_dir.to_str().unwrap(),
+    );
+
+    let scanner = DeveloperArtifactScanner::new(root, "test_root");
+    let gen = scanner.scan().unwrap();
+    assert_eq!(gen.projects.len(), 1);
+    let artifact = &gen.projects[0].artifacts[0];
+    assert!(
+        artifact.rebuild_evidence.active_guard_deferred,
+        "Active build artifact must be deferred!"
+    );
+
+    // 2. Simulate process completion / idle state
+    std::env::remove_var("VACUA_SIMULATED_ACTIVE_PROCESS_PATH");
+    let scanner_idle = DeveloperArtifactScanner::new(root, "test_root");
+    let gen_idle = scanner_idle.scan().unwrap();
+    let artifact_idle = &gen_idle.projects[0].artifacts[0];
+    assert!(
+        !artifact_idle.rebuild_evidence.active_guard_deferred,
+        "Idle build artifact should no longer be deferred!"
+    );
+}

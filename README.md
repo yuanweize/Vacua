@@ -22,6 +22,103 @@
 
 ---
 
+---
+
+## Your Mac is full?
+
+Vacua first tells you where the space went.
+
+Then it builds a verified cleanup plan.
+
+You review **one plan**, not thousands of files.
+
+Vacua only executes actions that pass its deterministic safety rules.
+
+```text
+Disk nearly full
+        ↓
+What is consuming it? (Whole-Volume Accounting & Domains)
+        ↓
+What can I safely reclaim? (SAFE_TO_RECLAIM vs REVIEW vs PROTECTED)
+        ↓
+How much can I reclaim? (Confirmed Physical Reclaim vs Logical Bounds)
+        ↓
+Can Vacua safely prepare everything? (Active Process Guard & Preservation Guards)
+        ↓
+User makes ONE decision (Group-level Review Sheet)
+        ↓
+Vacua executes the verified plan (vacua-executor via macOS Trash)
+```
+
+---
+
+## 1. Storage Rescue & One-Decision Cleanup
+
+When storage pressure is elevated or critical, Vacua launches directly into **Storage Rescue**:
+
+- **Whole-Volume Accounting**: Uses kernel `statfs` facts to reconcile total capacity, volume used, volume available, Vacua-attributed domains, and unattributed/system-managed storage. Material discrepancies are shown truthfully rather than fabricating numbers.
+- **Three Deterministic Evidence Levels**:
+  - `SAFE_TO_RECLAIM`: Only items satisfying all hard safety requirements: verified build outputs with rebuild manifests, reconstructable dependency caches, disposable application caches, and duplicate copies with preservation guards.
+  - `REVIEW_REQUIRED`: Downloads, user archives, personal documents, developer environments with incomplete rebuild evidence, and clone-shared items with unproven physical reclaim. Never silently included in the one-click safe plan.
+  - `PROTECTED`: `/System`, `/usr`, `/bin`, `~/.ssh`, `~/.gnupg`, `~/Library/Keychains`, `.git/`, credentials, and system roots. Permanently blocked by hard invariants.
+- **Group-Level Selection**: Instead of presenting a wall of thousands of file checkboxes, items are consolidated into canonical groups:
+  - **Developer builds** (Rust `target/`, Xcode `DerivedData/`, CMake/Gradle)
+  - **Dependency caches** (Cargo registry, npm/pnpm/yarn cache, uv cache, `__pycache__`)
+  - **Application caches** (Verified disposable application/browser caches)
+  - **Verified duplicates** (Bit-for-bit duplicate copies with >=1 copy permanently preserved)
+- **One Approval**: The user reviews the consolidated safe plan and approves once. Detail inspection remains available but is completely optional.
+- **Active Project & Process Guard**: Compiler and build processes (`rustc`, `cargo`, `xcodebuild`, `node`, `python`) and files modified within 180 seconds are detected live. Active build targets are automatically deferred to prevent disrupting in-flight work.
+- **Preflight & Stale Plan Recalculation**: If filesystem state changes between review and execution, preflight rejects the stale plan and recalculates before requesting confirmation.
+
+---
+
+## 2. Storage Intelligence & Apple Foundation Models
+
+Vacua integrates Apple Intelligence on Apple Silicon Macs running macOS 15+ as an **optional, read-only explanation and intent layer**:
+
+- **Grounded Reasoning**: The model receives structured, bounded context (`StorageRescueSummaryV1`, `WholeVolumeAccountingV1`, `CandidateGroupSummaryV1`). It is prohibited from fabricating numbers, inventing paths, or overriding risk levels.
+- **Zero Mutation Authority**: Apple Intelligence **cannot** authorize deletion, **cannot** modify `CleanupPlan`, and **cannot** invoke `vacua-executor`. Destructive authority resides exclusively in human confirmation of deterministic Rust plans.
+- **Truthful Availability**: Inspects `SystemLanguageModel.default.availability` live (`.available`, `.deviceNotEligible`, `.appleIntelligenceNotEnabled`, `.modelNotReady`). When unavailable, the entire deterministic application functions with 100% feature completeness.
+
+---
+
+## 3. Security Architecture
+
+```text
+                        ┌─────────────────────────────────────┐
+                        │   Apple Foundation Models (On-Dev)  │
+                        │   "Ask Vacua" / Intent Translation  │
+                        │   READ-ONLY EXPLANATION LAYER       │
+                        └──────────────────┬──────────────────┘
+                                           │
+                                       READ ONLY
+                                           │
+                                           ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                      Deterministic Vacua Core (Rust)                   │
+│                                                                        │
+│   Whole-Volume Scan → Index → Evidence → Risk → Reclaim → Plan v2    │
+└──────────────────────────────────┬─────────────────────────────────────┘
+                                   │
+                           EXPLICIT HUMAN APPROVAL
+                                   │
+                                   ▼
+                        ┌─────────────────────┐
+                        │   vacua-executor    │
+                        │                     │
+                        │  Preflight Checks   │
+                        │  Journal Hash-Chain │
+                        │  Native macOS Trash │
+                        └─────────────────────┘
+
+Hard Security Invariants:
+  Apple Intelligence ────X────> vacua-executor (NO mutation authority)
+  MCP Protocol       ────X────> vacua-executor (NO mutation authority)
+  SwiftUI Front-End  ────X────> Direct File Deletion (NO direct unlink)
+```
+
+---
+
 ## Quick Install
 
 ### Homebrew (Recommended)
@@ -37,53 +134,22 @@ vacua --version
 vacua doctor
 ```
 
-*(For manual tarball downloads or building from source, see [Installation Options](#installation-options).)*
+*(For standalone `.app` bundle, see [Production macOS App](#production-macos-app).)*
 
 ---
 
-## 30-Second Demo
+## Storage Rescue CLI
 
 ```bash
-# 1. Capture a baseline storage snapshot
-$ vacua snapshot create ~ --name monday
+# 1. Analyze storage pressure and inspect safe reclaim opportunities
+$ vacua rescue
 
-# ... develop / compile / browse ...
+# 2. Review proposed group-level plan in JSON format
+$ vacua rescue --dry-run --json
 
-# 2. Compare storage growth differential against baseline
-$ vacua diff monday current
-
-# 3. Ask natural language questions grounded in evidence
-$ vacua ask "Why did my storage grow?"
-
-# 4. Simulate consequences (freeable space, rebuild costs) before cleaning
-$ vacua plan ~ --simulate
-
-# 5. Verify cryptographic integrity of execution history
-$ vacua history verify
+# 3. Apply safe plan with single approval
+$ vacua rescue --apply
 ```
-
-<p align="center">
-  <img src="assets/demo/terminal-scan.svg" alt="Vacua Scan Terminal Demo" width="720">
-</p>
-
----
-
-## Engineering Highlights
-
-Vacua is an evidence-first storage intelligence engine for macOS designed to reason about ownership, growth, physical block allocation, and rebuild costs before modification:
-
-- **APFS Clone-Aware Allocation Accounting**: Uses Darwin `getattrlist(FSOPT_ATTR_CMN_EXTENDED)` to query kernel clone attributes (`ATTR_CMNEXT_CLONEID | ATTR_CMNEXT_EXT_FLAGS | ATTR_CMNEXT_CLONE_REFCNT`). Distinguishes physical shared clone space from exclusive blocks with conservative reclaim bounds, preventing copy-on-write files from inflating freeable estimates. Verified by [`clonefile(2)` integration tests](crates/vacua-scan/src/scanner.rs).
-- **Staged BLAKE3 Content Identity & Persistent Fingerprint Cache**: 6-stage pipeline (Size buckets -> Hardlink collapse -> APFS clone classification -> Domain-separated 3-window sample hash -> Bounded sequential BLAKE3 -> Stage 6 Destructive Pair Confirmation). Bypasses up to 100% of I/O on unique files and caches versioned digests in SQLite keyed by nanosecond filesystem identity (`mtime_nsec`, `ctime_nsec`).
-- **APFS Physical-Sharing Duplicate Accounting**: Strict distinction between hardlinks (0 bytes reclaimable), APFS copy-on-write clone families (shared physical extents, conservative lower/estimated bounds), and independent physical copies. Prevents inflated reclaim estimates.
-- **TOCTOU & Cloud Dataless Safety**: Open file descriptor dual `fstat` validation before and after streaming hash (invalidation on `ChangedDuringRead`). Automatic detection of Darwin `SF_DATALESS | UF_DATALESS` flags to prevent downloading iCloud/cloud placeholders.
-- **Streaming & Bounded Concurrent Scanner**: Multi-threaded parallel metadata worker pool utilizing bounded `sync_channel(2048)` backpressure and deterministic path-order collation. Achieves >300,000 files/sec with <47 MB peak RSS on 100k nodes. Verified via [calibrated benchmarks](BENCHMARKS.md).
-- **Persistent Incremental Indexing via Darwin FSEvents**: Native CoreServices `FSEventStreamCreate` stream with persistent SQLite event cursors (`watched_roots`), updating dirty subtrees surgically without traversing untouched directories. Verified by [FSEvents integration and equivalence tests](crates/vacua-index/src/fsevents.rs).
-- **Point-in-Time Snapshots & Recursive Subtree Diff**: Capture historical allocation state with recursive directory rollup and diff space deltas over time (`vacua snapshot create`, `vacua diff baseline current`).
-- **Application Evidence Graph & Orphan Detection**: Multi-signal orphan analysis tracing bundles, receipts, LaunchAgents/Daemons, Containers, Preferences, Caches, Saved State, and active processes (`vacua apps / leftovers`).
-- **Reclaim Cost Model & What-If Simulation**: Deterministically models rebuild friction, active git projects, and network redownload bounds before cleanup (`vacua plan --simulate`).
-- **Grounded Storage Reasoning Engine (`vacua ask`)**: Natural language query engine grounded strictly in snapshot diffs, candidate evidence vectors, and Reclaim Cost, validated against hallucinated references with zero execution authority.
-- **Verifiable Execution & Cryptographic Hash Chaining**: Moves items via native macOS Trash (`-[NSFileManager trashItemAtURL:resultingItemURL:error:]`), enforces fail-safe pre-action intent journaling (aborts immediately if audit write fails), and links all execution records into a hash-chained integrity verification log (`vacua history verify`).
-- **Bounded On-Device Apple Intelligence**: Direct query of Apple `SystemLanguageModel.default.availability` with real typed `@Generable` guided generation and strictly truthful provenance (`provider_used = "apple-system"` only on real neural inference; zero deletion authority).
 
 ---
 

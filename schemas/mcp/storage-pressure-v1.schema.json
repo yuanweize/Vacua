@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Standalone storage pressure report for early triage.",
+  "properties": {
+    "available_space_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "pressure_level": {
+      "type": "string"
+    },
+    "recommended_action": {
+      "type": "string"
+    },
+    "safe_reclaimable_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "total_space_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "used_space_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "total_space_bytes",
+    "available_space_bytes",
+    "used_space_bytes",
+    "pressure_level",
+    "recommended_action",
+    "safe_reclaimable_bytes"
+  ],
+  "title": "StoragePressureV1",
+  "type": "object"
+}

@@ -8,9 +8,11 @@ use std::process::Command;
 
 use chrono::Utc;
 use vacua_api::dto::{
-    DeveloperArtifactAnalysisV1, DeveloperArtifactCoverageV1, DeveloperArtifactDetailV1,
-    DeveloperProjectSummaryV1, RebuildEvidenceV1,
+    CandidateGroupSummaryV1, DeveloperArtifactAnalysisV1, DeveloperArtifactCoverageV1,
+    DeveloperArtifactDetailV1, DeveloperProjectSummaryV1, ProtectedSummaryV1, RebuildEvidenceV1,
+    StorageDomainV1, StorageRescueSummaryV1, WholeVolumeAccountingV1,
 };
+use vacua_api::SCHEMA_STORAGE_RESCUE_SUMMARY_V1;
 use vacua_artifacts::{
     ArtifactPersistence, DeveloperArtifact, DeveloperArtifactScanner, DeveloperEcosystem,
     DeveloperProject, RebuildConfidence,
@@ -20,6 +22,7 @@ use vacua_core::candidate::Candidate;
 use vacua_core::cost::{CleanupSimulation, ReclaimCost};
 use vacua_core::evidence_graph::{ApplicationEvidenceGraph, NodeKind, OrphanConfidence};
 use vacua_core::pressure::{query_volume_status, VolumeStorageStatus};
+use vacua_core::rescue::build_storage_rescue_plan;
 use vacua_core::risk::RiskLevel;
 use vacua_executor::{ExecutionJournal, MacOSTrashBackend, PlanExecutor};
 use vacua_index::{IndexDatabase, StorageSnapshot};
@@ -56,6 +59,32 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    #[command(
+        about = "Storage Rescue: whole-volume accounting, safe group attribution, and one-decision cleanup"
+    )]
+    Rescue {
+        #[arg(default_value = ".", help = "Target path to inspect")]
+        path: PathBuf,
+
+        #[arg(
+            long,
+            help = "Compile and execute safe reclaim plan immediately with single approval"
+        )]
+        apply: bool,
+
+        #[arg(
+            long,
+            help = "Simulate execution without modifying the filesystem (when used with --apply)"
+        )]
+        dry_run: bool,
+
+        #[arg(
+            long,
+            help = "Automatically confirm plan execution without prompt (use with caution)"
+        )]
+        yes: bool,
+    },
+
     #[command(about = "Scan a filesystem path and analyze storage allocation")]
     Scan {
         #[arg(default_value = ".", help = "Target path to scan")]
@@ -493,6 +522,12 @@ fn main() {
                 println!("Profile:    {}", info.profile);
             }
         }
+        Commands::Rescue {
+            path,
+            apply,
+            dry_run,
+            yes,
+        } => handle_rescue(&path, apply, dry_run, yes, cli.json),
         Commands::Scan {
             path,
             depth,
@@ -1322,6 +1357,389 @@ fn handle_intelligence_parse(prompt: &str, json_mode: bool) {
                 binary.display(),
                 e
             );
+            std::process::exit(1);
+        }
+    }
+}
+
+fn handle_rescue(path: &Path, apply: bool, dry_run: bool, yes: bool, json_mode: bool) {
+    let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let status = match query_volume_status(&canonical) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Failed to query volume status: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let scanner = FilesystemScanner::new(ScanOptions {
+        cross_mounts: false,
+        max_depth: Some(6),
+        ..Default::default()
+    });
+
+    let report = match scanner.scan(&canonical) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("Error scanning for storage rescue: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let mut engine = RulesEngine::new();
+    let mut evaluator = CandidateEvaluator::new(&mut engine);
+
+    let mut candidates = Vec::new();
+    for entry in report.entries {
+        let alloc = entry.to_allocation();
+        let cand = evaluator.evaluate(
+            &entry.path,
+            alloc,
+            entry.inode,
+            entry.device_id,
+            entry.mtime_sec,
+            entry.is_dir,
+        );
+        candidates.push(cand);
+    }
+
+    let rescue_plan = build_storage_rescue_plan(&canonical, &status, &candidates);
+
+    let safe_groups_dto: Vec<CandidateGroupSummaryV1> = rescue_plan
+        .safe_groups
+        .iter()
+        .map(|g| CandidateGroupSummaryV1 {
+            group_id: g.group_id.clone(),
+            group_type: g.group_type.clone(),
+            title: g.title.clone(),
+            description: g.description.clone(),
+            item_count: g.item_count,
+            project_or_app_count: g.project_or_app_count,
+            logical_bytes: g.logical_bytes,
+            confirmed_physical_reclaim_bytes: g.confirmed_physical_reclaim_bytes,
+            estimated_reclaim_bytes: g.estimated_reclaim_bytes,
+            evidence_level: g.evidence_level.clone(),
+            evidence_reasons: g.evidence_reasons.clone(),
+            candidate_ids: g.candidate_ids.clone(),
+            eligible_for_one_click: g.eligible_for_one_click,
+            active_guard_deferred: g.active_guard_deferred,
+        })
+        .collect();
+
+    let review_groups_dto: Vec<CandidateGroupSummaryV1> = rescue_plan
+        .review_groups
+        .iter()
+        .map(|g| CandidateGroupSummaryV1 {
+            group_id: g.group_id.clone(),
+            group_type: g.group_type.clone(),
+            title: g.title.clone(),
+            description: g.description.clone(),
+            item_count: g.item_count,
+            project_or_app_count: g.project_or_app_count,
+            logical_bytes: g.logical_bytes,
+            confirmed_physical_reclaim_bytes: g.confirmed_physical_reclaim_bytes,
+            estimated_reclaim_bytes: g.estimated_reclaim_bytes,
+            evidence_level: g.evidence_level.clone(),
+            evidence_reasons: g.evidence_reasons.clone(),
+            candidate_ids: g.candidate_ids.clone(),
+            eligible_for_one_click: g.eligible_for_one_click,
+            active_guard_deferred: g.active_guard_deferred,
+        })
+        .collect();
+
+    let domains_dto: Vec<StorageDomainV1> = rescue_plan
+        .volume_accounting
+        .domains
+        .iter()
+        .map(|d| StorageDomainV1 {
+            id: d.id.clone(),
+            label: d.label.clone(),
+            logical_bytes: d.logical_bytes,
+            allocated_bytes: d.allocated_bytes,
+            confidence: d.confidence.clone(),
+            source: d.source.clone(),
+            reclaimable_bytes: d.reclaimable_bytes,
+            review_bytes: d.review_bytes,
+        })
+        .collect();
+
+    let volume_accounting_dto = WholeVolumeAccountingV1 {
+        total_capacity_bytes: rescue_plan.volume_accounting.total_capacity_bytes,
+        volume_used_bytes: rescue_plan.volume_accounting.volume_used_bytes,
+        volume_available_bytes: rescue_plan.volume_accounting.volume_available_bytes,
+        attributed_bytes: rescue_plan.volume_accounting.attributed_bytes,
+        unattributed_system_managed_bytes: rescue_plan
+            .volume_accounting
+            .unattributed_system_managed_bytes,
+        reconciliation_tolerance_bytes: rescue_plan
+            .volume_accounting
+            .reconciliation_tolerance_bytes,
+        pressure_level: rescue_plan.volume_accounting.pressure_level.clone(),
+        is_material_discrepancy: rescue_plan.volume_accounting.is_material_discrepancy,
+        domains: domains_dto,
+    };
+
+    let protected_summary_dto = ProtectedSummaryV1 {
+        protected_locations_count: rescue_plan.protected_summary.protected_locations_count,
+        protected_categories: rescue_plan.protected_summary.protected_categories.clone(),
+        description: rescue_plan.protected_summary.description.clone(),
+    };
+
+    let summary_dto = StorageRescueSummaryV1 {
+        schema_version: SCHEMA_STORAGE_RESCUE_SUMMARY_V1.to_string(),
+        observed_at: Utc::now().to_rfc3339(),
+        volume_accounting: volume_accounting_dto,
+        safe_reclaimable_bytes: rescue_plan.safe_reclaimable_bytes,
+        review_recommended_bytes: rescue_plan.review_recommended_bytes,
+        system_managed_uncertain_bytes: rescue_plan.system_managed_uncertain_bytes,
+        safe_groups: safe_groups_dto,
+        review_groups: review_groups_dto,
+        protected_summary: protected_summary_dto,
+    };
+
+    if json_mode && !apply {
+        println!("{}", serde_json::to_string_pretty(&summary_dto).unwrap());
+        return;
+    }
+
+    if !json_mode {
+        println!(
+            "\n=================================================================================="
+        );
+        println!("VACUA STORAGE RESCUE — Storage Pressure & Whole-Volume Accounting");
+        println!(
+            "=================================================================================="
+        );
+        println!("Volume:              {}", status.mount_point);
+        println!("Capacity:            {}", format_bytes(status.total_bytes));
+        println!(
+            "Used:                {}",
+            format_bytes(status.total_bytes.saturating_sub(status.available_bytes))
+        );
+        println!(
+            "Available:           {}",
+            format_bytes(status.available_bytes)
+        );
+        println!(
+            "Pressure Level:      {}",
+            rescue_plan.volume_accounting.pressure_level.to_uppercase()
+        );
+
+        println!("\nWhole-Volume Reconciliation:");
+        println!(
+            "  Attributed Space:  {}",
+            format_bytes(rescue_plan.volume_accounting.attributed_bytes)
+        );
+        println!(
+            "  System / Unknown:  {}",
+            format_bytes(
+                rescue_plan
+                    .volume_accounting
+                    .unattributed_system_managed_bytes
+            )
+        );
+        if rescue_plan.volume_accounting.is_material_discrepancy {
+            println!("  Notice:            Some storage is not attributable from user-space evidence (APFS snapshots, purgeable, swap).");
+        }
+
+        println!("\nTop Storage Domains:");
+        for d in &rescue_plan.volume_accounting.domains {
+            if d.allocated_bytes > 0 {
+                println!(
+                    "  - {:<20} {:>10}  (safe reclaimable: {})",
+                    d.label,
+                    format_bytes(d.allocated_bytes),
+                    format_bytes(d.reclaimable_bytes)
+                );
+            }
+        }
+
+        println!("\nReclaim Opportunities:");
+        println!(
+            "  SAFE TO RECLAIM:     {} (Eligible for One-Decision cleanup)",
+            format_bytes(rescue_plan.safe_reclaimable_bytes)
+        );
+        println!(
+            "  REVIEW RECOMMENDED:  {}",
+            format_bytes(rescue_plan.review_recommended_bytes)
+        );
+        println!(
+            "  PROTECTED:           {} locations guarded",
+            rescue_plan.protected_summary.protected_locations_count
+        );
+
+        println!("\nCanonical Safe Groups:");
+        if rescue_plan.safe_groups.is_empty() || rescue_plan.safe_reclaimable_bytes == 0 {
+            println!("  (No safe candidates identified meeting automatic safety criteria)");
+        } else {
+            for g in &rescue_plan.safe_groups {
+                println!(
+                    "  [✓] {:<22} {:>3} targets / {:>4} items  {:>10}  {}",
+                    g.title,
+                    g.project_or_app_count,
+                    g.item_count,
+                    format_bytes(g.confirmed_physical_reclaim_bytes),
+                    g.evidence_reasons.first().cloned().unwrap_or_default()
+                );
+            }
+        }
+
+        if !rescue_plan.review_groups.is_empty() {
+            println!("\nReview Groups (Excluded from one-decision safe plan):");
+            for g in &rescue_plan.review_groups {
+                println!(
+                    "  [?] {:<22} {:>3} targets / {:>4} items  {:>10}  {}",
+                    g.title,
+                    g.project_or_app_count,
+                    g.item_count,
+                    format_bytes(g.confirmed_physical_reclaim_bytes),
+                    g.description
+                );
+            }
+        }
+        println!(
+            "=================================================================================="
+        );
+    }
+
+    if !apply {
+        if !json_mode {
+            if rescue_plan.safe_reclaimable_bytes > 0 {
+                println!("\nTo reclaim all safe items in one decision, run:");
+                println!("  vacua rescue --apply\n");
+            } else {
+                println!(
+                    "\nVacua could not identify storage that meets its automatic safety criteria."
+                );
+                println!("Inspect review candidates with: vacua candidates --risk review\n");
+            }
+        }
+        return;
+    }
+
+    // Apply workflow
+    if rescue_plan.safe_groups.is_empty() || rescue_plan.safe_reclaimable_bytes == 0 {
+        if json_mode {
+            eprintln!("No safe items eligible for cleanup.");
+        } else {
+            println!(
+                "\nVacua could not identify storage that meets its automatic safety criteria."
+            );
+            println!("Nothing safe to reclaim automatically. No files were modified.");
+        }
+        return;
+    }
+
+    let safe_group_ids: Vec<String> = rescue_plan
+        .safe_groups
+        .iter()
+        .map(|g| g.group_id.clone())
+        .collect();
+
+    let plan =
+        match CleanupPlan::build_from_groups(&candidates, &safe_group_ids, &canonical, "v0.9.0") {
+            Ok(p) => p,
+            Err(e) => {
+                eprintln!("Failed to compile group cleanup plan: {}", e);
+                std::process::exit(1);
+            }
+        };
+
+    if let Err(e) = plan.verify_integrity() {
+        eprintln!("SECURITY ERROR: Plan integrity verification failed: {}", e);
+        std::process::exit(1);
+    }
+
+    if let Err(e) = plan.preflight_check() {
+        eprintln!("Preflight safety check failed: {}. Execution aborted.", e);
+        std::process::exit(1);
+    }
+
+    if !json_mode {
+        println!("\nOne-Decision Safe Cleanup Plan");
+        println!("==================================================");
+        println!("Plan ID:             {}", plan.plan_id);
+        println!("Target Groups:       {}", rescue_plan.safe_groups.len());
+        println!("Total Safe Items:    {}", plan.items.len());
+        println!(
+            "Reclaimable:         {}",
+            format_bytes(plan.estimated_eventual_reclaim_bytes)
+        );
+        println!("Preservation Guards: {}", plan.preservation_guards.len());
+        println!("Protected Items:     0 (Guaranteed)");
+        println!("Action:              MOVE TO TRASH (Reversible)");
+        println!("==================================================");
+
+        if !dry_run && !yes {
+            print!(
+                "\nReclaim {} now? [y/N]: ",
+                format_bytes(plan.estimated_eventual_reclaim_bytes)
+            );
+            io::stdout().flush().unwrap();
+            let mut input = String::new();
+            if io::stdin().read_line(&mut input).is_err() || !input.trim().eq_ignore_ascii_case("y")
+            {
+                println!("Execution cancelled by user. No files were modified.");
+                return;
+            }
+        }
+    }
+
+    let trash_backend = MacOSTrashBackend::new();
+    let executor = PlanExecutor::new(&trash_backend, dry_run);
+
+    let journal_path = default_journal_path();
+    let mut journal = match ExecutionJournal::open(&journal_path) {
+        Ok(j) => Some(j),
+        Err(e) => {
+            if !dry_run {
+                eprintln!(
+                    "FAIL-SAFE ABORT: Cannot open execution journal ({}): {}",
+                    journal_path.display(),
+                    e
+                );
+                std::process::exit(1);
+            }
+            None
+        }
+    };
+
+    match executor.execute(&plan, journal.as_mut()) {
+        Ok(report) => {
+            if json_mode {
+                println!("{}", serde_json::to_string_pretty(&report).unwrap());
+            } else {
+                println!("\nStorage Rescue Execution Summary");
+                println!("==================================================");
+                println!("Items Moved to Trash: {}", report.successful_items.len());
+                println!("Items Skipped (stale): {}", report.skipped_items.len());
+                println!("Items Failed:          {}", report.failed_items.len());
+                println!(
+                    "Reclaimed (to Trash):  {}",
+                    format_bytes(report.bytes_moved_to_trash)
+                );
+                if report.actual_free_space_before > 0 && report.actual_free_space_after > 0 {
+                    let delta_str = if report.actual_free_delta >= 0 {
+                        format!("+{}", format_bytes(report.actual_free_delta as u64))
+                    } else {
+                        format!("-{}", format_bytes((-report.actual_free_delta) as u64))
+                    };
+                    println!(
+                        "Physical Volume Free:  {} -> {} (Delta: {})",
+                        format_bytes(report.actual_free_space_before),
+                        format_bytes(report.actual_free_space_after),
+                        delta_str
+                    );
+                }
+                println!(
+                    "Audit Journal:         Recorded in {}",
+                    journal_path.display()
+                );
+                println!("==================================================");
+            }
+        }
+        Err(e) => {
+            eprintln!("Execution failed: {}", e);
             std::process::exit(1);
         }
     }
@@ -3574,6 +3992,7 @@ fn handle_artifacts_show(db: &IndexDatabase, artifact_id: &str, json_mode: bool)
                     .to_string(),
                 rebuild_command_template: art.rebuild_evidence.rebuild_command_template.clone(),
                 reasons: art.rebuild_evidence.reasons.clone(),
+                active_guard_deferred: art.rebuild_evidence.active_guard_deferred,
             },
             candidate_id: art.candidate_id.clone(),
             observed_at: Utc::now().to_rfc3339(),

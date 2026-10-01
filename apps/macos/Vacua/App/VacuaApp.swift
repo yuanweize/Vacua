@@ -52,6 +52,14 @@ struct ContentView: View {
                         }
                     }
                 }
+
+                Section("Intelligence & System") {
+                    ForEach(NavigationItem.intelligenceItems) { item in
+                        NavigationLink(value: item) {
+                            Label(item.rawValue, systemImage: item.iconName)
+                        }
+                    }
+                }
             }
             .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 250)
@@ -81,6 +89,8 @@ struct ContentView: View {
                 switch model.selectedNavigation {
                 case .overview:
                     OverviewView(model: model)
+                case .storageRescue:
+                    StorageRescueView(model: model)
                 case .storageMap:
                     StorageMapView(model: model.storageMapModel)
                 case .candidates:
@@ -93,6 +103,10 @@ struct ContentView: View {
                     DeveloperArtifactsView(model: model.developerArtifactsModel)
                 case .snapshots:
                     SnapshotsView(model: model)
+                case .askVacua:
+                    AskVacuaView(model: model)
+                case .diagnostics:
+                    DiagnosticsView(model: model)
                 }
             }
             .frame(minWidth: 620, minHeight: 460)

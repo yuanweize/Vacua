@@ -5,12 +5,14 @@ import SwiftUI
 public enum VacuaSymbols {
     // MARK: - Navigation & Feature Destinations
     public static let overview = "gauge.open.with.lines.needle.33percent"
+    public static let storageRescue = "cross.case.fill"
     public static let storageMap = "rectangle.3.group"
     public static let candidates = "list.bullet.clipboard"
     public static let duplicates = "doc.on.doc"
     public static let applications = "app.badge"
     public static let developerArtifacts = "wrench.and.screwdriver"
     public static let snapshots = "clock.arrow.circlepath"
+    public static let askVacua = "sparkles"
     public static let settings = "gearshape"
     public static let diagnostics = "waveform.path.ecg"
 

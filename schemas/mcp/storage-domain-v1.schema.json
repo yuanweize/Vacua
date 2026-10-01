@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Attributed storage domain representing a distinct segment of disk usage.",
+  "properties": {
+    "allocated_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "confidence": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    },
+    "label": {
+      "type": "string"
+    },
+    "logical_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "reclaimable_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "review_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "source": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "label",
+    "logical_bytes",
+    "allocated_bytes",
+    "confidence",
+    "source",
+    "reclaimable_bytes",
+    "review_bytes"
+  ],
+  "title": "StorageDomainV1",
+  "type": "object"
+}

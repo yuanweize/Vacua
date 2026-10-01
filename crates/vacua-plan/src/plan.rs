@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use vacua_core::candidate::{Candidate, CandidateCategory};
 use vacua_core::error::{ReclaimError, Result};
-use vacua_core::fs::{open_regular_file_safely, query_file_identity};
+use vacua_core::fs::{open_regular_file_safely, query_file_identity, FileKind};
 use vacua_core::risk::RiskLevel;
 
 pub const CURRENT_PLAN_SCHEMA_VERSION: u32 = 2;
@@ -244,6 +244,78 @@ impl CleanupPlan {
         }
 
         Ok(())
+    }
+
+    /// Builds a schema v2 CleanupPlan from user-selected candidate group IDs.
+    pub fn build_from_groups(
+        candidates: &[Candidate],
+        selected_group_ids: &[String],
+        root_path: &Path,
+        ruleset_version: &str,
+    ) -> Result<Self> {
+        let (safe_groups, _, _) = vacua_core::rescue::group_candidates(candidates, root_path);
+        let selected_cand_ids: std::collections::HashSet<String> = safe_groups
+            .into_iter()
+            .filter(|g| selected_group_ids.contains(&g.group_id))
+            .flat_map(|g| g.candidate_ids)
+            .collect();
+
+        let filtered_candidates: Vec<Candidate> = candidates
+            .iter()
+            .filter(|c| selected_cand_ids.contains(&c.id))
+            .cloned()
+            .collect();
+
+        Self::build(&filtered_candidates, RiskLevel::Safe, ruleset_version)
+    }
+
+    /// Verifies preservation guard integrity before plan execution.
+    pub fn verify_preservation_guard(guard: &PreservationGuard) -> Result<()> {
+        let file =
+            open_regular_file_safely(&guard.path).map_err(|e| ReclaimError::ToctouMismatch {
+                path: guard.path.display().to_string(),
+                reason: format!("Cannot safely open preserved file: {}", e),
+            })?;
+        let ident = query_file_identity(&file).map_err(|e| ReclaimError::ToctouMismatch {
+            path: guard.path.display().to_string(),
+            reason: format!("Failed to query identity of preserved file: {}", e),
+        })?;
+        if ident.file_kind != FileKind::Regular {
+            return Err(ReclaimError::ToctouMismatch {
+                path: guard.path.display().to_string(),
+                reason: "Preserved path is not a regular file".to_string(),
+            });
+        }
+        if ident.device_id != guard.expected_device_id || ident.inode != guard.expected_inode {
+            return Err(ReclaimError::ToctouMismatch {
+                path: guard.path.display().to_string(),
+                reason: "Preserved file identity mismatch".to_string(),
+            });
+        }
+        if ident.size != guard.expected_size || ident.mtime_sec != guard.expected_mtime_sec {
+            return Err(ReclaimError::ToctouMismatch {
+                path: guard.path.display().to_string(),
+                reason: "Preserved file metadata modified".to_string(),
+            });
+        }
+        Ok(())
+    }
+
+    /// Performs complete preflight verification of the entire plan and all targets right before execution.
+    pub fn preflight_check(&self) -> Result<()> {
+        self.verify_for_destructive_execution()?;
+        for item in &self.items {
+            Self::verify_toctou(item)?;
+        }
+        for guard in &self.preservation_guards {
+            Self::verify_preservation_guard(guard)?;
+        }
+        Ok(())
+    }
+
+    /// Checks if filesystem state has changed since plan compilation.
+    pub fn is_stale(&self) -> bool {
+        self.preflight_check().is_err()
     }
 
     /// Verify an individual item against filesystem state immediately before execution (TOCTOU defense).
@@ -675,5 +747,65 @@ mod tests {
             }
             other => panic!("Unexpected error: {:?}", other),
         }
+    }
+
+    #[test]
+    fn test_stale_plan_preflight_refusal() {
+        use std::io::Write;
+        #[cfg(unix)]
+        use std::os::unix::fs::MetadataExt;
+
+        let mut f = NamedTempFile::new().unwrap();
+        writeln!(f, "initial content").unwrap();
+        f.flush().unwrap();
+
+        let meta = std::fs::symlink_metadata(f.path()).unwrap();
+        let cand = Candidate {
+            id: "cand-real".to_string(),
+            path: f.path().to_path_buf(),
+            category: CandidateCategory::Cache,
+            allocation: AllocationInfo::new(meta.len(), meta.blocks() * 512, false),
+            risk: RiskLevel::Safe,
+            value: RecommendationValue::High,
+            confidence_score: 1.0,
+            evidence: vec![],
+            reconstructable: true,
+            rebuild_consequence: None,
+            inode: meta.ino(),
+            device_id: meta.dev(),
+            mtime_sec: meta.mtime(),
+            mtime_nsec: meta.mtime_nsec() as i64,
+            ctime_sec: meta.ctime(),
+            ctime_nsec: meta.ctime_nsec() as i64,
+        };
+
+        let plan = CleanupPlan::build(&[cand], RiskLevel::Safe, "rules-v1").unwrap();
+        assert!(
+            !plan.is_stale(),
+            "Freshly compiled plan with matching metadata must not be stale"
+        );
+        assert!(
+            plan.preflight_check().is_ok(),
+            "Fresh plan passes preflight"
+        );
+
+        // Mutate the target file (change size and mtime)
+        writeln!(
+            f,
+            "modified content changed significantly to trigger toctou mismatch"
+        )
+        .unwrap();
+        f.flush().unwrap();
+
+        // Invariant: Plan is now stale!
+        assert!(
+            plan.is_stale(),
+            "Plan must be identified as stale after file mutation"
+        );
+        let preflight = plan.preflight_check();
+        assert!(
+            preflight.is_err(),
+            "Preflight check must refuse mutated stale target"
+        );
     }
 }

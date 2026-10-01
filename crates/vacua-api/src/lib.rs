@@ -15,7 +15,7 @@ mod tests {
     #[test]
     fn test_schema_generation_is_valid() {
         let schemas = generate_all_schemas();
-        assert_eq!(schemas.len(), 32);
+        assert_eq!(schemas.len(), 39);
         for (name, schema) in schemas {
             assert!(schema.is_object(), "schema {} must be a JSON object", name);
             assert!(

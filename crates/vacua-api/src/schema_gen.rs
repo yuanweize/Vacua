@@ -136,6 +136,34 @@ pub fn generate_all_schemas() -> BTreeMap<&'static str, Value> {
         "developer-artifact-page-v1.schema.json",
         serde_json::to_value(schema_for!(DeveloperArtifactPageV1)).unwrap(),
     );
+    map.insert(
+        "storage-pressure-v1.schema.json",
+        serde_json::to_value(schema_for!(StoragePressureV1)).unwrap(),
+    );
+    map.insert(
+        "storage-domain-v1.schema.json",
+        serde_json::to_value(schema_for!(StorageDomainV1)).unwrap(),
+    );
+    map.insert(
+        "whole-volume-accounting-v1.schema.json",
+        serde_json::to_value(schema_for!(WholeVolumeAccountingV1)).unwrap(),
+    );
+    map.insert(
+        "candidate-group-summary-v1.schema.json",
+        serde_json::to_value(schema_for!(CandidateGroupSummaryV1)).unwrap(),
+    );
+    map.insert(
+        "storage-rescue-summary-v1.schema.json",
+        serde_json::to_value(schema_for!(StorageRescueSummaryV1)).unwrap(),
+    );
+    map.insert(
+        "cleanup-plan-summary-v1.schema.json",
+        serde_json::to_value(schema_for!(CleanupPlanSummaryV1)).unwrap(),
+    );
+    map.insert(
+        "cleanup-execution-result-v1.schema.json",
+        serde_json::to_value(schema_for!(CleanupExecutionResultV1)).unwrap(),
+    );
 
     map
 }

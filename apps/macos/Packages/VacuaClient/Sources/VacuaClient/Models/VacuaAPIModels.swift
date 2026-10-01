@@ -25,6 +25,11 @@ public enum VacuaSchemas {
     public static let developerArtifactPageV1 = "vacua.mcp.developer-artifact-page.v1"
     public static let developerArtifactDetailV1 = "vacua.mcp.developer-artifact-detail.v1"
     public static let developerProjectDetailV1 = "vacua.mcp.developer-project-detail.v1"
+    public static let storagePressureV1 = "vacua.mcp.storage-pressure.v1"
+    public static let storageRescueSummaryV1 = "vacua.mcp.storage-rescue-summary.v1"
+    public static let candidateGroupSummaryV1 = "vacua.mcp.candidate-group-summary.v1"
+    public static let cleanupPlanSummaryV1 = "vacua.mcp.cleanup-plan-summary.v1"
+    public static let cleanupExecutionResultV1 = "vacua.mcp.cleanup-execution-result.v1"
 }
 
 // MARK: - Filter Enums
@@ -518,6 +523,7 @@ public struct RebuildEvidenceV1: Codable, Sendable, Equatable {
     public let reconstruction_confidence: String
     public let rebuild_command_template: String?
     public let reasons: [String]
+    public let active_guard_deferred: Bool?
 }
 
 public struct DeveloperArtifactSummaryV1: Codable, Sendable, Identifiable, Equatable {
@@ -619,5 +625,152 @@ public struct DeveloperArtifactPageV1: Codable, Sendable, Equatable {
     public let offset: Int
     public let limit: Int
     public let has_more: Bool
+}
+
+// MARK: - Storage Pressure & Storage Rescue Models
+
+public struct StoragePressureV1: Codable, Sendable, Equatable {
+    public let schema_version: String
+    public let total_space_bytes: UInt64
+    public let available_space_bytes: UInt64
+    public let used_space_bytes: UInt64
+    public let pressure_level: String
+    public let recommended_action: String
+    public let safe_reclaimable_bytes: UInt64
+
+    public var isCriticalOrLow: Bool {
+        let level = pressure_level.lowercased()
+        return level == "critical" || level == "low"
+    }
+
+    public var isElevated: Bool {
+        return pressure_level.lowercased() == "elevated"
+    }
+}
+
+public struct StorageDomainV1: Codable, Sendable, Identifiable, Equatable {
+    public var id: String
+    public let label: String
+    public let logical_bytes: UInt64
+    public let allocated_bytes: UInt64
+    public let confidence: String
+    public let source: String
+    public let reclaimable_bytes: UInt64
+    public let review_bytes: UInt64
+}
+
+public struct WholeVolumeAccountingV1: Codable, Sendable, Equatable {
+    public let total_capacity_bytes: UInt64
+    public let volume_used_bytes: UInt64
+    public let volume_available_bytes: UInt64
+    public let attributed_bytes: UInt64
+    public let unattributed_system_managed_bytes: UInt64
+    public let reconciliation_tolerance_bytes: UInt64
+    public let pressure_level: String
+    public let is_material_discrepancy: Bool
+    public let domains: [StorageDomainV1]
+}
+
+public struct CandidateGroupSummaryV1: Codable, Sendable, Identifiable, Equatable {
+    public var id: String { group_id }
+    public let group_id: String
+    public let group_type: String
+    public let title: String
+    public let description: String
+    public let item_count: Int
+    public let project_or_app_count: Int
+    public let logical_bytes: UInt64
+    public let confirmed_physical_reclaim_bytes: UInt64
+    public let estimated_reclaim_bytes: UInt64
+    public let evidence_level: String
+    public let evidence_reasons: [String]
+    public let candidate_ids: [String]
+    public let eligible_for_one_click: Bool
+    public let active_guard_deferred: Bool
+}
+
+public struct ProtectedSummaryV1: Codable, Sendable, Equatable {
+    public let protected_locations_count: Int
+    public let protected_categories: [String]
+    public let description: String
+}
+
+public struct StorageRescueSummaryV1: Codable, Sendable, Equatable {
+    public let schema_version: String
+    public let observed_at: String
+    public let volume_accounting: WholeVolumeAccountingV1
+    public let safe_reclaimable_bytes: UInt64
+    public let review_recommended_bytes: UInt64
+    public let system_managed_uncertain_bytes: UInt64
+    public let safe_groups: [CandidateGroupSummaryV1]
+    public let review_groups: [CandidateGroupSummaryV1]
+    public let protected_summary: ProtectedSummaryV1
+}
+
+public struct CleanupPlanSummaryV1: Codable, Sendable, Identifiable, Equatable {
+    public var id: String { plan_id }
+    public let plan_id: String
+    public let generation_id: String
+    public let group_count: Int
+    public let item_count: Int
+    public let logical_bytes: UInt64
+    public let confirmed_reclaimable: UInt64
+    public let estimated_reclaimable: UInt64
+    public let review_bytes: UInt64
+    public let protected_count: Int
+    public let preflight_status: String
+}
+
+public struct CleanupExecutionResultV1: Codable, Sendable, Identifiable, Equatable {
+    public var id: String { transaction_id }
+    public let schema_version: String
+    public let transaction_id: String
+    public let plan_id: String
+    public let plan_hash: String
+    public let executed_at: String
+    public let planned_items: Int
+    public let moved_to_trash_items: Int
+    public let skipped_stale_items: Int
+    public let failed_items: Int
+    public let actual_bytes_moved_to_trash: UInt64
+    public let actual_free_space_before: UInt64
+    public let actual_free_space_after: UInt64
+    public let actual_free_delta: Int64
+    public let journal_entry_id: String
+    public let status: String
+
+    public init(
+        schema_version: String,
+        transaction_id: String,
+        plan_id: String,
+        plan_hash: String,
+        executed_at: String,
+        planned_items: Int,
+        moved_to_trash_items: Int,
+        skipped_stale_items: Int,
+        failed_items: Int,
+        actual_bytes_moved_to_trash: UInt64,
+        actual_free_space_before: UInt64,
+        actual_free_space_after: UInt64,
+        actual_free_delta: Int64,
+        journal_entry_id: String,
+        status: String
+    ) {
+        self.schema_version = schema_version
+        self.transaction_id = transaction_id
+        self.plan_id = plan_id
+        self.plan_hash = plan_hash
+        self.executed_at = executed_at
+        self.planned_items = planned_items
+        self.moved_to_trash_items = moved_to_trash_items
+        self.skipped_stale_items = skipped_stale_items
+        self.failed_items = failed_items
+        self.actual_bytes_moved_to_trash = actual_bytes_moved_to_trash
+        self.actual_free_space_before = actual_free_space_before
+        self.actual_free_space_after = actual_free_space_after
+        self.actual_free_delta = actual_free_delta
+        self.journal_entry_id = journal_entry_id
+        self.status = status
+    }
 }
 

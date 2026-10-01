@@ -20,7 +20,7 @@ public final class MCPVacuaEngineClient: VacuaEngineClient, @unchecked Sendable 
             ],
             "clientInfo": [
                 "name": "vacua-app",
-                "version": "0.8.0"
+                "version": "0.9.0"
             ]
         ]
 
@@ -319,6 +319,41 @@ public final class MCPVacuaEngineClient: VacuaEngineClient, @unchecked Sendable 
             name: "vacua_get_developer_artifact",
             arguments: ["artifact_id": artifactId],
             expectedSchema: VacuaSchemas.developerArtifactDetailV1
+        )
+    }
+
+    // MARK: - Storage Rescue & One-Decision Cleanup
+
+    public func storagePressure(rootId: String? = nil) async throws -> StoragePressureV1 {
+        var args: [String: Any] = [:]
+        if let rootId = rootId { args["root_id"] = rootId }
+        return try await callTool(
+            name: "vacua_storage_pressure",
+            arguments: args,
+            expectedSchema: VacuaSchemas.storagePressureV1
+        )
+    }
+
+    public func storageRescue(rootId: String? = nil) async throws -> StorageRescueSummaryV1 {
+        var args: [String: Any] = [:]
+        if let rootId = rootId { args["root_id"] = rootId }
+        return try await callTool(
+            name: "vacua_storage_rescue",
+            arguments: args,
+            expectedSchema: VacuaSchemas.storageRescueSummaryV1,
+            timeoutSeconds: 60.0
+        )
+    }
+
+    public func proposeGroupPlan(groupIds: [String], rootId: String? = nil) async throws -> CleanupPlanProposalV1 {
+        var args: [String: Any] = [
+            "group_ids": groupIds
+        ]
+        if let rootId = rootId { args["root_id"] = rootId }
+        return try await callTool(
+            name: "vacua_propose_group_plan",
+            arguments: args,
+            expectedSchema: VacuaSchemas.planProposalV1
         )
     }
 

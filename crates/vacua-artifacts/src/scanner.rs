@@ -1,5 +1,5 @@
 use crate::ecosystem::DeveloperEcosystem;
-use crate::evidence::{ActiveProjectState, RebuildConfidence, RebuildEvidence};
+use crate::evidence::{ActiveProcessGuard, ActiveProjectState, RebuildConfidence, RebuildEvidence};
 use crate::id::{DeveloperArtifactId, DeveloperProjectId};
 use crate::kind::DeveloperArtifactKind;
 use crate::model::{
@@ -39,6 +39,7 @@ struct CandidateArtifactPath {
 pub struct DeveloperArtifactScanner {
     root_path: PathBuf,
     root_id: String,
+    active_guard: ActiveProcessGuard,
 }
 
 impl DeveloperArtifactScanner {
@@ -46,6 +47,7 @@ impl DeveloperArtifactScanner {
         Self {
             root_path: root_path.into(),
             root_id: root_id.into(),
+            active_guard: ActiveProcessGuard::new(),
         }
     }
 
@@ -725,6 +727,18 @@ impl DeveloperArtifactScanner {
             evidence.reconstruction_confidence = RebuildConfidence::Partial;
             reasons.push(
                 "Artifact follows standard naming conventions with partial project evidence."
+                    .to_string(),
+            );
+        }
+
+        let cand_mtime = self.get_mtime(&cand.path);
+        if self
+            .active_guard
+            .is_active_target(&proj.root_path, &cand.path, cand_mtime)
+        {
+            evidence.active_guard_deferred = true;
+            reasons.push(
+                "Active build process or recent file modification detected; artifact deferred from automatic cleanup."
                     .to_string(),
             );
         }

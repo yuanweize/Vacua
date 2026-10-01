@@ -58,16 +58,29 @@ echo ">>> [6/11] Verifying Swift intelligence compilation and capability proof..
 
 # 7. VacuaClient Package Tests
 echo ">>> [7/11] Running VacuaClient package tests..."
-swift test --package-path apps/macos/Packages/VacuaClient
+SWIFT_TEST_FLAGS=()
+if xcode-select -p 2>/dev/null | grep -q "CommandLineTools"; then
+  SWIFT_TEST_FLAGS=(
+    "-Xswiftc" "-F" "-Xswiftc" "/Library/Developer/CommandLineTools/Library/Developer/Frameworks"
+    "-Xlinker" "-rpath" "-Xlinker" "/Library/Developer/CommandLineTools/Library/Developer/Frameworks"
+    "-Xlinker" "-rpath" "-Xlinker" "/Library/Developer/CommandLineTools/Library/Developer/usr/lib"
+  )
+fi
+swift test --package-path apps/macos/Packages/VacuaClient "${SWIFT_TEST_FLAGS[@]}"
 
 # 8. Xcode Project Generation & App Release Build
 echo ">>> [8/11] Building native Vacua.app in Release configuration..."
 python3 scripts/generate_xcodeproj.py
-xcodebuild -project apps/macos/Vacua.xcodeproj \
-  -scheme Vacua \
-  -configuration Release \
-  ARCHS="arm64" ONLY_ACTIVE_ARCH=NO \
-  build CODE_SIGNING_ALLOWED=NO
+if command -v xcodebuild >/dev/null 2>&1 && xcodebuild -version >/dev/null 2>&1; then
+  xcodebuild -project apps/macos/Vacua.xcodeproj \
+    -scheme Vacua \
+    -configuration Release \
+    ARCHS="arm64" ONLY_ACTIVE_ARCH=NO \
+    build CODE_SIGNING_ALLOWED=NO
+else
+  echo "xcodebuild not available or using CLT; building native Vacua.app via build-macos-app.sh..."
+  ./scripts/build-macos-app.sh
+fi
 
 # 9. Build and Package Release Artifacts
 echo ">>> [9/11] Packaging Release artifacts (tarball & App zip)..."

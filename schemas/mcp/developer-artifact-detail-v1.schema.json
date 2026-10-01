@@ -3,6 +3,10 @@
     "RebuildEvidenceV1": {
       "description": "Comprehensive, evidence-based causal rebuild model for developer artifacts.",
       "properties": {
+        "active_guard_deferred": {
+          "default": false,
+          "type": "boolean"
+        },
         "active_project_state": {
           "type": "string"
         },

@@ -1,11 +1,6 @@
 import Foundation
 
-#if canImport(FoundationModels)
-import FoundationModels
-
-@available(macOS 26.0, *)
-@Generable
-public struct GeneratedCleanupIntent: Sendable {
+public struct GeneratedCleanupIntent: Codable, Sendable {
     public var targetReclaimBytes: Int?
     public var maxRisk: String
     public var preferredCategories: [String]
@@ -33,9 +28,7 @@ public struct GeneratedCleanupIntent: Sendable {
     }
 }
 
-@available(macOS 26.0, *)
-@Generable
-public struct GeneratedStorageExplanation: Sendable {
+public struct GeneratedStorageExplanation: Codable, Sendable {
     public var summary: String
     public var causes: [String]
     public var referencedCandidateIDs: [String]
@@ -56,7 +49,6 @@ public struct GeneratedStorageExplanation: Sendable {
         self.caution = caution
     }
 }
-#endif
 
 public struct StructuredIntent: Codable, Equatable, Sendable {
     public let intent_version: Int

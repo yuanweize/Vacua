@@ -34,8 +34,10 @@ public struct OverviewView: View {
 
                     SafetyGuaranteeBanner()
                 }
-                
+
                 if let summary = model.storageSummary {
+                    storagePressureBanner(summary: summary)
+
                     // Storage Breakdown Card
                     storageHeroCard(summary: summary)
                     
@@ -256,5 +258,41 @@ public struct OverviewView: View {
             .clipShape(RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func storagePressureBanner(summary: StorageSummaryV1) -> some View {
+        let isPressure = summary.pressure_level.lowercased() != "healthy" && summary.pressure_level.lowercased() != "normal"
+        if isPressure || summary.available_space_bytes < (15 * 1024 * 1024 * 1024) {
+            HStack(alignment: .center, spacing: 14) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.title2)
+                    .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Storage pressure detected")
+                        .font(.headline)
+                    Text("Your Mac has only \(summary.available_space_bytes.formatted(.byteCount(style: .file))) available. Vacua can analyze your storage and prepare a safe reclaim plan.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button {
+                    model.selectedNavigation = .storageRescue
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: VacuaSymbols.storageRescue)
+                        Text("Find Safe Space")
+                            .fontWeight(.semibold)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+            }
+            .padding(16)
+            .background(Color.orange.opacity(0.1))
+            .clipShape(RoundedRectangle(cornerRadius: VacuaMetrics.cornerRadiusMedium))
+        }
     }
 }
